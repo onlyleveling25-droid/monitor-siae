@@ -1,0 +1,11 @@
+* text=auto eol=lf
+
+# Los scripts de Windows necesitan CRLF para ejecutarse sin sorpresas.
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+*.png binary
+*.ico binary
+*.jar binary
+*.zip binary

@@ -1,0 +1,23 @@
+# Compilacion
+target/
+
+# Instaladores generados por jpackage
+dist/
+
+# IDEs
+.idea/
+*.iml
+.vscode/
+.classpath
+.project
+.settings/
+
+# Datos locales: nunca se versionan (configuracion real, perfiles de navegador, capturas, logs)
+datos-locales/
+*.log
+capturas/
+
+# Sistema operativo
+Thumbs.db
+Desktop.ini
+.DS_Store

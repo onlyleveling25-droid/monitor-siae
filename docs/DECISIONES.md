@@ -124,11 +124,15 @@ está en silencio.
 
 ## D11. Horario de operación
 
-**Decisión:** el monitoreo solo consulta de lunes a viernes, de 08:00 a 16:00, hora de Colombia
-(`America/Bogota`). Configurable.
+**Decisión (actualizada 2026-10-15):** la restricción horaria existe en la configuración
+(días, hora inicial, hora final, zona `America/Bogota`) pero viene **desactivada por defecto**.
 
 **Motivo:** la plataforma muestra el aviso "solo se pueden generar trámites de 8 am a 4 pm (zona
-horaria colombia) entre semana". Fuera de esa ventana no tiene sentido consultar.
+horaria colombia) entre semana", pero capturas del script de terceros muestran inventario detectado
+a las 19:02 y a las 20:13. Hasta comprobar si el límite se aplica, perder un inventario nocturno
+cuesta más que consultar de más. Si se confirma el límite, se activa por defecto.
+
+*Versión anterior: el monitoreo solo consultaba de lunes a viernes de 08:00 a 16:00.*
 
 ## D12. Desplegables dependientes y textos configurables
 
@@ -142,15 +146,32 @@ texto exista antes de que abra el inventario.
 
 **Validación:** la descripción debe tener entre 150 y 500 caracteres, como exige la plataforma.
 
-## D13. Dos modos de reacción ante inventario
+## D13. Modos de reacción y reglas de selección de arma
 
-- **ALERTA:** lee el listado y alerta si hay armas del tipo buscado (por defecto, pistolas). No
-  selecciona nada.
-- **SELECCIONAR:** además elige la primera arma que cumpla, según el orden de prioridad de marcas.
+**Decisión (actualizada 2026-10-15):** dos modos por cliente:
 
-**Estado:** ALERTA es el alcance confirmado. SELECCIONAR está pendiente de confirmar con el cliente,
-porque el audio y la llamada no coinciden. Las marcas necesitan sinónimos (por ejemplo `S&W` y
-`Smith & Wesson`).
+- **APARTAR** (principal): elige el arma según las reglas, pulsa la modalidad (Porte o Tenencia) y
+  Confirmar, detiene el monitor de ese cliente y alerta para que la persona termine el trámite.
+- **ALERTA:** aplica las mismas reglas pero no selecciona nada; solo alerta.
+
+**Reglas de selección, por cliente:**
+
+- `objetivos`: lista en orden de prioridad. Cada objetivo es un conjunto de palabras clave que deben
+  aparecer todas en el nombre del arma, sin distinguir tildes ni mayúsculas. Gana el primero que
+  aparezca.
+- `siNoHayObjetivo`: qué hacer si ningún objetivo está en el inventario.
+  - `SEGUIR_ESPERANDO`: descarta el inventario y sigue buscando solo los objetivos.
+  - `USAR_ALTERNATIVAS`: toma la primera coincidencia de la lista `alternativas`.
+  - `CUALQUIERA_DEL_TIPO`: toma cualquier arma cuyo tipo sea `tipoComodin` (por ejemplo, Pistola).
+- `excluir`: palabras que descartan un arma aunque coincida.
+- `reintentos`: intentos de apartar antes de rendirse.
+
+**Motivo:** capturas del script de terceros muestran la secuencia "Arma seleccionada → Botón Porte →
+Botón Confirmar → Asignación exitosa" y que su filtro era por arma específica: con varias pistolas
+en inventario reportaba "No hay armas permitidas". Se usan palabras clave y no el nombre completo
+porque los nombres traen ruido y errores de digitación.
+
+*Versión anterior: ALERTA era el alcance confirmado y SELECCIONAR estaba pendiente.*
 
 ## D14. Tres resultados posibles en cada consulta
 
@@ -184,7 +205,8 @@ Windows, porque `jpackage` solo produce instaladores para el sistema donde se ej
 
 ## Pendientes por confirmar
 
-- Si el cliente quiere el modo SELECCIONAR o solo ALERTA (D13).
+- Si el límite de 8 a 16 se aplica de verdad (D11).
+- Qué hace exactamente el botón Porte y si existe un equivalente para Tenencia (D13).
 - Si GUARDAR repetido crea duplicados en "trámites pendientes" (afecta el ciclo de D14).
 - Si el formulario conserva los datos tras el mensaje de sin inventario.
 - Si dos pestañas con la misma sesión funcionan (Medellín y Bogotá en paralelo).

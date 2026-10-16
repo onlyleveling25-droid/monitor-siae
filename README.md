@@ -6,17 +6,20 @@ plataforma SIAE 2.0 del DCCAE.
 El tramitador inicia sesión con cada cliente. A partir de ahí, el programa llena el paso 1 del
 trámite (cómo obtener el permiso, tipo de trámite, seccional y descripción), pulsa GUARDAR de forma
 periódica mientras no haya inventario y, cuando el listado del paso 2 trae las armas buscadas,
-lanza una alarma imposible de ignorar para que la persona termine el proceso.
+aparta el arma según las reglas del cliente y lanza una alarma imposible de ignorar para que la
+persona termine el proceso.
 
-> Estado: **fase 1 de 8** (estructura base). Todavía no hay funcionalidad ejecutable.
+> Estado: **fase 2 de 8** (modelo y configuración). Todavía no hay funcionalidad ejecutable.
 
 ## Qué hace y qué no hace
 
 **Hace**
 - Llena el paso 1 con los parámetros configurados por cliente, respetando que cada lista depende de
   la anterior.
-- Repite la consulta solo de lunes a viernes, de 8:00 a 16:00 (hora de Colombia).
-- Lee el listado de armas y busca el tipo configurado (por defecto, pistolas).
+- Puede limitarse a un horario (por ejemplo, lunes a viernes de 8:00 a 16:00, hora de Colombia).
+- Lee el listado de armas y elige según las reglas del cliente: armas objetivo en orden de
+  prioridad y, si no hay ninguna, seguir esperando, usar alternativas o tomar cualquiera de un tipo.
+- Aparta el arma (modalidad y Confirmar) o, en modo alerta, solo avisa.
 - Alerta con voz, sonido en bucle, ventana al frente y parpadeo en la barra de tareas.
 - Detecta sesión vencida o respuestas inesperadas y avisa en lugar de repetir a ciegas.
 
@@ -69,9 +72,34 @@ Se guarda en `%APPDATA%\MonitorSIAE\config.json` y se edita desde la aplicación
 - Cómo obtener el permiso, tipo de trámite y seccionales, escritos **exactamente como aparecen en
   la plataforma**. Si la plataforma cambia un nombre, basta con corregirlo en la configuración.
 - Descripción de la solicitud (entre 150 y 500 caracteres).
-- Tipo de arma y marcas de interés.
+- Modo: **APARTAR** (selecciona y confirma el arma) o **ALERTA** (solo avisa).
+- Reglas de selección:
 
-El botón **Verificar configuración** comprueba, con la sesión abierta, que cada texto exista en las
+```json
+"seleccion": {
+  "modalidad": "PORTE",
+  "objetivos": [
+    { "palabrasClave": ["glock", "g-43"] },
+    { "palabrasClave": ["glock", "g-26"] }
+  ],
+  "siNoHayObjetivo": "USAR_ALTERNATIVAS",
+  "alternativas": [ { "palabrasClave": ["cordova", "compacta"] } ],
+  "tipoComodin": "Pistola",
+  "excluir": ["22 lr"],
+  "reintentos": 2
+}
+```
+
+  - `objetivos`: en orden de prioridad. Todas las palabras clave deben aparecer en el nombre del
+    arma; no importan tildes ni mayúsculas.
+  - `siNoHayObjetivo`: `SEGUIR_ESPERANDO`, `USAR_ALTERNATIVAS` o `CUALQUIERA_DEL_TIPO`.
+  - `excluir`: palabras que descartan un arma aunque coincida.
+
+Además, a nivel general: navegador (Chrome o Edge), segundos entre consultas y horario de operación
+(desactivado por defecto).
+
+Antes de monitorear, la aplicación valida la configuración y explica cada error. El botón
+**Verificar configuración** comprueba, con la sesión abierta, que cada texto exista en las
 listas reales.
 
 ### Contraseña de la aplicación
@@ -91,8 +119,8 @@ de `acceso` y volver a abrir la aplicación, que pedirá crear una nueva.
 
 ## Plan de desarrollo
 
-1. Estructura base, documentación y wrapper. **(actual)**
-2. Modelo y configuración JSON.
+1. Estructura base, documentación y wrapper.
+2. Modelo y configuración JSON. **(actual)**
 3. Contraseña de la aplicación.
 4. Núcleo: `PortalDriver`, simulador, monitor y filtro de armas.
 5. Notificaciones.

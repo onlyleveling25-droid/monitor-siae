@@ -36,6 +36,35 @@ persona termine el proceso.
 - Google Chrome o Microsoft Edge instalado.
 - No hace falta instalar Maven: el proyecto trae su propio wrapper.
 
+### Voz en español
+
+La alarma habla con las voces de Windows. Sin una voz en español, igual suenan la sirena y la
+ventana, pero la voz hablará con acento inglés.
+
+Comprobar qué voces hay (PowerShell normal):
+
+```powershell
+$null = [Windows.Media.SpeechSynthesis.SpeechSynthesizer,Windows.Media.SpeechSynthesis,ContentType=WindowsRuntime]; [Windows.Media.SpeechSynthesis.SpeechSynthesizer]::AllVoices | Select-Object DisplayName, Language
+```
+
+Si no aparece ninguna `es-...`, instalarla:
+
+1. Opción gráfica: Configuración > Hora e idioma > Voz > Agregar voces > Español.
+2. Si Configuración se cierra o muestra 0 MB, por comando en **PowerShell como administrador**:
+
+   ```powershell
+   Add-WindowsCapability -Online -Name "Language.TextToSpeech~~~es-MX~0.0.1.0"
+   ```
+
+   (`es-ES` para España). No requiere reiniciar; cerrar y abrir las aplicaciones que usen voz.
+
+Probar la voz exactamente como la usa el programa, desde la carpeta del proyecto:
+
+```powershell
+$env:MONITOR_SIAE_VOZ = "Atención. Arma apartada para Ana. Termine el trámite."
+powershell -NoProfile -ExecutionPolicy Bypass -File src\main\resources\co\monitorsiae\notificacion\hablar.ps1
+```
+
 ## Compilar y probar
 
 Desde PowerShell, en la carpeta del proyecto:

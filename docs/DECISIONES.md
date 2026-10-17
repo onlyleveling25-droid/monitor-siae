@@ -125,8 +125,12 @@ está en silencio.
 
 **Descartado:** Telegram. El usuario trabaja frente al PC; una notificación en el celular no ayuda.
 
-**Voz:** sintetizador de Windows (System.Speech) invocado por PowerShell, sin librerías extra.
-Prefiere una voz en español si está instalada. El texto viaja en una variable de entorno y no dentro
+**Voz (actualizada 2026-10-17):** guion `hablar.ps1` (recurso del programa) que usa las voces
+modernas de Windows (`Windows.Media.SpeechSynthesis`), las que se instalan desde Configuración > Voz.
+Prefiere español y, si esas voces no están disponibles, recurre al sintetizador clásico
+(System.Speech). El sintetizador clásico no ve las voces modernas: en el equipo de desarrollo solo
+encontraba Zira (inglés) aunque había voces en español instaladas. El guion tiene un modo
+`-SoloVerificar` para que la interfaz avise si el equipo no tiene voz en español. El texto viaja en una variable de entorno y no dentro
 del comando, porque incluye nombres escritos por el usuario.
 
 **Implementación (2026-10-17):**

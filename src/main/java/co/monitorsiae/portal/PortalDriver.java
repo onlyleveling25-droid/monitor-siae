@@ -16,7 +16,7 @@ import java.util.List;
  * <p>Cualquier metodo puede lanzar {@link SesionVencidaException} o
  * {@link PortalInesperadoException}.
  */
-public interface PortalDriver {
+public interface PortalDriver extends AutoCloseable {
 
     /**
      * Recarga el paso 1, elige como obtener el permiso y el tipo de tramite, y devuelve las
@@ -43,4 +43,8 @@ public interface PortalDriver {
      * @return verdadero si la plataforma confirmo la asignacion
      */
     boolean apartar(ArmaInventario arma, Modalidad modalidad);
+
+    @Override
+    default void close() {
+    }
 }

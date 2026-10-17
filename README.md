@@ -85,11 +85,19 @@ Desde PowerShell, en la carpeta del proyecto:
 .\mvnw.cmd javafx:run
 ```
 
-La pantalla principal permite administrar perfiles, revisar el estado, iniciar/detener el monitor
-simulado, reconocer alertas y probar la alarma. La configuración se protege con una contraseña
-local de la aplicación; no se solicitan ni se guardan las credenciales de SIAE. El botón de inicio
-de sesión permanece deshabilitado hasta implementar `PlaywrightPortalDriver` en la fase 7. Por
-ahora, iniciar el monitor recorre el portal simulado y no realiza acciones en el sitio real.
+La pantalla principal permite administrar perfiles, revisar el estado, reconocer alertas y probar
+la alarma. En **Configuración → General** se puede escoger el entorno global **Simulador** o
+**Portal real**. El simulador ejecuta las pruebas sin conectarse a SIAE. En modo real, **Abrir
+sesión** inicia Chrome o Edge con un perfil local aislado por cliente y abre el trámite; la persona
+debe iniciar sesión y resolver el captcha. Las credenciales del portal no se solicitan ni se guardan
+en Monitor SIAE.
+
+La integración real está en etapa de validación: por seguridad, **Iniciar / reanudar** se deshabilita
+en modo real hasta confirmar los selectores y el comportamiento del portal. Por tanto, en esta etapa
+no se monitorea ni se aparta automáticamente en el sitio real, incluso si el cliente tiene modo
+**APARTAR**. Al cambiar el entorno global, detén primero los monitores en ejecución.
+Los perfiles persistentes y sus cookies viven en `%APPDATA%\MonitorSIAE\perfiles`; son datos
+sensibles locales y no deben compartirse.
 
 El simulador incluye dos pistolas de prueba (Cordova y CZ P10). Para ver una alerta sin apartar un
 arma, crea un cliente en modo **ALERTA**, agrega como objetivo `glock, g-43`, una alternativa
@@ -194,7 +202,8 @@ de `acceso` y volver a abrir la aplicación, que pedirá crear una nueva.
 4. Núcleo: filtro de armas, `PortalDriver`, simulador y monitor.
 5. Alarmas: voz y sirena. **(actual)**
 6. Interfaz JavaFX. **(actual: conectada al simulador)**
-7. Integración con el portal real.
+7. Integración con el portal real. **(en progreso: apertura de perfil Playwright; automatización
+   pendiente de validación de selectores y respuestas)**
 8. Instalador con `jpackage`.
 
 ## Límites conocidos y responsabilidad

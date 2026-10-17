@@ -3,6 +3,7 @@ package co.monitorsiae.persistencia;
 import co.monitorsiae.dominio.AccesoAplicacion;
 import co.monitorsiae.dominio.ClientesDePrueba;
 import co.monitorsiae.dominio.Configuracion;
+import co.monitorsiae.dominio.EntornoPortal;
 import co.monitorsiae.dominio.HorarioOperacion;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -45,6 +46,15 @@ class RepositorioConfiguracionJsonTest {
         repositorio.guardar(original);
 
         assertEquals(original, repositorio.cargar());
+    }
+
+    @Test
+    void conservaElEntornoGlobalDelPortal() {
+        Configuracion real = completa().conEntornoPortal(EntornoPortal.PORTAL_REAL);
+
+        repositorio.guardar(real);
+
+        assertEquals(EntornoPortal.PORTAL_REAL, repositorio.cargar().entornoPortal());
     }
 
     @Test
@@ -106,6 +116,7 @@ class RepositorioConfiguracionJsonTest {
         Configuracion configuracion = repositorio.cargar();
 
         assertEquals(Configuracion.INTERVALO_POR_DEFECTO_SEGUNDOS, configuracion.intervaloConsultaSegundos());
+        assertEquals(EntornoPortal.SIMULADOR, configuracion.entornoPortal());
         assertEquals("Ana", configuracion.clientes().get(0).nombre());
         assertFalse(configuracion.clientes().get(0).id().isBlank());
     }

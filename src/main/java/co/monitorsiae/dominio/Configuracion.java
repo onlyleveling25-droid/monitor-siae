@@ -9,6 +9,7 @@ import java.util.Objects;
  * @param version                  version del formato, para migrar archivos antiguos
  * @param acceso                   contrasena de la aplicacion
  * @param navegador                navegador instalado que se controla
+ * @param entornoPortal            simulador o portal real
  * @param intervaloConsultaSegundos pausa entre consultas de un mismo cliente
  * @param horario                  ventana de operacion
  * @param clientes                 clientes configurados
@@ -17,6 +18,7 @@ public record Configuracion(
         int version,
         AccesoAplicacion acceso,
         NavegadorPreferido navegador,
+        EntornoPortal entornoPortal,
         int intervaloConsultaSegundos,
         HorarioOperacion horario,
         List<Cliente> clientes) {
@@ -29,6 +31,7 @@ public record Configuracion(
         version = version <= 0 ? VERSION_ACTUAL : version;
         acceso = Objects.requireNonNullElseGet(acceso, AccesoAplicacion::porDefecto);
         navegador = Objects.requireNonNullElse(navegador, NavegadorPreferido.CHROME);
+        entornoPortal = Objects.requireNonNullElse(entornoPortal, EntornoPortal.SIMULADOR);
         intervaloConsultaSegundos = intervaloConsultaSegundos <= 0
                 ? INTERVALO_POR_DEFECTO_SEGUNDOS
                 : intervaloConsultaSegundos;
@@ -36,16 +39,28 @@ public record Configuracion(
         clientes = Listas.inmutable(clientes);
     }
 
+    public Configuracion(int version, AccesoAplicacion acceso, NavegadorPreferido navegador,
+                         int intervaloConsultaSegundos, HorarioOperacion horario, List<Cliente> clientes) {
+        this(version, acceso, navegador, EntornoPortal.SIMULADOR, intervaloConsultaSegundos, horario, clientes);
+    }
+
     public static Configuracion porDefecto() {
         return new Configuracion(VERSION_ACTUAL, AccesoAplicacion.porDefecto(), NavegadorPreferido.CHROME,
-                INTERVALO_POR_DEFECTO_SEGUNDOS, HorarioOperacion.porDefecto(), List.of());
+                EntornoPortal.SIMULADOR, INTERVALO_POR_DEFECTO_SEGUNDOS, HorarioOperacion.porDefecto(), List.of());
     }
 
     public Configuracion conAcceso(AccesoAplicacion nuevoAcceso) {
-        return new Configuracion(version, nuevoAcceso, navegador, intervaloConsultaSegundos, horario, clientes);
+        return new Configuracion(version, nuevoAcceso, navegador, entornoPortal,
+                intervaloConsultaSegundos, horario, clientes);
     }
 
     public Configuracion conClientes(List<Cliente> nuevosClientes) {
-        return new Configuracion(version, acceso, navegador, intervaloConsultaSegundos, horario, nuevosClientes);
+        return new Configuracion(version, acceso, navegador, entornoPortal,
+                intervaloConsultaSegundos, horario, nuevosClientes);
+    }
+
+    public Configuracion conEntornoPortal(EntornoPortal nuevoEntorno) {
+        return new Configuracion(version, acceso, navegador, nuevoEntorno,
+                intervaloConsultaSegundos, horario, clientes);
     }
 }

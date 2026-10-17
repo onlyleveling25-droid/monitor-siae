@@ -2,6 +2,7 @@ package co.monitorsiae.app;
 
 import co.monitorsiae.dominio.Cliente;
 import co.monitorsiae.dominio.Configuracion;
+import co.monitorsiae.dominio.EntornoPortal;
 import co.monitorsiae.monitoreo.CicloMonitoreo;
 import co.monitorsiae.monitoreo.MonitorCliente;
 import co.monitorsiae.monitoreo.OyenteMonitoreo;
@@ -34,12 +35,13 @@ import java.util.function.Function;
 
 /**
  * Mantiene un hilo propietario por cliente y ejecuta en el todos los accesos a su PortalDriver.
- * La fase 6 usa explicitamente el simulador; la fabrica real se conectara en la fase 7.
  */
 public final class CoordinadorMonitores implements AutoCloseable {
 
     public enum Estado {
         LISTO,
+        ABRIENDO_SESION,
+        SESION_ABIERTA,
         INICIANDO,
         MONITOREANDO,
         FUERA_DE_HORARIO,
@@ -101,6 +103,10 @@ public final class CoordinadorMonitores implements AutoCloseable {
         if (cerrado) {
             throw new IllegalStateException("La aplicación se está cerrando.");
         }
+        if (configuracion.entornoPortal() == EntornoPortal.PORTAL_REAL) {
+            throw new IllegalStateException("El monitoreo real está deshabilitado hasta validar los selectores "
+                    + "y el comportamiento del portal. La sesión del navegador sí puede abrirse.");
+        }
         SesionCliente sesion = sesiones.computeIfAbsent(cliente.id(), id -> new SesionCliente(id));
         synchronized (sesion) {
             if (sesion.estado == Estado.MONITOREANDO || sesion.estado == Estado.INICIANDO
@@ -111,6 +117,39 @@ public final class CoordinadorMonitores implements AutoCloseable {
             sesion.ultimoResultado = "Iniciando y preparando una nueva consulta.";
             notificar(sesion.id, Estado.INICIANDO);
             sesion.trabajador.submit(() -> ejecutar(cliente, sesion));
+        }
+    }
+
+    public void abrirSesion(Cliente cliente) {
+        if (cerrado) {
+            throw new IllegalStateException("La aplicación se está cerrando.");
+        }
+        if (configuracion.entornoPortal() != EntornoPortal.PORTAL_REAL) {
+            throw new IllegalStateException("Selecciona Portal real en Configuración para abrir la sesión.");
+        }
+        SesionCliente sesion = sesiones.computeIfAbsent(cliente.id(), id -> new SesionCliente(cliente.id()));
+        synchronized (sesion) {
+            if (sesion.estado == Estado.ABRIENDO_SESION || sesion.estado == Estado.INICIANDO
+                    || sesion.estado == Estado.MONITOREANDO || sesion.estado == Estado.DETENIENDO) {
+                return;
+            }
+            sesion.estado = Estado.ABRIENDO_SESION;
+            sesion.ultimoResultado = "Abriendo el navegador del cliente.";
+            notificar(sesion.id, Estado.ABRIENDO_SESION);
+            sesion.trabajador.submit(() -> {
+                try {
+                    obtenerPortal(cliente, sesion);
+                    sesion.estado = Estado.SESION_ABIERTA;
+                    sesion.ultimoResultado = "Navegador abierto. Inicia sesión y resuelve el captcha manualmente.";
+                    notificar(sesion.id, Estado.SESION_ABIERTA);
+                } catch (RuntimeException e) {
+                    org.slf4j.LoggerFactory.getLogger(CoordinadorMonitores.class)
+                            .error("No se pudo abrir el navegador del cliente {}", cliente.nombre(), e);
+                    sesion.estado = Estado.ERROR;
+                    sesion.ultimoResultado = e.getMessage() == null ? "No se pudo abrir el navegador." : e.getMessage();
+                    notificar(sesion.id, Estado.ERROR);
+                }
+            });
         }
     }
 
@@ -127,19 +166,45 @@ public final class CoordinadorMonitores implements AutoCloseable {
                 if (sesion.monitor != null) {
                     sesion.monitor.detener();
                 }
-            } else if (sesion.monitor != null && sesion.estado == Estado.MONITOREANDO) {
+            } else if (sesion.monitor != null && (sesion.estado == Estado.MONITOREANDO
+                    || sesion.estado == Estado.FUERA_DE_HORARIO)) {
                 sesion.estado = Estado.DETENIENDO;
                 notificar(sesion.id, Estado.DETENIENDO);
                 sesion.monitor.detener();
+            } else if (sesion.estado == Estado.SESION_ABIERTA) {
+                sesion.estado = Estado.DETENIENDO;
+                notificar(sesion.id, Estado.DETENIENDO);
+                sesion.trabajador.submit(() -> {
+                    try {
+                        if (sesion.portal != null) {
+                            sesion.portal.close();
+                            sesion.portal = null;
+                            sesion.entornoPortal = null;
+                        }
+                        sesion.estado = Estado.DETENIDO;
+                        sesion.ultimoResultado = "Sesión del navegador cerrada.";
+                    } catch (RuntimeException e) {
+                        org.slf4j.LoggerFactory.getLogger(CoordinadorMonitores.class)
+                                .error("No se pudo cerrar el navegador del cliente {}", sesion.id, e);
+                        sesion.estado = Estado.ERROR;
+                        sesion.ultimoResultado = "No se pudo cerrar el navegador: " + e.getMessage();
+                    }
+                    notificar(sesion.id, sesion.estado);
+                });
             }
         }
     }
 
     private void ejecutar(Cliente cliente, SesionCliente sesion) {
         try {
-            if (sesion.portal == null) {
-                sesion.portal = Objects.requireNonNull(fabricaPortal.apply(cliente),
-                        "La fábrica no puede devolver un PortalDriver nulo.");
+            obtenerPortal(cliente, sesion);
+            if (sesion.detencionSolicitada) {
+                synchronized (sesion) {
+                    sesion.detencionSolicitada = false;
+                    sesion.estado = Estado.DETENIDO;
+                }
+                notificar(sesion.id, Estado.DETENIDO);
+                return;
             }
             Configuracion actual = configuracion;
             OyenteMonitoreo oyente = new OyenteMonitoreo() {
@@ -231,6 +296,20 @@ public final class CoordinadorMonitores implements AutoCloseable {
         }
     }
 
+    private PortalDriver obtenerPortal(Cliente cliente, SesionCliente sesion) {
+        EntornoPortal solicitado = configuracion.entornoPortal();
+        if (sesion.portal != null && sesion.entornoPortal != solicitado) {
+            sesion.portal.close();
+            sesion.portal = null;
+        }
+        if (sesion.portal == null) {
+            sesion.portal = Objects.requireNonNull(fabricaPortal.apply(cliente),
+                    "La fábrica no puede devolver un PortalDriver nulo.");
+            sesion.entornoPortal = solicitado;
+        }
+        return sesion.portal;
+    }
+
     private void notificar(String id, Estado estado) {
         alCambiarEstado.accept(id, estado);
     }
@@ -239,7 +318,20 @@ public final class CoordinadorMonitores implements AutoCloseable {
     public void close() {
         cerrado = true;
         sesiones.values().forEach(sesion -> detener(sesion.id));
-        sesiones.values().forEach(sesion -> sesion.trabajador.shutdown());
+        sesiones.values().forEach(sesion -> {
+            sesion.trabajador.submit(() -> {
+                if (sesion.portal != null) {
+                    try {
+                        sesion.portal.close();
+                        sesion.portal = null;
+                    } catch (RuntimeException e) {
+                        org.slf4j.LoggerFactory.getLogger(CoordinadorMonitores.class)
+                                .error("No se pudo cerrar el navegador del cliente {}", sesion.id, e);
+                    }
+                }
+            });
+            sesion.trabajador.shutdown();
+        });
     }
 
     private static final class SesionCliente {
@@ -247,6 +339,7 @@ public final class CoordinadorMonitores implements AutoCloseable {
         private final ExecutorService trabajador;
         private volatile Estado estado = Estado.LISTO;
         private volatile PortalDriver portal;
+        private volatile EntornoPortal entornoPortal;
         private volatile MonitorCliente monitor;
         private volatile boolean detencionSolicitada;
         private volatile String ultimoResultado = "";

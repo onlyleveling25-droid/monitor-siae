@@ -4,6 +4,7 @@ import co.monitorsiae.app.CoordinadorMonitores;
 import co.monitorsiae.app.ServicioAplicacion;
 import co.monitorsiae.dominio.Cliente;
 import co.monitorsiae.dominio.Configuracion;
+import co.monitorsiae.dominio.EntornoPortal;
 import co.monitorsiae.monitoreo.SnapshotInventario;
 import co.monitorsiae.notificacion.Alerta;
 import co.monitorsiae.notificacion.CentralAlertas;
@@ -43,6 +44,7 @@ public final class VistaPrincipal extends BorderPane {
     private final VBox tarjetas = new VBox(14);
     private final VBox avisos = new VBox(8);
     private final Label resumen = new Label();
+    private final Label modoTexto = new Label();
     private final Label confirmacionReconocimiento = new Label();
     private final Map<String, Label> estados = new HashMap<>();
     private final Map<String, Label> resultados = new HashMap<>();
@@ -77,7 +79,7 @@ public final class VistaPrincipal extends BorderPane {
         configuracion.setMaxWidth(Double.MAX_VALUE);
         configuracion.setOnAction(event -> abrirConfiguracion());
         VBox.setVgrow(version, Priority.ALWAYS);
-        Label portal = new Label("PORTAL REAL\nPendiente · Fase 7");
+        Label portal = new Label("PORTAL REAL\nSesión Playwright en validación");
         portal.getStyleClass().add("sidebar-note");
         barra.getChildren().addAll(marca, version, inicio, configuracion, portal);
         setLeft(barra);
@@ -109,7 +111,6 @@ public final class VistaPrincipal extends BorderPane {
         modo.getStyleClass().add("environment-banner");
         Label punto = new Label("●");
         punto.getStyleClass().add("banner-dot");
-        Label modoTexto = new Label("Modo simulador · La conexión con SIAE real se habilitará en la fase 7.");
         modoTexto.getStyleClass().add("banner-text");
         modo.getChildren().addAll(punto, modoTexto);
 
@@ -130,6 +131,9 @@ public final class VistaPrincipal extends BorderPane {
 
     public void refrescarConfiguracion() {
         Configuracion configuracion = servicio.configuracion();
+        modoTexto.setText(configuracion.entornoPortal() == EntornoPortal.SIMULADOR
+                ? "Simulador · pruebas sin conexión ni acciones en SIAE."
+                : "Portal real · sesión manual; monitoreo deshabilitado hasta validar selectores y acciones.");
         tarjetas.getChildren().clear();
         estados.clear();
         resultados.clear();
@@ -205,11 +209,19 @@ public final class VistaPrincipal extends BorderPane {
         HBox acciones = new HBox(9);
         Button sesion = new Button("Abrir sesión");
         sesion.getStyleClass().add("secondary-button");
-        sesion.setDisable(true);
-        sesion.setTooltip(new Tooltip("Disponible al integrar Playwright con el portal real en la fase 7."));
+        boolean portalReal = servicio.configuracion().entornoPortal() == EntornoPortal.PORTAL_REAL;
+        sesion.setDisable(!portalReal);
+        sesion.setTooltip(new Tooltip(portalReal
+                ? "Abre el navegador de este cliente; inicia sesión y resuelve el captcha manualmente."
+                : "Selecciona Portal real en Configuración para abrir una sesión."));
+        sesion.setOnAction(event -> abrirSesion(cliente));
         Button iniciar = new Button("Iniciar / reanudar");
         iniciar.getStyleClass().add("primary-button");
-        iniciar.setDisable(!cliente.activo() || !servicio.problemasConfiguracion().isEmpty());
+        iniciar.setDisable(!cliente.activo() || !servicio.problemasConfiguracion().isEmpty() || portalReal);
+        if (portalReal) {
+            iniciar.setTooltip(new Tooltip("El monitoreo real se habilitará después de validar los selectores "
+                    + "y el flujo de apartado del portal."));
+        }
         iniciar.setOnAction(event -> iniciar(cliente));
         Button detener = new Button("Detener");
         detener.getStyleClass().add("secondary-button");
@@ -235,6 +247,14 @@ public final class VistaPrincipal extends BorderPane {
             monitores.iniciar(cliente);
         } catch (RuntimeException e) {
             mostrar(Alert.AlertType.ERROR, "No se pudo iniciar", e.getMessage());
+        }
+    }
+
+    private void abrirSesion(Cliente cliente) {
+        try {
+            monitores.abrirSesion(cliente);
+        } catch (RuntimeException e) {
+            mostrar(Alert.AlertType.ERROR, "No se pudo abrir la sesión", e.getMessage());
         }
     }
 
@@ -380,6 +400,8 @@ public final class VistaPrincipal extends BorderPane {
     private static String textoEstado(CoordinadorMonitores.Estado estado) {
         return switch (estado) {
             case LISTO -> "Listo";
+            case ABRIENDO_SESION -> "Abriendo navegador";
+            case SESION_ABIERTA -> "Sesión abierta";
             case INICIANDO -> "Iniciando";
             case MONITOREANDO -> "Monitoreando · simulador";
             case FUERA_DE_HORARIO -> "Fuera del horario";
@@ -393,6 +415,7 @@ public final class VistaPrincipal extends BorderPane {
 
     private static String claseEstado(CoordinadorMonitores.Estado estado) {
         return switch (estado) {
+            case SESION_ABIERTA -> "status-running";
             case MONITOREANDO -> "status-running";
             case ALERTA_ENCONTRADA -> "status-alert";
             case ARMA_APARTADA -> "status-running";

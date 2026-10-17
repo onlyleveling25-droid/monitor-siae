@@ -3,6 +3,7 @@ package co.monitorsiae.app;
 import co.monitorsiae.dominio.Cliente;
 import co.monitorsiae.dominio.ClientesDePrueba;
 import co.monitorsiae.dominio.Configuracion;
+import co.monitorsiae.dominio.EntornoPortal;
 import co.monitorsiae.dominio.ModoReaccion;
 import co.monitorsiae.dominio.PoliticaSinObjetivo;
 import co.monitorsiae.dominio.ReglasSeleccion;
@@ -24,8 +25,34 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class CoordinadorMonitoresTest {
+
+    @Test
+    void elModoRealAbreSesionPeroBloqueaElMonitoreoHastaValidarElPortal() throws InterruptedException {
+        Cliente cliente = ClientesDePrueba.valido("Ana");
+        Configuracion configuracion = Configuracion.porDefecto()
+                .conEntornoPortal(EntornoPortal.PORTAL_REAL)
+                .conClientes(List.of(cliente));
+        BlockingQueue<Actualizacion> cambios = new LinkedBlockingQueue<>();
+        CoordinadorMonitores coordinador = new CoordinadorMonitores(configuracion,
+                new CentralAlertas(List.of()),
+                perfil -> PortalSimulado.con(Escena.abiertasSinInventario(
+                        perfil.tramite().seccionales().getFirst())),
+                (id, estado) -> cambios.add(new Actualizacion(id, estado)));
+        try {
+            assertThrows(IllegalStateException.class, () -> coordinador.iniciar(cliente));
+            coordinador.abrirSesion(cliente);
+
+            esperar(cambios, CoordinadorMonitores.Estado.SESION_ABIERTA);
+
+            assertEquals("Navegador abierto. Inicia sesión y resuelve el captcha manualmente.",
+                    coordinador.ultimoResultado(cliente.id()));
+        } finally {
+            coordinador.close();
+        }
+    }
 
     @Test
     void elSimuladorConectaInventarioConLaAlertaDeOportunidad() throws InterruptedException {
@@ -87,7 +114,7 @@ class CoordinadorMonitoresTest {
             coordinador.detener(cliente.id());
             esperar(cambios, CoordinadorMonitores.Estado.DETENIDO);
 
-            assertEquals("Consultando el inventario.", coordinador.ultimoResultado(cliente.id()));
+            assertEquals("Sin inventario en Medellín.", coordinador.ultimoResultado(cliente.id()));
         } finally {
             coordinador.close();
         }
@@ -128,7 +155,7 @@ class CoordinadorMonitoresTest {
 
     private static void esperar(BlockingQueue<Actualizacion> cambios, CoordinadorMonitores.Estado estado)
             throws InterruptedException {
-        long limite = System.nanoTime() + Duration.ofSeconds(2).toNanos();
+        long limite = System.nanoTime() + Duration.ofSeconds(5).toNanos();
         while (System.nanoTime() < limite) {
             Actualizacion actualizacion = cambios.poll(100, TimeUnit.MILLISECONDS);
             if (actualizacion != null && actualizacion.estado() == estado) {

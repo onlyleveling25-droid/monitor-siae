@@ -5,6 +5,7 @@ import co.monitorsiae.app.ServicioAplicacion;
 import co.monitorsiae.dominio.Cliente;
 import co.monitorsiae.dominio.Configuracion;
 import co.monitorsiae.dominio.CriterioArma;
+import co.monitorsiae.dominio.EntornoPortal;
 import co.monitorsiae.dominio.HorarioOperacion;
 import co.monitorsiae.dominio.Modalidad;
 import co.monitorsiae.dominio.ModoReaccion;
@@ -64,6 +65,7 @@ final class EditorConfiguracion {
     private final Consumer<Configuracion> alGuardar;
     private final Dialog<Configuracion> dialogo = new Dialog<>();
     private final ComboBox<NavegadorPreferido> navegador = new ComboBox<>();
+    private final ComboBox<EntornoPortal> entornoPortal = new ComboBox<>();
     private final Spinner<Integer> intervalo = new Spinner<>(2, 3600, 5);
     private final CheckBox restringirHorario = new CheckBox("Limitar el monitoreo a un horario");
     private final Map<DayOfWeek, CheckBox> dias = new EnumMap<>(DayOfWeek.class);
@@ -165,28 +167,49 @@ final class EditorConfiguracion {
 
         navegador.setItems(FXCollections.observableArrayList(NavegadorPreferido.values()));
         addRow(formulario, 0, "Navegador", navegador);
+        entornoPortal.setItems(FXCollections.observableArrayList(EntornoPortal.values()));
+        entornoPortal.setCellFactory(ignorado -> new ListCell<>() {
+            @Override
+            protected void updateItem(EntornoPortal entorno, boolean vacio) {
+                super.updateItem(entorno, vacio);
+                setText(vacio || entorno == null ? null : textoEntorno(entorno));
+            }
+        });
+        entornoPortal.setButtonCell(new ListCell<>() {
+            @Override
+            protected void updateItem(EntornoPortal entorno, boolean vacio) {
+                super.updateItem(entorno, vacio);
+                setText(vacio || entorno == null ? null : textoEntorno(entorno));
+            }
+        });
+        addRow(formulario, 1, "Entorno del portal", entornoPortal);
+        Label notaEntorno = new Label("El portal real solo abre la sesión del navegador por ahora; "
+                + "la automatización se habilitará tras validar sus selectores.");
+        notaEntorno.setWrapText(true);
+        notaEntorno.getStyleClass().add("muted");
+        formulario.add(notaEntorno, 1, 2);
         intervalo.setEditable(true);
-        addRow(formulario, 1, "Intervalo entre consultas (segundos)", intervalo);
-        formulario.add(restringirHorario, 0, 2, 2, 1);
+        addRow(formulario, 3, "Intervalo entre consultas (segundos)", intervalo);
+        formulario.add(restringirHorario, 0, 4, 2, 1);
         HBox diasFila = new HBox(8);
         for (DayOfWeek dia : DayOfWeek.values()) {
             CheckBox check = new CheckBox(DIAS.get(dia));
             dias.put(dia, check);
             diasFila.getChildren().add(check);
         }
-        addRow(formulario, 3, "Días permitidos", diasFila);
+        addRow(formulario, 5, "Días permitidos", diasFila);
         HBox horas = new HBox(10, desde, new Label("a"), hasta,
                 new Label("Hora local de Colombia (America/Bogota)"));
         desde.setPromptText("08:00");
         hasta.setPromptText("16:00");
-        addRow(formulario, 4, "Horario (24 horas)", horas);
+        addRow(formulario, 6, "Horario (24 horas)", horas);
         formulario.add(new Label("El horario viene desactivado por defecto; actívalo solo si deseas limitar las consultas."),
-                0, 5, 2, 1);
-        formulario.add(proteger, 0, 6, 2, 1);
+                0, 7, 2, 1);
+        formulario.add(proteger, 0, 8, 2, 1);
         Button cambiar = new Button("Cambiar contraseña");
         cambiar.getStyleClass().add("secondary-button");
         cambiar.setOnAction(event -> cambiarProteccion());
-        formulario.add(cambiar, 0, 7);
+        formulario.add(cambiar, 0, 9);
         VBox contenedor = new VBox(formulario);
         contenedor.getStyleClass().add("settings-page");
         return contenedor;
@@ -251,6 +274,7 @@ final class EditorConfiguracion {
 
     private void cargarConfiguracion(Configuracion configuracion) {
         navegador.setValue(configuracion.navegador());
+        entornoPortal.setValue(configuracion.entornoPortal());
         intervalo.getValueFactory().setValue(configuracion.intervaloConsultaSegundos());
         HorarioOperacion horario = configuracion.horario();
         restringirHorario.setSelected(horario.restringir());
@@ -285,8 +309,15 @@ final class EditorConfiguracion {
                 dias.entrySet().stream().filter(e -> e.getValue().isSelected()).map(Map.Entry::getKey).toList(),
                 LocalTime.parse(desde.getText().strip()), LocalTime.parse(hasta.getText().strip()),
                 HorarioOperacion.ZONA_COLOMBIA);
-        return new Configuracion(base.version(), base.acceso(), navegador.getValue(),
+        return new Configuracion(base.version(), base.acceso(), navegador.getValue(), entornoPortal.getValue(),
                 segundos, horario, new ArrayList<>(borradores.values()));
+    }
+
+    private static String textoEntorno(EntornoPortal entorno) {
+        return switch (entorno) {
+            case SIMULADOR -> "Simulador (pruebas)";
+            case PORTAL_REAL -> "Portal real (sesión manual)";
+        };
     }
 
     private void manejarCambioProteccion() {

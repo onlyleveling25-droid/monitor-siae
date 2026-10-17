@@ -130,6 +130,10 @@ Smith & Wesson, Jericho, Beretta. [dicho]
 
 ## Lista de comprobación en horario hábil
 
+La aplicación ya puede abrir el portal con Playwright en un perfil persistente independiente por
+cliente. La automatización del trámite real permanece deshabilitada hasta completar y probar esta
+lista con una cuenta autorizada. No compartir credenciales, cookies ni encabezados de autenticación.
+
 Hacer con una cuenta propia, con F12 → pestaña Red y "Conservar registro" activado. No subir
 documentos ni enviar nada en el paso 3.
 

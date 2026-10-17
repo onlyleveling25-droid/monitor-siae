@@ -5,6 +5,7 @@ import co.monitorsiae.acceso.ServicioAcceso;
 import co.monitorsiae.app.CoordinadorMonitores;
 import co.monitorsiae.app.ServicioAplicacion;
 import co.monitorsiae.dominio.Configuracion;
+import co.monitorsiae.dominio.EntornoPortal;
 import co.monitorsiae.dominio.ValidadorConfiguracion;
 import co.monitorsiae.monitoreo.Pausa;
 import co.monitorsiae.notificacion.Alerta;
@@ -13,6 +14,7 @@ import co.monitorsiae.notificacion.CanalVoz;
 import co.monitorsiae.notificacion.CentralAlertas;
 import co.monitorsiae.notificacion.LocutorWindows;
 import co.monitorsiae.portal.PortalDriver;
+import co.monitorsiae.portal.real.FabricaPortalPlaywright;
 import co.monitorsiae.portal.simulado.FabricaPortalSimulada;
 import co.monitorsiae.persistencia.RepositorioConfiguracionJson;
 import co.monitorsiae.persistencia.RepositorioSnapshotsJson;
@@ -24,6 +26,7 @@ import javafx.scene.Scene;
 import javafx.stage.Stage;
 
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * Arranque y composicion de dependencias de la aplicacion JavaFX.
@@ -51,8 +54,14 @@ public final class AplicacionJavaFx extends Application {
                     canalVentana,
                     new CanalSonido(),
                     new CanalVoz(new LocutorWindows(), Pausa.real())));
+            Function<co.monitorsiae.dominio.Cliente, PortalDriver> fabricaPortales = cliente ->
+                    switch (servicio.configuracion().entornoPortal()) {
+                        case SIMULADOR -> new FabricaPortalSimulada().apply(cliente);
+                        case PORTAL_REAL -> new FabricaPortalPlaywright(ubicacion,
+                                servicio::configuracion).apply(cliente);
+                    };
             monitores = new CoordinadorMonitores(servicio.configuracion(), centralAlertas,
-                    new FabricaPortalSimulada(),
+                    fabricaPortales,
                     (id, estado) -> {
                         if (!cerrando) {
                             Platform.runLater(() -> vista.actualizarEstado(id, monitores.estado(id)));

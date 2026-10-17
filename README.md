@@ -9,8 +9,8 @@ periódica mientras no haya inventario y, cuando el listado del paso 2 trae las 
 aparta el arma según las reglas del cliente y lanza una alarma imposible de ignorar para que la
 persona termine el proceso.
 
-> Estado: **fase 4 de 8 en curso** (contraseña y filtro de armas listos). Todavía no hay funcionalidad
-> ejecutable.
+> Estado: **fase 4 de 8** (núcleo del monitor probado contra un portal simulado). Todavía no hay
+> interfaz ni conexión con el portal real.
 
 ## Qué hace y qué no hace
 
@@ -61,6 +61,7 @@ src/main/java/co/monitorsiae/
   acceso/         Contraseña opcional de la aplicación
   ui/             Pantallas JavaFX
 herramientas/maven/  Wrapper de Maven (lo invoca mvnw.cmd)
+src/main/resources/logback.xml  Registro en %APPDATA%\MonitorSIAE\logs (30 días)
 docs/
   DECISIONES.md   Qué se decidió y por qué
   PORTAL.md       Lo que sabemos de la plataforma y lo que falta comprobar
@@ -70,8 +71,11 @@ docs/
 
 Se guarda en `%APPDATA%\MonitorSIAE\config.json` y se edita desde la aplicación. Por cada cliente:
 
-- Cómo obtener el permiso, tipo de trámite y seccionales, escritos **exactamente como aparecen en
-  la plataforma**. Si la plataforma cambia un nombre, basta con corregirlo en la configuración.
+- Cómo obtener el permiso y tipo de trámite, escritos **como aparecen en la plataforma** (no
+  importan tildes ni mayúsculas). Si la plataforma cambia un nombre, basta con corregirlo en la
+  configuración.
+- Seccionales en orden de preferencia. Basta una parte reconocible: `Bogotá` encuentra
+  `16 - Usaquén, Bogotá D.C.`.
 - Descripción de la solicitud (entre 150 y 500 caracteres).
 - Modo: **APARTAR** (selecciona y confirma el arma) o **ALERTA** (solo avisa).
 - Reglas de selección:
@@ -125,7 +129,7 @@ de `acceso` y volver a abrir la aplicación, que pedirá crear una nueva.
 1. Estructura base, documentación y wrapper.
 2. Modelo y configuración JSON.
 3. Contraseña de la aplicación.
-4. Núcleo: filtro de armas (listo), `PortalDriver`, simulador y monitor. **(actual)**
+4. Núcleo: filtro de armas, `PortalDriver`, simulador y monitor. **(actual)**
 5. Notificaciones.
 6. Interfaz JavaFX.
 7. Integración con el portal real.

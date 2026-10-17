@@ -69,6 +69,11 @@ propia) y su propio hilo con su propia instancia de Playwright.
 contexto se pisarían la sesión. Además, Playwright para Java no es seguro entre hilos. Las
 actualizaciones de pantalla pasan por `Platform.runLater`.
 
+**Consecuencia (2026-10-17):** el hilo de cada cliente vive mientras su ventana esté abierta, no solo
+mientras se monitorea. `MonitorCliente` recibe el `PortalDriver` ya creado, se ejecuta en ese hilo y
+**no cierra el navegador al terminar**: si apartó un arma, la ventana debe quedar abierta para que la
+persona termine el trámite. Reanudar el monitoreo reutiliza el mismo hilo.
+
 ## D07. La persona inicia sesión; el programa no maneja credenciales del portal
 
 **Decisión:** el tramitador inicia sesión con cada cliente y resuelve el captcha. El programa trabaja
@@ -177,10 +182,25 @@ porque los nombres traen ruido y errores de digitación.
 
 1. **Avanzó al paso 2:** hay inventario; se lee el listado.
 2. **Mensaje de sin inventario:** se espera y se repite.
-3. **Cualquier otra cosa** (error del servidor, sesión vencida, captcha, mensaje nuevo): no se
-   repite a ciegas. Se guarda una captura, se registra el motivo y se avisa al usuario.
+3. **Sesión vencida:** se detiene de inmediato y se avisa; solo una persona puede volver a entrar.
+4. **Cualquier otra cosa** (error del servidor, mensaje nuevo, página distinta): se guarda una
+   captura y se registra. Se toleran hasta 3 seguidas con espera creciente (2x, 3x el intervalo),
+   porque la plataforma falla por momentos; a la tercera, el monitor se detiene y avisa.
 
-**Motivo:** evita que el programa pase horas "vigilando" una sesión muerta sin que nadie lo note.
+Antes de pulsar GUARDAR también se distinguen: opción de trámite no disponible, seccionales cerradas
+y seccionales abiertas que no son objetivo. En esos casos se espera y se repite.
+
+**Motivo:** evita que el programa pase horas "vigilando" una sesión muerta sin que nadie lo note, sin
+rendirse ante un error aislado del servidor.
+
+## D14b. Seccionales por nombre parcial
+
+**Decisión:** una seccional configurada coincide si es igual a la opción de la plataforma o si
+aparece dentro de ella como palabras completas: "Bogotá" coincide con "16 - Usaquén, Bogotá D.C.".
+Gana el orden de preferencia de la configuración, no el de la lista.
+
+**Motivo:** la plataforma antepone un código y agrega el departamento; exigir el texto completo
+haría la configuración frágil.
 
 ## D15. Maven Wrapper propio y mínimo
 

@@ -214,18 +214,13 @@ public final class VistaPrincipal extends BorderPane {
         Button detener = new Button("Detener");
         detener.getStyleClass().add("secondary-button");
         detener.setOnAction(event -> monitores.detener(cliente.id()));
-        Button reconocer = new Button("Reconocer alerta");
-        reconocer.getStyleClass().add("secondary-button");
-        reconocer.setTooltip(new Tooltip(
-                "Silencia la notificación de este cliente; no detiene el monitoreo."));
-        reconocer.setOnAction(event -> reconocerAlerta(cliente.id()));
         Button verInventario = new Button("Historial");
         verInventario.getStyleClass().add("secondary-button");
         verInventario.setTooltip(new Tooltip("Consultar los snapshots locales del inventario analizado."));
         verInventario.setDisable(monitores.ultimoSnapshot(cliente.id()).isEmpty());
         verInventario.setOnAction(event -> mostrarHistorial(cliente.id()));
         botonesInventario.put(cliente.id(), verInventario);
-        acciones.getChildren().addAll(sesion, iniciar, detener, reconocer, verInventario);
+        acciones.getChildren().addAll(sesion, iniciar, detener, verInventario);
         tarjeta.getChildren().addAll(fila, seccional, resultado, acciones);
         return tarjeta;
     }
@@ -290,15 +285,6 @@ public final class VistaPrincipal extends BorderPane {
         alertas.emitir(new Alerta("monitor-siae-prueba", Gravedad.OPORTUNIDAD,
                 "Alarma de prueba", "Si escuchas la sirena o la voz, los canales locales están activos.",
                 "Prueba de alarma de Monitor SIAE."));
-    }
-
-    private void reconocerAlerta(String clienteId) {
-        boolean estabaActiva = alertas.activas().stream().anyMatch(alerta -> alerta.clienteId().equals(clienteId));
-        alertas.reconocer(clienteId);
-        mostrarConfirmacionReconocimiento(estabaActiva
-                ? "Alerta reconocida. Se cerró su notificación y se detuvieron las repeticiones; "
-                        + "el monitoreo no se detuvo."
-                : "Este cliente no tiene alertas activas.");
     }
 
     private void reconocerTodas() {

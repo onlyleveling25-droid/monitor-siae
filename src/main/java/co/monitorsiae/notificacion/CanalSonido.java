@@ -23,11 +23,15 @@ public final class CanalSonido implements CanalAlerta {
     private final byte[] sirenaProblema = GeneradorSirena.ciclo(Gravedad.PROBLEMA);
 
     private volatile List<Alerta> activas = List.of();
+    private volatile SourceDataLine lineaActiva;
     private Thread hilo;
 
     @Override
     public synchronized void mostrar(List<Alerta> nuevas) {
         activas = List.copyOf(nuevas);
+        if (activas.isEmpty() && lineaActiva != null) {
+            lineaActiva.flush();
+        }
         if (!activas.isEmpty() && hilo == null) {
             hilo = Thread.ofPlatform().daemon().name("alarma-sonido").start(this::sonar);
         }
@@ -37,6 +41,9 @@ public final class CanalSonido implements CanalAlerta {
         try (SourceDataLine linea = AudioSystem.getSourceDataLine(FORMATO)) {
             linea.open(FORMATO);
             linea.start();
+            synchronized (this) {
+                lineaActiva = linea;
+            }
             while (!terminarSiNoHayAlertas()) {
                 byte[] sirena = hayOportunidad() ? sirenaOportunidad : sirenaProblema;
                 linea.write(sirena, 0, sirena.length);
@@ -45,7 +52,9 @@ public final class CanalSonido implements CanalAlerta {
             linea.flush();
         } catch (LineUnavailableException | IllegalArgumentException e) {
             REGISTRO.warn("No hay salida de audio disponible para la alarma: {}", e.getMessage());
+        } finally {
             synchronized (this) {
+                lineaActiva = null;
                 hilo = null;
             }
         }

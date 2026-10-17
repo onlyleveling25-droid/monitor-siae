@@ -173,6 +173,13 @@
     -fx-padding: 12px;
 }
 
+.acknowledgement-banner {
+    -fx-background-color: #e6f7ed;
+    -fx-text-fill: #18754a;
+    -fx-background-radius: 9px;
+    -fx-padding: 12px;
+}
+
 .empty-state {
     -fx-background-color: white;
     -fx-background-radius: 12px;

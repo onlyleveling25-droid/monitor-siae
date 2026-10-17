@@ -43,6 +43,7 @@ public final class VistaPrincipal extends BorderPane {
     private final VBox tarjetas = new VBox(14);
     private final VBox avisos = new VBox(8);
     private final Label resumen = new Label();
+    private final Label confirmacionReconocimiento = new Label();
     private final Map<String, Label> estados = new HashMap<>();
     private final Map<String, Label> resultados = new HashMap<>();
     private final Map<String, Button> botonesInventario = new HashMap<>();
@@ -96,7 +97,9 @@ public final class VistaPrincipal extends BorderPane {
         HBox.setHgrow(titulos, Priority.ALWAYS);
         Button reconocerTodas = new Button("Reconocer todas");
         reconocerTodas.getStyleClass().add("secondary-button");
-        reconocerTodas.setOnAction(event -> alertas.reconocerTodas());
+        reconocerTodas.setTooltip(new Tooltip(
+                "Silencia y cierra todas las notificaciones activas; no detiene el monitoreo."));
+        reconocerTodas.setOnAction(event -> reconocerTodas());
         Button probar = new Button("Probar alarma");
         probar.getStyleClass().add("secondary-button");
         probar.setOnAction(event -> probarAlarma());
@@ -111,13 +114,17 @@ public final class VistaPrincipal extends BorderPane {
         modo.getChildren().addAll(punto, modoTexto);
 
         resumen.getStyleClass().add("section-title");
+        confirmacionReconocimiento.getStyleClass().add("acknowledgement-banner");
+        confirmacionReconocimiento.setWrapText(true);
+        confirmacionReconocimiento.setVisible(false);
+        confirmacionReconocimiento.setManaged(false);
         avisos.setFillWidth(true);
         tarjetas.setFillWidth(true);
         ScrollPane desplazamiento = new ScrollPane(tarjetas);
         desplazamiento.setFitToWidth(true);
         desplazamiento.getStyleClass().add("transparent-scroll");
         VBox.setVgrow(desplazamiento, Priority.ALWAYS);
-        cuerpo.getChildren().addAll(encabezado, modo, avisos, resumen, desplazamiento);
+        cuerpo.getChildren().addAll(encabezado, modo, avisos, confirmacionReconocimiento, resumen, desplazamiento);
         setCenter(cuerpo);
     }
 
@@ -209,7 +216,9 @@ public final class VistaPrincipal extends BorderPane {
         detener.setOnAction(event -> monitores.detener(cliente.id()));
         Button reconocer = new Button("Reconocer alerta");
         reconocer.getStyleClass().add("secondary-button");
-        reconocer.setOnAction(event -> alertas.reconocer(cliente.id()));
+        reconocer.setTooltip(new Tooltip(
+                "Silencia la notificación de este cliente; no detiene el monitoreo."));
+        reconocer.setOnAction(event -> reconocerAlerta(cliente.id()));
         Button verInventario = new Button("Historial");
         verInventario.getStyleClass().add("secondary-button");
         verInventario.setTooltip(new Tooltip("Consultar los snapshots locales del inventario analizado."));
@@ -281,6 +290,31 @@ public final class VistaPrincipal extends BorderPane {
         alertas.emitir(new Alerta("monitor-siae-prueba", Gravedad.OPORTUNIDAD,
                 "Alarma de prueba", "Si escuchas la sirena o la voz, los canales locales están activos.",
                 "Prueba de alarma de Monitor SIAE."));
+    }
+
+    private void reconocerAlerta(String clienteId) {
+        boolean estabaActiva = alertas.activas().stream().anyMatch(alerta -> alerta.clienteId().equals(clienteId));
+        alertas.reconocer(clienteId);
+        mostrarConfirmacionReconocimiento(estabaActiva
+                ? "Alerta reconocida. Se cerró su notificación y se detuvieron las repeticiones; "
+                        + "el monitoreo no se detuvo."
+                : "Este cliente no tiene alertas activas.");
+    }
+
+    private void reconocerTodas() {
+        int cantidad = alertas.activas().size();
+        alertas.reconocerTodas();
+        mostrarConfirmacionReconocimiento(cantidad == 0
+                ? "No había alertas activas."
+                : "Se reconocieron " + cantidad + (cantidad == 1 ? " alerta." : " alertas.")
+                        + " Se cerraron las notificaciones y se detuvieron las repeticiones; "
+                        + "el monitoreo no se detuvo.");
+    }
+
+    private void mostrarConfirmacionReconocimiento(String mensaje) {
+        confirmacionReconocimiento.setText(mensaje);
+        confirmacionReconocimiento.setVisible(true);
+        confirmacionReconocimiento.setManaged(true);
     }
 
     private void mostrarHistorial(String clienteId) {

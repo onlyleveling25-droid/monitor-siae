@@ -9,8 +9,8 @@ periódica mientras no haya inventario y, cuando el listado del paso 2 trae las 
 aparta el arma según las reglas del cliente y lanza una alarma imposible de ignorar para que la
 persona termine el proceso.
 
-> Estado: **fase 5 de 8** (monitor y alarmas probados contra un portal simulado). Todavía no hay
-> interfaz ni conexión con el portal real.
+> Estado: **fase 6 de 8** (interfaz JavaFX conectada al monitor simulado). La integración con el
+> portal real y el instalador todavía están pendientes.
 
 ## Qué hace y qué no hace
 
@@ -77,6 +77,20 @@ Desde PowerShell, en la carpeta del proyecto:
 La primera compilación descarga las dependencias (Playwright es la más grande) y puede tardar
 varios minutos.
 
+## Abrir la interfaz
+
+Desde PowerShell, en la carpeta del proyecto:
+
+```powershell
+.\mvnw.cmd javafx:run
+```
+
+La pantalla principal permite administrar perfiles, revisar el estado, iniciar/detener el monitor
+simulado, reconocer alertas y probar la alarma. La configuración se protege con una contraseña
+local de la aplicación; no se solicitan ni se guardan las credenciales de SIAE. El botón de inicio
+de sesión permanece deshabilitado hasta implementar `PlaywrightPortalDriver` en la fase 7. Por
+ahora, iniciar el monitor recorre el portal simulado y no realiza acciones en el sitio real.
+
 ## Estructura
 
 ```
@@ -88,7 +102,7 @@ src/main/java/co/monitorsiae/
   notificacion/   Voz, sonido, ventana y parpadeo
   persistencia/   Configuración en JSON
   acceso/         Contraseña opcional de la aplicación
-  ui/             Pantallas JavaFX
+  ui/             Pantallas JavaFX y editor protegido de configuración
 herramientas/maven/  Wrapper de Maven (lo invoca mvnw.cmd)
 src/main/resources/logback.xml  Registro en %APPDATA%\MonitorSIAE\logs (30 días)
 docs/
@@ -160,7 +174,7 @@ de `acceso` y volver a abrir la aplicación, que pedirá crear una nueva.
 3. Contraseña de la aplicación.
 4. Núcleo: filtro de armas, `PortalDriver`, simulador y monitor.
 5. Alarmas: voz y sirena. **(actual)**
-6. Interfaz JavaFX.
+6. Interfaz JavaFX. **(actual: conectada al simulador)**
 7. Integración con el portal real.
 8. Instalador con `jpackage`.
 

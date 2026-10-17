@@ -44,6 +44,7 @@ public final class MonitorCliente implements Runnable {
     /** Pide detener el monitor; termina al acabar el ciclo en curso o la espera actual. */
     public void detener() {
         detencionSolicitada = true;
+        pausa.despertar();
     }
 
     @Override

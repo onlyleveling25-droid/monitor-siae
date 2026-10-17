@@ -106,16 +106,17 @@ final class EditorConfiguracion {
         cargarConfiguracion(servicio.configuracion());
     }
 
-    void showAndWait() {
-        dialogo.showAndWait();
+    boolean showAndWait() {
+        return dialogo.showAndWait().isPresent();
     }
 
     private void crearDialogo() {
         dialogo.initOwner(propietario);
         dialogo.setTitle("Configuración");
+        dialogo.setHeaderText("Personaliza el entorno y los perfiles de monitoreo.");
         dialogo.getDialogPane().getStyleClass().add("config-dialog");
         EstilosJavaFx.aplicar(dialogo.getDialogPane());
-        dialogo.getDialogPane().setPrefSize(960, 700);
+        dialogo.getDialogPane().setPrefSize(1000, 740);
         ButtonType guardar = new ButtonType("Guardar cambios", ButtonBar.ButtonData.OK_DONE);
         dialogo.getDialogPane().getButtonTypes().addAll(guardar,
                 new ButtonType("Cancelar", ButtonBar.ButtonData.CANCEL_CLOSE));
@@ -157,8 +158,9 @@ final class EditorConfiguracion {
     private Node crearGeneral() {
         GridPane formulario = new GridPane();
         formulario.setHgap(14);
-        formulario.setVgap(16);
-        formulario.setPadding(new Insets(24));
+        formulario.setVgap(13);
+        formulario.setPadding(new Insets(20, 24, 24, 24));
+        formulario.getStyleClass().add("settings-form");
         ColumnConstraints etiquetas = new ColumnConstraints();
         etiquetas.setMinWidth(200);
         ColumnConstraints valores = new ColumnConstraints();
@@ -166,7 +168,8 @@ final class EditorConfiguracion {
         formulario.getColumnConstraints().addAll(etiquetas, valores);
 
         navegador.setItems(FXCollections.observableArrayList(NavegadorPreferido.values()));
-        addRow(formulario, 0, "Navegador", navegador);
+        agregarSeccion(formulario, 0, "Portal y navegador");
+        addRow(formulario, 1, "Navegador preferido", navegador);
         entornoPortal.setItems(FXCollections.observableArrayList(EntornoPortal.values()));
         entornoPortal.setCellFactory(ignorado -> new ListCell<>() {
             @Override
@@ -182,41 +185,52 @@ final class EditorConfiguracion {
                 setText(vacio || entorno == null ? null : textoEntorno(entorno));
             }
         });
-        addRow(formulario, 1, "Entorno del portal", entornoPortal);
+        addRow(formulario, 2, "Entorno del portal", entornoPortal);
         Label notaEntorno = new Label("El portal real solo abre la sesión del navegador por ahora; "
                 + "la automatización se habilitará tras validar sus selectores.");
         notaEntorno.setWrapText(true);
-        notaEntorno.getStyleClass().add("muted");
-        formulario.add(notaEntorno, 1, 2);
+        notaEntorno.getStyleClass().add("field-help");
+        formulario.add(notaEntorno, 1, 3);
         intervalo.setEditable(true);
-        addRow(formulario, 3, "Intervalo entre consultas (segundos)", intervalo);
-        formulario.add(restringirHorario, 0, 4, 2, 1);
+        agregarSeccion(formulario, 4, "Frecuencia y disponibilidad");
+        addRow(formulario, 5, "Intervalo entre consultas", intervalo);
+        formulario.add(restringirHorario, 0, 6, 2, 1);
         HBox diasFila = new HBox(8);
         for (DayOfWeek dia : DayOfWeek.values()) {
             CheckBox check = new CheckBox(DIAS.get(dia));
             dias.put(dia, check);
             diasFila.getChildren().add(check);
         }
-        addRow(formulario, 5, "Días permitidos", diasFila);
+        addRow(formulario, 7, "Días permitidos", diasFila);
         HBox horas = new HBox(10, desde, new Label("a"), hasta,
                 new Label("Hora local de Colombia (America/Bogota)"));
         desde.setPromptText("08:00");
         hasta.setPromptText("16:00");
-        addRow(formulario, 6, "Horario (24 horas)", horas);
-        formulario.add(new Label("El horario viene desactivado por defecto; actívalo solo si deseas limitar las consultas."),
-                0, 7, 2, 1);
-        formulario.add(proteger, 0, 8, 2, 1);
+        addRow(formulario, 8, "Horario (24 horas)", horas);
+        Label notaHorario = new Label(
+                "El horario está desactivado por defecto. Actívalo solo si deseas limitar la actividad.");
+        notaHorario.getStyleClass().add("field-help");
+        formulario.add(notaHorario, 0, 9, 2, 1);
+        agregarSeccion(formulario, 10, "Seguridad");
+        formulario.add(proteger, 0, 11, 2, 1);
         Button cambiar = new Button("Cambiar contraseña");
         cambiar.getStyleClass().add("secondary-button");
         cambiar.setOnAction(event -> cambiarProteccion());
-        formulario.add(cambiar, 0, 9);
-        VBox contenedor = new VBox(formulario);
+        formulario.add(cambiar, 0, 12);
+        VBox contenido = new VBox(8, encabezadoPanel("Preferencias generales",
+                "Configura cómo se ejecuta la aplicación y protege los cambios."));
+        contenido.setPadding(new Insets(22));
+        contenido.getChildren().add(formulario);
+        ScrollPaneFormulario desplazamiento = new ScrollPaneFormulario(contenido);
+        VBox contenedor = new VBox(desplazamiento);
+        VBox.setVgrow(desplazamiento, Priority.ALWAYS);
         contenedor.getStyleClass().add("settings-page");
         return contenedor;
     }
 
     private Node crearClientes() {
         listaClientes.setPrefWidth(225);
+        listaClientes.getStyleClass().add("profile-list");
         listaClientes.setCellFactory(ignorado -> new ListCell<>() {
             @Override
             protected void updateItem(Cliente cliente, boolean vacio) {
@@ -239,10 +253,15 @@ final class EditorConfiguracion {
         agregar.setMaxWidth(Double.MAX_VALUE);
         agregar.setOnAction(event -> agregarCliente());
         Button eliminar = new Button("Eliminar seleccionado");
-        eliminar.getStyleClass().add("text-button");
+        eliminar.getStyleClass().add("danger-button");
         eliminar.setMaxWidth(Double.MAX_VALUE);
         eliminar.setOnAction(event -> eliminarCliente());
-        VBox columnaLista = new VBox(10, agregar, listaClientes, eliminar);
+        Label tituloLista = new Label("Perfiles");
+        tituloLista.getStyleClass().add("section-title");
+        Label ayudaLista = new Label("Crea y administra la configuración de cada cliente.");
+        ayudaLista.getStyleClass().add("field-help");
+        ayudaLista.setWrapText(true);
+        VBox columnaLista = new VBox(10, tituloLista, ayudaLista, agregar, listaClientes, eliminar);
         VBox.setVgrow(listaClientes, Priority.ALWAYS);
         columnaLista.setPadding(new Insets(18));
         columnaLista.setPrefWidth(250);
@@ -250,8 +269,9 @@ final class EditorConfiguracion {
 
         VBox editor = new VBox(13);
         editor.setPadding(new Insets(22));
-        Label encabezado = new Label("Perfil del cliente");
-        encabezado.getStyleClass().add("section-title");
+        editor.getStyleClass().add("profile-form");
+        VBox encabezado = encabezadoPanel("Perfil del cliente",
+                "Ajusta sus datos de trámite y las preferencias de selección.");
         editor.getChildren().addAll(encabezado, campo("Nombre para mostrar", nombre), activo,
                 seccion("Paso 1 · Datos del trámite"),
                 campo("Cómo obtener el permiso (texto del portal)", permiso),
@@ -409,6 +429,8 @@ final class EditorConfiguracion {
         Alert confirmacion = new Alert(Alert.AlertType.CONFIRMATION,
                 "¿Eliminar el perfil de " + seleccionado.nombre() + "?");
         confirmacion.initOwner(propietario);
+        EstilosJavaFx.aplicar(confirmacion.getDialogPane());
+        confirmacion.getDialogPane().getStyleClass().add("notice-dialog-warning");
         confirmacion.setHeaderText("Eliminar cliente");
         if (confirmacion.showAndWait().orElse(ButtonType.CANCEL) != ButtonType.OK) {
             return;
@@ -615,14 +637,32 @@ final class EditorConfiguracion {
     }
 
     private static void addRow(GridPane grid, int row, String etiqueta, Node control) {
-        grid.add(new Label(etiqueta), 0, row);
+        Label titulo = new Label(etiqueta);
+        titulo.getStyleClass().add("field-label");
+        grid.add(titulo, 0, row);
         grid.add(control, 1, row);
+    }
+
+    private static void agregarSeccion(GridPane grid, int row, String titulo) {
+        Label encabezado = new Label(titulo);
+        encabezado.getStyleClass().add("form-section-title");
+        grid.add(encabezado, 0, row, 2, 1);
+    }
+
+    private static VBox encabezadoPanel(String titulo, String detalle) {
+        Label nombre = new Label(titulo);
+        nombre.getStyleClass().add("panel-heading");
+        Label descripcion = new Label(detalle);
+        descripcion.getStyleClass().add("field-help");
+        descripcion.setWrapText(true);
+        return new VBox(5, nombre, descripcion);
     }
 
     private void mostrarError(String titulo, String mensaje) {
         Alert error = new Alert(Alert.AlertType.ERROR, mensaje == null ? "Error inesperado." : mensaje);
         error.initOwner(propietario);
         EstilosJavaFx.aplicar(error.getDialogPane());
+        error.getDialogPane().getStyleClass().add("notice-dialog-error");
         error.setTitle(titulo);
         error.setHeaderText(titulo);
         error.showAndWait();
@@ -632,6 +672,7 @@ final class EditorConfiguracion {
         Alert info = new Alert(Alert.AlertType.INFORMATION, mensaje);
         info.initOwner(propietario);
         EstilosJavaFx.aplicar(info.getDialogPane());
+        info.getDialogPane().getStyleClass().add("notice-dialog-success");
         info.setTitle(titulo);
         info.setHeaderText(titulo);
         info.showAndWait();

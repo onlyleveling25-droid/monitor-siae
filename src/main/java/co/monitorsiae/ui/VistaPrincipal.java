@@ -21,6 +21,8 @@ import javafx.scene.control.Tooltip;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.Window;
 
@@ -41,14 +43,19 @@ public final class VistaPrincipal extends BorderPane {
     private final CoordinadorMonitores monitores;
     private final CentralAlertas alertas;
     private final Consumer<Configuracion> alGuardar;
+    private final VBox barraLateral = new VBox(18);
     private final VBox tarjetas = new VBox(14);
     private final VBox avisos = new VBox(8);
+    private final HBox avisoVisual = new HBox(10);
+    private final Label iconoAviso = new Label();
+    private final Label textoAviso = new Label();
     private final Label resumen = new Label();
     private final Label modoTexto = new Label();
     private final Label confirmacionReconocimiento = new Label();
     private final Map<String, Label> estados = new HashMap<>();
     private final Map<String, Label> resultados = new HashMap<>();
     private final Map<String, Button> botonesInventario = new HashMap<>();
+    private boolean menuVisible = true;
 
     VistaPrincipal(Window propietario, ServicioAplicacion servicio, CoordinadorMonitores monitores,
                    CentralAlertas alertas, Consumer<Configuracion> alGuardar) {
@@ -64,13 +71,22 @@ public final class VistaPrincipal extends BorderPane {
     }
 
     private void crearBarraLateral() {
-        VBox barra = new VBox(18);
-        barra.getStyleClass().add("sidebar");
-        barra.setPadding(new Insets(24, 16, 24, 16));
-        Label marca = new Label("MONITOR\nSIAE");
-        marca.getStyleClass().add("brand");
+        barraLateral.getStyleClass().add("sidebar");
+        barraLateral.setPadding(new Insets(24, 16, 24, 16));
+        HBox marca = new HBox(11);
+        marca.setAlignment(Pos.CENTER_LEFT);
+        StackPane insignia = new StackPane();
+        insignia.getStyleClass().add("app-mark");
+        Label letra = new Label("M");
+        letra.getStyleClass().add("app-mark-letter");
+        insignia.getChildren().add(letra);
+        VBox identidad = new VBox(3);
+        Label nombre = new Label("Monitor SIAE");
+        nombre.getStyleClass().add("brand");
         Label version = new Label("CENTRO DE OPERACIONES");
         version.getStyleClass().add("sidebar-caption");
+        identidad.getChildren().addAll(nombre, version);
+        marca.getChildren().addAll(insignia, identidad);
         Button inicio = new Button("⌂   Panel principal");
         inicio.getStyleClass().add("nav-selected");
         inicio.setMaxWidth(Double.MAX_VALUE);
@@ -78,22 +94,30 @@ public final class VistaPrincipal extends BorderPane {
         configuracion.getStyleClass().add("nav-button");
         configuracion.setMaxWidth(Double.MAX_VALUE);
         configuracion.setOnAction(event -> abrirConfiguracion());
-        VBox.setVgrow(version, Priority.ALWAYS);
+        Region separador = new Region();
+        VBox.setVgrow(separador, Priority.ALWAYS);
         Label portal = new Label("PORTAL REAL\nSesión Playwright en validación");
         portal.getStyleClass().add("sidebar-note");
-        barra.getChildren().addAll(marca, version, inicio, configuracion, portal);
-        setLeft(barra);
+        portal.setWrapText(true);
+        barraLateral.getChildren().addAll(marca, inicio, configuracion, separador, portal);
+        setLeft(barraLateral);
     }
 
     private void crearContenido() {
         VBox cuerpo = new VBox(20);
         cuerpo.setPadding(new Insets(28, 34, 30, 34));
         HBox encabezado = new HBox(16);
+        encabezado.getStyleClass().add("page-header");
         encabezado.setAlignment(Pos.CENTER_LEFT);
+        Button menu = new Button("☰");
+        menu.getStyleClass().add("icon-button");
+        menu.setTooltip(new Tooltip("Ocultar menú"));
+        menu.setAccessibleText("Alternar visibilidad del menú lateral");
+        menu.setOnAction(event -> alternarMenu(menu));
         VBox titulos = new VBox(4);
-        Label saludo = new Label("Monitoreo");
+        Label saludo = new Label("Centro de monitoreo");
         saludo.getStyleClass().add("page-title");
-        Label subtitulo = new Label("Administra tus clientes y revisa su estado en tiempo real.");
+        Label subtitulo = new Label("Controla tus perfiles y consulta su actividad desde un solo lugar.");
         subtitulo.getStyleClass().add("muted");
         titulos.getChildren().addAll(saludo, subtitulo);
         HBox.setHgrow(titulos, Priority.ALWAYS);
@@ -105,7 +129,7 @@ public final class VistaPrincipal extends BorderPane {
         Button probar = new Button("Probar alarma");
         probar.getStyleClass().add("secondary-button");
         probar.setOnAction(event -> probarAlarma());
-        encabezado.getChildren().addAll(titulos, reconocerTodas, probar);
+        encabezado.getChildren().addAll(menu, titulos, reconocerTodas, probar);
 
         HBox modo = new HBox(10);
         modo.getStyleClass().add("environment-banner");
@@ -113,6 +137,21 @@ public final class VistaPrincipal extends BorderPane {
         punto.getStyleClass().add("banner-dot");
         modoTexto.getStyleClass().add("banner-text");
         modo.getChildren().addAll(punto, modoTexto);
+
+        iconoAviso.getStyleClass().add("visual-notice-icon");
+        textoAviso.getStyleClass().add("visual-notice-text");
+        textoAviso.setWrapText(true);
+        HBox.setHgrow(textoAviso, Priority.ALWAYS);
+        Button cerrarAviso = new Button("×");
+        cerrarAviso.getStyleClass().add("visual-notice-close");
+        cerrarAviso.setTooltip(new Tooltip("Cerrar aviso"));
+        cerrarAviso.setAccessibleText("Cerrar aviso");
+        cerrarAviso.setOnAction(event -> ocultarAvisoVisual());
+        avisoVisual.getStyleClass().add("visual-notice");
+        avisoVisual.setAlignment(Pos.CENTER_LEFT);
+        avisoVisual.setPadding(new Insets(11, 14, 11, 14));
+        avisoVisual.getChildren().addAll(iconoAviso, textoAviso, cerrarAviso);
+        ocultarAvisoVisual();
 
         resumen.getStyleClass().add("section-title");
         confirmacionReconocimiento.getStyleClass().add("acknowledgement-banner");
@@ -125,8 +164,15 @@ public final class VistaPrincipal extends BorderPane {
         desplazamiento.setFitToWidth(true);
         desplazamiento.getStyleClass().add("transparent-scroll");
         VBox.setVgrow(desplazamiento, Priority.ALWAYS);
-        cuerpo.getChildren().addAll(encabezado, modo, avisos, confirmacionReconocimiento, resumen, desplazamiento);
+        cuerpo.getChildren().addAll(encabezado, avisoVisual, modo, avisos, confirmacionReconocimiento,
+                resumen, desplazamiento);
         setCenter(cuerpo);
+    }
+
+    private void alternarMenu(Button boton) {
+        menuVisible = !menuVisible;
+        setLeft(menuVisible ? barraLateral : null);
+        boton.setTooltip(new Tooltip(menuVisible ? "Ocultar menú" : "Mostrar menú"));
     }
 
     public void refrescarConfiguracion() {
@@ -175,6 +221,21 @@ public final class VistaPrincipal extends BorderPane {
         Button inventario = botonesInventario.get(clienteId);
         if (inventario != null) {
             inventario.setDisable(monitores.ultimoSnapshot(clienteId).isEmpty());
+        }
+        if (servicio.configuracion().entornoPortal() == EntornoPortal.PORTAL_REAL) {
+            switch (estado) {
+                case ABRIENDO_SESION -> mostrarAvisoVisual("Abriendo el navegador para este perfil.",
+                        TipoAviso.INFO);
+                case SESION_ABIERTA -> mostrarAvisoVisual(
+                        "Navegador abierto. Completa el inicio de sesión manualmente en Edge o Chrome.",
+                        TipoAviso.SUCCESS);
+                case DETENIDO -> mostrarAvisoVisual("La sesión del navegador se cerró.", TipoAviso.INFO);
+                case ERROR -> mostrarAvisoVisual(
+                        "No se pudo abrir el navegador. Revisa el resultado en la tarjeta del perfil.",
+                        TipoAviso.ERROR);
+                default -> {
+                }
+            }
         }
     }
 
@@ -262,8 +323,11 @@ public final class VistaPrincipal extends BorderPane {
         if (!autorizarEdicion()) {
             return;
         }
-        new EditorConfiguracion(propietario, servicio, alGuardar).showAndWait();
+        boolean guardada = new EditorConfiguracion(propietario, servicio, alGuardar).showAndWait();
         refrescarConfiguracion();
+        if (guardada) {
+            mostrarAvisoVisual("Configuración guardada correctamente.", TipoAviso.SUCCESS);
+        }
     }
 
     private boolean autorizarEdicion() {
@@ -321,6 +385,29 @@ public final class VistaPrincipal extends BorderPane {
         confirmacionReconocimiento.setText(mensaje);
         confirmacionReconocimiento.setVisible(true);
         confirmacionReconocimiento.setManaged(true);
+    }
+
+    private void mostrarAvisoVisual(String mensaje, TipoAviso tipo) {
+        avisoVisual.getStyleClass().removeAll("visual-notice-success", "visual-notice-info",
+                "visual-notice-error");
+        avisoVisual.getStyleClass().add(switch (tipo) {
+            case SUCCESS -> "visual-notice-success";
+            case INFO -> "visual-notice-info";
+            case ERROR -> "visual-notice-error";
+        });
+        iconoAviso.setText(switch (tipo) {
+            case SUCCESS -> "✓";
+            case INFO -> "i";
+            case ERROR -> "!";
+        });
+        textoAviso.setText(mensaje);
+        avisoVisual.setVisible(true);
+        avisoVisual.setManaged(true);
+    }
+
+    private void ocultarAvisoVisual() {
+        avisoVisual.setVisible(false);
+        avisoVisual.setManaged(false);
     }
 
     private void mostrarHistorial(String clienteId) {
@@ -430,8 +517,19 @@ public final class VistaPrincipal extends BorderPane {
         Alert alerta = new Alert(tipo, mensaje);
         alerta.initOwner(propietario);
         EstilosJavaFx.aplicar(alerta.getDialogPane());
+        if (tipo == Alert.AlertType.ERROR) {
+            alerta.getDialogPane().getStyleClass().add("notice-dialog-error");
+        } else if (tipo == Alert.AlertType.WARNING) {
+            alerta.getDialogPane().getStyleClass().add("notice-dialog-warning");
+        }
         alerta.setTitle(titulo);
         alerta.setHeaderText(titulo);
         alerta.showAndWait();
+    }
+
+    private enum TipoAviso {
+        SUCCESS,
+        INFO,
+        ERROR
     }
 }

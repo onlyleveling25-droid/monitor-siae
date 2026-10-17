@@ -71,7 +71,7 @@ public final class AplicacionJavaFx extends Application {
             vista = new VistaPrincipal(ventana, servicio, monitores, centralAlertas, this::actualizarConfiguracion);
             Scene escena = new Scene(vista, 1100, 720);
             EstilosJavaFx.aplicar(vista);
-            stage.setTitle("Monitor SIAE");
+            stage.setTitle("Monitor SIAE | Centro de monitoreo");
             stage.setMinWidth(900);
             stage.setMinHeight(620);
             stage.setScene(escena);

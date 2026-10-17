@@ -64,7 +64,7 @@ public final class RepositorioConfiguracionJson implements RepositorioConfigurac
             reemplazar(temporal, archivo);
             temporal = null;
         } catch (IOException e) {
-            throw new UncheckedIOException("No se pudo guardar la configuracion en " + archivo, e);
+            throw new UncheckedIOException("No se pudo guardar la configuración en " + archivo, e);
         } finally {
             borrarSiExiste(temporal);
         }
@@ -95,18 +95,18 @@ public final class RepositorioConfiguracionJson implements RepositorioConfigurac
             configuracion = json.readValue(origen.toFile(), Configuracion.class);
         } catch (JsonProcessingException e) {
             throw new ConfiguracionIlegibleException(origen,
-                    "El archivo de configuracion esta danado: " + e.getOriginalMessage(), e);
+                    "El archivo de configuración está dañado: " + e.getOriginalMessage(), e);
         } catch (IOException e) {
-            throw new ConfiguracionIlegibleException(origen, "No se pudo leer el archivo de configuracion.", e);
+            throw new ConfiguracionIlegibleException(origen, "No se pudo leer el archivo de configuración.", e);
         }
 
         if (configuracion == null) {
-            throw new ConfiguracionIlegibleException(origen, "El archivo de configuracion esta vacio.");
+            throw new ConfiguracionIlegibleException(origen, "El archivo de configuración está vacío.");
         }
         if (configuracion.version() > Configuracion.VERSION_ACTUAL) {
             throw new ConfiguracionIlegibleException(origen,
-                    "La configuracion fue creada por una version mas nueva de la aplicacion (formato "
-                            + configuracion.version() + "). Actualice la aplicacion.");
+                    "La configuración fue creada por una versión más nueva de la aplicación (formato "
+                            + configuracion.version() + "). Actualice la aplicación.");
         }
         return configuracion;
     }

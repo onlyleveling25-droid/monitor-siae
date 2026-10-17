@@ -9,7 +9,8 @@ periódica mientras no haya inventario y, cuando el listado del paso 2 trae las 
 aparta el arma según las reglas del cliente y lanza una alarma imposible de ignorar para que la
 persona termine el proceso.
 
-> Estado: **fase 2 de 8** (modelo y configuración). Todavía no hay funcionalidad ejecutable.
+> Estado: **fase 4 de 8 en curso** (contraseña y filtro de armas listos). Todavía no hay funcionalidad
+> ejecutable.
 
 ## Qué hace y qué no hace
 
@@ -91,7 +92,9 @@ Se guarda en `%APPDATA%\MonitorSIAE\config.json` y se edita desde la aplicación
 ```
 
   - `objetivos`: en orden de prioridad. Todas las palabras clave deben aparecer en el nombre del
-    arma; no importan tildes ni mayúsculas.
+    arma como palabras completas. No importan tildes, mayúsculas ni guiones: `g43` encuentra
+    `G-43`, pero `22` no encuentra `225`. Escriba las marcas como aparecen en la plataforma
+    (por ejemplo, `cordova` y no `córdoba`).
   - `siNoHayObjetivo`: `SEGUIR_ESPERANDO`, `USAR_ALTERNATIVAS` o `CUALQUIERA_DEL_TIPO`.
   - `excluir`: palabras que descartan un arma aunque coincida.
 
@@ -120,9 +123,9 @@ de `acceso` y volver a abrir la aplicación, que pedirá crear una nueva.
 ## Plan de desarrollo
 
 1. Estructura base, documentación y wrapper.
-2. Modelo y configuración JSON. **(actual)**
+2. Modelo y configuración JSON.
 3. Contraseña de la aplicación.
-4. Núcleo: `PortalDriver`, simulador, monitor y filtro de armas.
+4. Núcleo: filtro de armas (listo), `PortalDriver`, simulador y monitor. **(actual)**
 5. Notificaciones.
 6. Interfaz JavaFX.
 7. Integración con el portal real.

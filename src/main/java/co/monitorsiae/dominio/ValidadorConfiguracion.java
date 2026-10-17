@@ -20,7 +20,7 @@ public final class ValidadorConfiguracion {
         Set<String> ids = new HashSet<>();
         for (Cliente cliente : configuracion.clientes()) {
             if (!ids.add(cliente.id())) {
-                problemas.add(new ProblemaConfiguracion(etiqueta(cliente), "El identificador esta repetido."));
+                problemas.add(new ProblemaConfiguracion(etiqueta(cliente), "El identificador está repetido."));
             }
             validarCliente(cliente, problemas);
         }
@@ -37,7 +37,7 @@ public final class ValidadorConfiguracion {
         HorarioOperacion horario = configuracion.horario();
         if (horario.restringir()) {
             if (horario.dias().isEmpty()) {
-                problemas.add(new ProblemaConfiguracion("Horario", "Seleccione al menos un dia."));
+                problemas.add(new ProblemaConfiguracion("Horario", "Seleccione al menos un día."));
             }
             if (!horario.desde().isBefore(horario.hasta())) {
                 problemas.add(new ProblemaConfiguracion("Horario",
@@ -57,10 +57,10 @@ public final class ValidadorConfiguracion {
 
     private void validarTramite(String ubicacion, ParametrosTramite tramite, List<ProblemaConfiguracion> problemas) {
         if (tramite.obtenerPermiso().isEmpty()) {
-            problemas.add(new ProblemaConfiguracion(ubicacion, "Falta como desea obtener el permiso."));
+            problemas.add(new ProblemaConfiguracion(ubicacion, "Falta cómo desea obtener el permiso."));
         }
         if (tramite.tipoTramite().isEmpty()) {
-            problemas.add(new ProblemaConfiguracion(ubicacion, "Falta el tipo de tramite."));
+            problemas.add(new ProblemaConfiguracion(ubicacion, "Falta el tipo de trámite."));
         }
         if (tramite.seccionales().isEmpty()) {
             problemas.add(new ProblemaConfiguracion(ubicacion, "Agregue al menos una seccional."));
@@ -69,7 +69,7 @@ public final class ValidadorConfiguracion {
         int largo = tramite.descripcion().length();
         if (largo < ParametrosTramite.DESCRIPCION_MINIMA || largo > ParametrosTramite.DESCRIPCION_MAXIMA) {
             problemas.add(new ProblemaConfiguracion(ubicacion,
-                    "La descripcion debe tener entre " + ParametrosTramite.DESCRIPCION_MINIMA + " y "
+                    "La descripción debe tener entre " + ParametrosTramite.DESCRIPCION_MINIMA + " y "
                             + ParametrosTramite.DESCRIPCION_MAXIMA + " caracteres; tiene " + largo + "."));
         }
     }
@@ -103,7 +103,7 @@ public final class ValidadorConfiguracion {
 
         if (reglas.reintentos() > REINTENTOS_MAXIMOS) {
             problemas.add(new ProblemaConfiguracion(ubicacion,
-                    "Los reintentos no pueden ser mas de " + REINTENTOS_MAXIMOS + "."));
+                    "Los reintentos no pueden ser más de " + REINTENTOS_MAXIMOS + "."));
         }
     }
 

@@ -126,6 +126,20 @@ está en silencio.
 **Descartado:** Telegram. El usuario trabaja frente al PC; una notificación en el celular no ayuda.
 
 **Voz:** sintetizador de Windows (System.Speech) invocado por PowerShell, sin librerías extra.
+Prefiere una voz en español si está instalada. El texto viaja en una variable de entorno y no dentro
+del comando, porque incluye nombres escritos por el usuario.
+
+**Implementación (2026-10-17):**
+- `CentralAlertas` guarda una alerta activa por cliente (la más reciente reemplaza a la anterior) y
+  envía la lista completa a cada canal. Lista vacía significa callar.
+- Solo generan alerta: arma apartada, arma disponible (modo alerta), sesión vencida y monitoreo
+  detenido por errores repetidos. Lo demás queda en el registro.
+- Voz y sirena se repiten hasta que la persona reconozca la alerta. La sirena se genera en memoria
+  (sin archivos): aguda para oportunidades, grave para problemas.
+- La ventana al frente y el parpadeo de la barra de tareas se implementan con la interfaz (fase 6).
+
+**Descartado por ahora:** detectar si el volumen está en silencio. Java no lo permite sin
+librerías nativas; se cubre con el botón "Probar alarma".
 
 ## D11. Horario de operación
 

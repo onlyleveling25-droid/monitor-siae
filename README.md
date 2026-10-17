@@ -9,7 +9,7 @@ periódica mientras no haya inventario y, cuando el listado del paso 2 trae las 
 aparta el arma según las reglas del cliente y lanza una alarma imposible de ignorar para que la
 persona termine el proceso.
 
-> Estado: **fase 4 de 8** (núcleo del monitor probado contra un portal simulado). Todavía no hay
+> Estado: **fase 5 de 8** (monitor y alarmas probados contra un portal simulado). Todavía no hay
 > interfaz ni conexión con el portal real.
 
 ## Qué hace y qué no hace
@@ -129,8 +129,8 @@ de `acceso` y volver a abrir la aplicación, que pedirá crear una nueva.
 1. Estructura base, documentación y wrapper.
 2. Modelo y configuración JSON.
 3. Contraseña de la aplicación.
-4. Núcleo: filtro de armas, `PortalDriver`, simulador y monitor. **(actual)**
-5. Notificaciones.
+4. Núcleo: filtro de armas, `PortalDriver`, simulador y monitor.
+5. Alarmas: voz y sirena. **(actual)**
 6. Interfaz JavaFX.
 7. Integración con el portal real.
 8. Instalador con `jpackage`.

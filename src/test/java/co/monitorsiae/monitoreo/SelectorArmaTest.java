@@ -60,6 +60,21 @@ class SelectorArmaTest {
     }
 
     @Test
+    void pistolaPuedeSerObjetivoPrioritarioPorEncimaDeUnModeloEspecifico() {
+        List<ArmaInventario> inventario = inventario(
+                "Pistola CZ P10 CAL 9 mm 2P 9T CZ 9MM",
+                "Pistola Cordova Compacta Cal 9MM CORDOVA 9MM");
+        ReglasSeleccion reglas = reglas(List.of(CriterioArma.de("pistola"), CriterioArma.de("cordova")),
+                PoliticaSinObjetivo.SEGUIR_ESPERANDO);
+
+        EleccionArma eleccion = selector.elegir(inventario, reglas).orElseThrow();
+
+        assertEquals(0, eleccion.arma().posicion());
+        assertEquals(MotivoEleccion.OBJETIVO, eleccion.motivo());
+        assertEquals(0, eleccion.prioridad());
+    }
+
+    @Test
     void seguirEsperandoIgnoraOtrasPistolas() {
         // Reproduce lo que reportaba el script de terceros: cuatro pistolas y ninguna permitida.
         Optional<EleccionArma> eleccion = selector.elegir(INVENTARIO_SIN_GLOCK,
@@ -92,6 +107,58 @@ class SelectorArmaTest {
         EleccionArma eleccion = selector.elegir(INVENTARIO_SIN_GLOCK, reglas).orElseThrow();
         assertEquals(MotivoEleccion.CUALQUIERA_DEL_TIPO, eleccion.motivo());
         assertEquals(0, eleccion.arma().posicion());
+    }
+
+    @Test
+    void usaElTipoComodinCuandoNoHayObjetivosNiAlternativasDisponibles() {
+        ReglasSeleccion reglas = new ReglasSeleccion(Modalidad.PORTE,
+                List.of(CriterioArma.de("glock", "g43")),
+                PoliticaSinObjetivo.USAR_ALTERNATIVAS_LUEGO_TIPO,
+                List.of(CriterioArma.de("jericho")),
+                "Pistola", List.of(), 1);
+
+        EleccionArma eleccion = selector.elegir(INVENTARIO_SIN_GLOCK, reglas).orElseThrow();
+
+        assertEquals(MotivoEleccion.CUALQUIERA_DEL_TIPO, eleccion.motivo());
+        assertEquals(0, eleccion.arma().posicion());
+        assertTrue(eleccion.arma().descripcion().contains("Cordova"));
+    }
+
+    @Test
+    void laAlternativaTienePrioridadSobreElTipoComodin() {
+        ReglasSeleccion reglas = new ReglasSeleccion(Modalidad.PORTE,
+                List.of(CriterioArma.de("glock", "g43")),
+                PoliticaSinObjetivo.USAR_ALTERNATIVAS_LUEGO_TIPO,
+                List.of(CriterioArma.de("cz", "p10")),
+                "Pistola", List.of(), 1);
+
+        EleccionArma eleccion = selector.elegir(INVENTARIO_SIN_GLOCK, reglas).orElseThrow();
+
+        assertEquals(MotivoEleccion.ALTERNATIVA, eleccion.motivo());
+        assertTrue(eleccion.arma().descripcion().contains("CZ P10"));
+    }
+
+    @Test
+    void siNoSeConfiguranAlternativasSaltaAlTipoComodin() {
+        ReglasSeleccion reglas = new ReglasSeleccion(Modalidad.PORTE,
+                List.of(CriterioArma.de("glock", "g43")),
+                PoliticaSinObjetivo.USAR_ALTERNATIVAS_LUEGO_TIPO,
+                List.of(), "Pistola", List.of(), 1);
+
+        EleccionArma eleccion = selector.elegir(INVENTARIO_SIN_GLOCK, reglas).orElseThrow();
+
+        assertEquals(MotivoEleccion.CUALQUIERA_DEL_TIPO, eleccion.motivo());
+        assertTrue(eleccion.arma().descripcion().contains("Cordova"));
+    }
+
+    @Test
+    void lasExclusionesTambienBloqueanElComodin() {
+        ReglasSeleccion reglas = new ReglasSeleccion(Modalidad.PORTE,
+                List.of(CriterioArma.de("glock", "g43")),
+                PoliticaSinObjetivo.USAR_ALTERNATIVAS_LUEGO_TIPO,
+                List.of(), "Pistola", List.of("pistola"), 1);
+
+        assertTrue(selector.elegir(INVENTARIO_SIN_GLOCK, reglas).isEmpty());
     }
 
     @Test

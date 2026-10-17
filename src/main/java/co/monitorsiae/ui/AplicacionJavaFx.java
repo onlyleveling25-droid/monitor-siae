@@ -13,9 +13,9 @@ import co.monitorsiae.notificacion.CanalVoz;
 import co.monitorsiae.notificacion.CentralAlertas;
 import co.monitorsiae.notificacion.LocutorWindows;
 import co.monitorsiae.portal.PortalDriver;
-import co.monitorsiae.portal.simulado.Escena;
-import co.monitorsiae.portal.simulado.PortalSimulado;
+import co.monitorsiae.portal.simulado.FabricaPortalSimulada;
 import co.monitorsiae.persistencia.RepositorioConfiguracionJson;
+import co.monitorsiae.persistencia.RepositorioSnapshotsJson;
 import co.monitorsiae.persistencia.ConfiguracionIlegibleException;
 import co.monitorsiae.persistencia.UbicacionDatos;
 import javafx.application.Application;
@@ -52,12 +52,12 @@ public final class AplicacionJavaFx extends Application {
                     new CanalSonido(),
                     new CanalVoz(new LocutorWindows(), Pausa.real())));
             monitores = new CoordinadorMonitores(servicio.configuracion(), centralAlertas,
-                    AplicacionJavaFx::crearPortalSimulado,
+                    new FabricaPortalSimulada(),
                     (id, estado) -> {
                         if (!cerrando) {
-                            Platform.runLater(() -> vista.actualizarEstado(id, estado));
+                            Platform.runLater(() -> vista.actualizarEstado(id, monitores.estado(id)));
                         }
-                    });
+                    }, new RepositorioSnapshotsJson(ubicacion.archivoHistorialInventarios()));
 
             vista = new VistaPrincipal(ventana, servicio, monitores, centralAlertas, this::actualizarConfiguracion);
             Scene escena = new Scene(vista, 1100, 720);
@@ -100,12 +100,6 @@ public final class AplicacionJavaFx extends Application {
     private void actualizarConfiguracion(Configuracion configuracion) {
         monitores.actualizarConfiguracion(configuracion);
         vista.refrescarConfiguracion();
-    }
-
-    private static PortalDriver crearPortalSimulado(co.monitorsiae.dominio.Cliente cliente) {
-        List<String> seccionales = cliente.tramite().seccionales();
-        String seccional = seccionales.isEmpty() ? "Sin seccional configurada" : seccionales.getFirst();
-        return PortalSimulado.con(Escena.abiertasSinInventario(seccional));
     }
 
     private void cerrar() {

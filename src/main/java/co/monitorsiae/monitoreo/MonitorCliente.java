@@ -62,11 +62,17 @@ public final class MonitorCliente implements Runnable {
 
     private MotivoDetencion vigilar() throws InterruptedException {
         int fallosSeguidos = 0;
+        boolean fueraDeHorarioNotificado = false;
         while (!detencionSolicitada) {
             if (!ventana.permiteAhora()) {
                 oyente.fueraDeHorario(cliente);
+                fueraDeHorarioNotificado = true;
                 pausa.esperar(ESPERA_FUERA_DE_HORARIO);
                 continue;
+            }
+            if (fueraDeHorarioNotificado) {
+                oyente.dentroDeHorario(cliente);
+                fueraDeHorarioNotificado = false;
             }
 
             ResultadoCiclo resultado = ciclo.ejecutar(cliente, portal);

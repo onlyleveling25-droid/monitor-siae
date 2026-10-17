@@ -12,8 +12,8 @@ import java.util.Optional;
  * Decide que arma del inventario tomar segun las reglas de un cliente.
  *
  * <p>Orden: primero se descartan las armas excluidas; luego se recorren los objetivos por
- * prioridad y gana el primero que tenga coincidencia. Solo si ningun objetivo esta disponible se
- * aplica la politica de reemplazo.
+ * prioridad y gana el primero que tenga coincidencia. Si se eligio la politica encadenada, tras
+ * los objetivos se prueban las alternativas y finalmente el tipo comodin.
  */
 public final class SelectorArma {
 
@@ -32,6 +32,13 @@ public final class SelectorArma {
             case USAR_ALTERNATIVAS ->
                     buscarPorPrioridad(candidatas, reglas.alternativas(), MotivoEleccion.ALTERNATIVA);
             case CUALQUIERA_DEL_TIPO -> buscarPorTipo(candidatas, reglas.tipoComodin());
+            case USAR_ALTERNATIVAS_LUEGO_TIPO -> {
+                Optional<EleccionArma> alternativa =
+                        buscarPorPrioridad(candidatas, reglas.alternativas(), MotivoEleccion.ALTERNATIVA);
+                yield alternativa.isPresent()
+                        ? alternativa
+                        : buscarPorTipo(candidatas, reglas.tipoComodin());
+            }
         };
     }
 
@@ -41,7 +48,7 @@ public final class SelectorArma {
             List<String> palabras = criterios.get(prioridad).palabrasClave();
             for (ArmaInventario arma : candidatas) {
                 if (Texto.contieneTodos(arma.descripcion(), palabras)) {
-                    return Optional.of(new EleccionArma(arma, motivo, prioridad));
+                    return Optional.of(new EleccionArma(arma, motivo, prioridad, String.join(", ", palabras)));
                 }
             }
         }
@@ -55,6 +62,6 @@ public final class SelectorArma {
         return candidatas.stream()
                 .filter(arma -> Texto.equivalentes(arma.tipoEfectivo(), tipo))
                 .findFirst()
-                .map(arma -> new EleccionArma(arma, MotivoEleccion.CUALQUIERA_DEL_TIPO, 0));
+                .map(arma -> new EleccionArma(arma, MotivoEleccion.CUALQUIERA_DEL_TIPO, 0, tipo));
     }
 }

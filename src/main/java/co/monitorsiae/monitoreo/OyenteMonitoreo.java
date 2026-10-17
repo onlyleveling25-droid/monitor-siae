@@ -17,6 +17,9 @@ public interface OyenteMonitoreo {
     default void fueraDeHorario(Cliente cliente) {
     }
 
+    default void dentroDeHorario(Cliente cliente) {
+    }
+
     default void alTerminarCiclo(Cliente cliente, ResultadoCiclo resultado) {
     }
 

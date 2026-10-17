@@ -59,7 +59,7 @@
 
 .page-title {
     -fx-font-size: 27px;
-    -fx-font-weight: 750;
+    -fx-font-weight: bold;
     -fx-text-fill: #142238;
 }
 
@@ -126,6 +126,11 @@
     -fx-text-fill: #946219;
 }
 
+.status-alert {
+    -fx-background-color: #fff0d6;
+    -fx-text-fill: #93560c;
+}
+
 .status-error {
     -fx-background-color: #ffebeb;
     -fx-text-fill: #ad3636;
@@ -134,7 +139,7 @@
 .primary-button, .secondary-button, .text-button {
     -fx-background-radius: 8px;
     -fx-padding: 9px 14px;
-    -fx-font-weight: 650;
+    -fx-font-weight: bold;
     -fx-cursor: hand;
 }
 

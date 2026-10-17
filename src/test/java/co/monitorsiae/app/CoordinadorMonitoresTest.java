@@ -3,8 +3,13 @@ package co.monitorsiae.app;
 import co.monitorsiae.dominio.Cliente;
 import co.monitorsiae.dominio.ClientesDePrueba;
 import co.monitorsiae.dominio.Configuracion;
+import co.monitorsiae.dominio.ModoReaccion;
+import co.monitorsiae.dominio.PoliticaSinObjetivo;
+import co.monitorsiae.dominio.ReglasSeleccion;
 import co.monitorsiae.notificacion.CentralAlertas;
+import co.monitorsiae.notificacion.Alerta;
 import co.monitorsiae.portal.simulado.Escena;
+import co.monitorsiae.portal.simulado.FabricaPortalSimulada;
 import co.monitorsiae.portal.simulado.PortalSimulado;
 import org.junit.jupiter.api.Test;
 
@@ -14,12 +19,51 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CoordinadorMonitoresTest {
+
+    @Test
+    void elSimuladorConectaInventarioConLaAlertaDeOportunidad() throws InterruptedException {
+        Cliente base = ClientesDePrueba.valido("Ana");
+        Cliente cliente = new Cliente(base.id(), base.nombre(), true, base.tramite(), ModoReaccion.ALERTA,
+                new ReglasSeleccion(base.seleccion().modalidad(), base.seleccion().objetivos(),
+                        PoliticaSinObjetivo.USAR_ALTERNATIVAS_LUEGO_TIPO,
+                        base.seleccion().alternativas(), "Pistola", base.seleccion().excluir(),
+                        base.seleccion().reintentos()));
+        AtomicReference<Alerta> alertaRecibida = new AtomicReference<>();
+        CentralAlertas alertas = new CentralAlertas(List.of(activas -> {
+            if (!activas.isEmpty()) {
+                alertaRecibida.set(activas.getFirst());
+            }
+        }));
+        CoordinadorMonitores coordinador = new CoordinadorMonitores(
+                Configuracion.porDefecto().conClientes(List.of(cliente)),
+                alertas,
+                new FabricaPortalSimulada(),
+                (id, estado) -> {
+                });
+        try {
+            coordinador.iniciar(cliente);
+            long limite = System.nanoTime() + Duration.ofSeconds(2).toNanos();
+            while (alertaRecibida.get() == null && System.nanoTime() < limite) {
+                Thread.sleep(10);
+            }
+
+            assertNotNull(alertaRecibida.get(), "El simulador debe producir una alerta de arma disponible.");
+            assertEquals("Arma disponible: Ana", alertaRecibida.get().titulo());
+            esperarEstado(coordinador, cliente.id(), CoordinadorMonitores.Estado.ALERTA_ENCONTRADA);
+            var snapshot = coordinador.ultimoSnapshot(cliente.id()).orElseThrow();
+            assertEquals(2, snapshot.inventario().size());
+            assertEquals(0, snapshot.eleccion().arma().posicion());
+        } finally {
+            coordinador.close();
+        }
+    }
 
     @Test
     void detieneYReanudaElMonitorEnElTrabajadorDelCliente() throws InterruptedException {
@@ -43,7 +87,7 @@ class CoordinadorMonitoresTest {
             coordinador.detener(cliente.id());
             esperar(cambios, CoordinadorMonitores.Estado.DETENIDO);
 
-            assertEquals("Sin inventario en Medellín.", coordinador.ultimoResultado(cliente.id()));
+            assertEquals("Consultando el inventario.", coordinador.ultimoResultado(cliente.id()));
         } finally {
             coordinador.close();
         }
@@ -99,12 +143,26 @@ class CoordinadorMonitoresTest {
             throws InterruptedException {
         long limite = System.nanoTime() + Duration.ofSeconds(2).toNanos();
         while (System.nanoTime() < limite) {
-            if (!coordinador.ultimoResultado(clienteId).isBlank()) {
+            String resultado = coordinador.ultimoResultado(clienteId);
+            if (!resultado.isBlank() && !resultado.startsWith("Iniciando")
+                    && !resultado.equals("Consultando el inventario.")) {
                 return;
             }
             Thread.sleep(10);
         }
         throw new AssertionError("El monitor no publicó el primer resultado dentro del plazo.");
+    }
+
+    private static void esperarEstado(CoordinadorMonitores coordinador, String clienteId,
+                                      CoordinadorMonitores.Estado estado) throws InterruptedException {
+        long limite = System.nanoTime() + Duration.ofSeconds(2).toNanos();
+        while (System.nanoTime() < limite) {
+            if (coordinador.estado(clienteId) == estado) {
+                return;
+            }
+            Thread.sleep(10);
+        }
+        throw new AssertionError("El monitor no llegó al estado " + estado + ".");
     }
 
     private record Actualizacion(String clienteId, CoordinadorMonitores.Estado estado) {

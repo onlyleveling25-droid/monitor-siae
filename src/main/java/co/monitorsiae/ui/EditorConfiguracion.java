@@ -48,7 +48,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 /**
  * Editor de configuracion general y de los perfiles de clientes.
@@ -77,16 +76,23 @@ final class EditorConfiguracion {
     private final CheckBox activo = new CheckBox("Cliente incluido en el monitoreo");
     private final TextField permiso = new TextField();
     private final TextField tipoTramite = new TextField();
-    private final TextArea seccionales = area("Una seccional por línea, en orden de preferencia");
+    private final ListaEditable seccionales = new ListaEditable(
+            "Escribe una seccional y agrégala. Puedes cambiar el orden con las flechas.", "Ej. Medellín");
     private final TextArea descripcion = area("Descripción del trámite (150–500 caracteres)");
     private final Label contadorDescripcion = new Label();
     private final ComboBox<ModoReaccion> modo = new ComboBox<>();
     private final ComboBox<Modalidad> modalidad = new ComboBox<>();
-    private final TextArea objetivos = area("Un criterio por línea; separa palabras clave con coma. Ej.: glock, g-43");
+    private final ListaEditable objetivos = new ListaEditable(
+            "Cada fila es un objetivo prioritario. Separa con coma las palabras que deben coincidir juntas.",
+            "Ej. glock, g-43");
     private final ComboBox<PoliticaSinObjetivo> politica = new ComboBox<>();
-    private final TextArea alternativas = area("Un criterio alternativo por línea; palabras clave separadas por coma");
+    private final ListaEditable alternativas = new ListaEditable(
+            "Opcional. Cada fila es una alternativa; se revisan en el orden de la lista.",
+            "Ej. cz, p10");
     private final TextField tipoComodin = new TextField("Pistola");
-    private final TextArea excluir = area("Una palabra de exclusión por línea");
+    private final ListaEditable excluir = new ListaEditable(
+            "Si una palabra aparece en el arma, esta se descarta aunque coincida con un objetivo.",
+            "Ej. 22 lr");
     private final Spinner<Integer> reintentos = new Spinner<>(1, 5, 2);
     private String clienteActualId;
 
@@ -227,12 +233,12 @@ final class EditorConfiguracion {
                 seccion("Paso 1 · Datos del trámite"),
                 campo("Cómo obtener el permiso (texto del portal)", permiso),
                 campo("Tipo de trámite (texto del portal)", tipoTramite),
-                campo("Seccionales preferidas", seccionales),
+                campo("Seccionales preferidas (de mayor a menor prioridad)", seccionales),
                 descripcionConContador(),
                 seccion("Selección del arma"),
                 campo("Reacción", modo), campo("Modalidad", modalidad),
-                campo("Objetivos prioritarios", objetivos), campo("Si no hay objetivo", politica),
-                campo("Alternativas", alternativas), campo("Tipo comodín", tipoComodin),
+                campo("Objetivos prioritarios", objetivos), campo("Si no aparece ningún objetivo", politica),
+                campo("Alternativas", alternativas), campo("Tipo comodín (último recurso)", tipoComodin),
                 campo("Excluir", excluir), campo("Reintentos al apartar", reintentos));
         ScrollPaneFormulario scroll = new ScrollPaneFormulario(editor);
         BorderPane cuerpo = new BorderPane(scroll);
@@ -376,6 +382,8 @@ final class EditorConfiguracion {
         if (confirmacion.showAndWait().orElse(ButtonType.CANCEL) != ButtonType.OK) {
             return;
         }
+        guardarBorradorActual();
+        clienteActualId = null;
         borradores.remove(seleccionado.id());
         listaClientes.getItems().remove(seleccionado);
         if (listaClientes.getItems().isEmpty()) {
@@ -388,13 +396,9 @@ final class EditorConfiguracion {
         if (clienteActualId == null) {
             return;
         }
-        try {
-            Cliente cliente = capturarCliente(borradores.get(clienteActualId));
-            borradores.put(cliente.id(), cliente);
-            listaClientes.refresh();
-        } catch (RuntimeException e) {
-            mostrarError("Revisa los datos del cliente", e.getMessage());
-        }
+        Cliente cliente = capturarCliente(borradores.get(clienteActualId));
+        borradores.put(cliente.id(), cliente);
+        listaClientes.refresh();
     }
 
     private void cargarCliente(Cliente cliente) {
@@ -402,28 +406,42 @@ final class EditorConfiguracion {
         activo.setSelected(cliente.activo());
         permiso.setText(cliente.tramite().obtenerPermiso());
         tipoTramite.setText(cliente.tramite().tipoTramite());
-        seccionales.setText(String.join("\n", cliente.tramite().seccionales()));
+        seccionales.setValues(cliente.tramite().seccionales());
         descripcion.setText(cliente.tramite().descripcion());
         modo.setItems(FXCollections.observableArrayList(ModoReaccion.values()));
         modo.setValue(cliente.modo());
         modalidad.setItems(FXCollections.observableArrayList(Modalidad.values()));
         modalidad.setValue(cliente.seleccion().modalidad());
-        objetivos.setText(formatearCriterios(cliente.seleccion().objetivos()));
+        objetivos.setValues(formatearCriterios(cliente.seleccion().objetivos()));
         politica.setItems(FXCollections.observableArrayList(PoliticaSinObjetivo.values()));
+        politica.setCellFactory(ignorado -> new ListCell<>() {
+            @Override
+            protected void updateItem(PoliticaSinObjetivo item, boolean vacio) {
+                super.updateItem(item, vacio);
+                setText(vacio || item == null ? null : textoPolitica(item));
+            }
+        });
+        politica.setButtonCell(new ListCell<>() {
+            @Override
+            protected void updateItem(PoliticaSinObjetivo item, boolean vacio) {
+                super.updateItem(item, vacio);
+                setText(vacio || item == null ? null : textoPolitica(item));
+            }
+        });
         politica.setValue(cliente.seleccion().siNoHayObjetivo());
-        alternativas.setText(formatearCriterios(cliente.seleccion().alternativas()));
+        alternativas.setValues(formatearCriterios(cliente.seleccion().alternativas()));
         tipoComodin.setText(cliente.seleccion().tipoComodin());
-        excluir.setText(String.join("\n", cliente.seleccion().excluir()));
+        excluir.setValues(cliente.seleccion().excluir());
         reintentos.getValueFactory().setValue(Math.min(5, cliente.seleccion().reintentos()));
     }
 
     private Cliente capturarCliente(Cliente base) {
         Cliente anterior = base == null ? Cliente.nuevo("") : base;
         ParametrosTramite tramite = new ParametrosTramite(
-                permiso.getText(), tipoTramite.getText(), lineas(seccionales.getText()), descripcion.getText());
+                permiso.getText(), tipoTramite.getText(), seccionales.values(), descripcion.getText());
         ReglasSeleccion reglas = new ReglasSeleccion(valor(modalidad.getValue()),
-                criterios(objetivos.getText()), valor(politica.getValue()), criterios(alternativas.getText()),
-                tipoComodin.getText(), lineas(excluir.getText()), reintentos.getValue());
+                criterios(objetivos.values()), valor(politica.getValue()), criterios(alternativas.values()),
+                tipoComodin.getText(), excluir.values(), reintentos.getValue());
         return new Cliente(anterior.id(), nombre.getText(), activo.isSelected(), tramite,
                 valor(modo.getValue()), reglas);
     }
@@ -440,18 +458,24 @@ final class EditorConfiguracion {
         return valor == null ? PoliticaSinObjetivo.SEGUIR_ESPERANDO : valor;
     }
 
-    private static List<String> lineas(String texto) {
-        return texto.lines().map(String::strip).filter(linea -> !linea.isEmpty()).toList();
-    }
-
-    private static List<CriterioArma> criterios(String texto) {
-        return lineas(texto).stream().map(linea -> new CriterioArma(
+    private static List<CriterioArma> criterios(List<String> valores) {
+        return valores.stream().map(linea -> new CriterioArma(
                 java.util.Arrays.stream(linea.split(",")).map(String::strip).toList())).toList();
     }
 
-    private static String formatearCriterios(List<CriterioArma> criterios) {
+    private static List<String> formatearCriterios(List<CriterioArma> criterios) {
         return criterios.stream().map(criterio -> String.join(", ", criterio.palabrasClave()))
-                .collect(Collectors.joining("\n"));
+                .toList();
+    }
+
+    private static String textoPolitica(PoliticaSinObjetivo politica) {
+        return switch (politica) {
+            case SEGUIR_ESPERANDO -> "Seguir esperando solo los objetivos";
+            case USAR_ALTERNATIVAS -> "Probar alternativas; si ninguna coincide, seguir esperando";
+            case CUALQUIERA_DEL_TIPO -> "Tomar la primera arma del tipo indicado";
+            case USAR_ALTERNATIVAS_LUEGO_TIPO ->
+                    "Probar alternativas y, si ninguna coincide, tomar la primera del tipo";
+        };
     }
 
     private Node descripcionConContador() {
@@ -483,6 +507,80 @@ final class EditorConfiguracion {
         area.setWrapText(true);
         area.setPrefRowCount(3);
         return area;
+    }
+
+    private static final class ListaEditable extends VBox {
+        private final javafx.collections.ObservableList<String> valores =
+                FXCollections.observableArrayList();
+        private final ListView<String> lista = new ListView<>(valores);
+        private final TextField entrada = new TextField();
+
+        private ListaEditable(String ayuda, String ejemplo) {
+            super(7);
+            Label nota = new Label(ayuda);
+            nota.getStyleClass().add("muted");
+            nota.setWrapText(true);
+            entrada.setPromptText(ejemplo);
+            Button agregar = new Button("Agregar");
+            agregar.getStyleClass().add("secondary-button");
+            agregar.setOnAction(event -> agregar());
+            entrada.setOnAction(event -> agregar());
+            HBox filaAgregar = new HBox(8, entrada, agregar);
+            HBox.setHgrow(entrada, Priority.ALWAYS);
+            lista.setPrefHeight(90);
+            lista.setPlaceholder(new Label("Todavía no hay elementos."));
+            Button quitar = new Button("Quitar");
+            quitar.getStyleClass().add("text-button");
+            quitar.setOnAction(event -> {
+                int indice = lista.getSelectionModel().getSelectedIndex();
+                if (indice >= 0) {
+                    valores.remove(indice);
+                }
+            });
+            Button subir = new Button("↑");
+            subir.setTooltip(new javafx.scene.control.Tooltip("Subir prioridad"));
+            subir.getStyleClass().add("secondary-button");
+            subir.setOnAction(event -> mover(-1));
+            Button bajar = new Button("↓");
+            bajar.setTooltip(new javafx.scene.control.Tooltip("Bajar prioridad"));
+            bajar.getStyleClass().add("secondary-button");
+            bajar.setOnAction(event -> mover(1));
+            HBox acciones = new HBox(7, subir, bajar, quitar);
+            getChildren().addAll(nota, filaAgregar, lista, acciones);
+        }
+
+        private void agregar() {
+            String valor = entrada.getText().strip();
+            if (valor.isEmpty()) {
+                return;
+            }
+            if (valores.stream().anyMatch(actual -> actual.equalsIgnoreCase(valor))) {
+                return;
+            }
+            valores.add(valor);
+            lista.getSelectionModel().select(valores.size() - 1);
+            entrada.clear();
+            entrada.requestFocus();
+        }
+
+        private void mover(int desplazamiento) {
+            int indice = lista.getSelectionModel().getSelectedIndex();
+            int destino = indice + desplazamiento;
+            if (indice < 0 || destino < 0 || destino >= valores.size()) {
+                return;
+            }
+            String valor = valores.remove(indice);
+            valores.add(destino, valor);
+            lista.getSelectionModel().select(destino);
+        }
+
+        private List<String> values() {
+            return List.copyOf(valores);
+        }
+
+        private void setValues(List<String> nuevos) {
+            valores.setAll(nuevos);
+        }
     }
 
     private static void addRow(GridPane grid, int row, String etiqueta, Node control) {

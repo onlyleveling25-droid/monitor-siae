@@ -4,6 +4,7 @@ import co.monitorsiae.app.CoordinadorMonitores;
 import co.monitorsiae.app.ServicioAplicacion;
 import co.monitorsiae.dominio.Cliente;
 import co.monitorsiae.dominio.Configuracion;
+import co.monitorsiae.monitoreo.SnapshotInventario;
 import co.monitorsiae.notificacion.Alerta;
 import co.monitorsiae.notificacion.CentralAlertas;
 import co.monitorsiae.notificacion.Gravedad;
@@ -11,8 +12,10 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
+import javafx.scene.control.ChoiceDialog;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
+import javafx.scene.control.TextArea;
 import javafx.scene.control.Tooltip;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
@@ -21,7 +24,10 @@ import javafx.scene.layout.VBox;
 import javafx.stage.Window;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.function.Consumer;
 
 /**
@@ -39,6 +45,7 @@ public final class VistaPrincipal extends BorderPane {
     private final Label resumen = new Label();
     private final Map<String, Label> estados = new HashMap<>();
     private final Map<String, Label> resultados = new HashMap<>();
+    private final Map<String, Button> botonesInventario = new HashMap<>();
 
     VistaPrincipal(Window propietario, ServicioAplicacion servicio, CoordinadorMonitores monitores,
                    CentralAlertas alertas, Consumer<Configuracion> alGuardar) {
@@ -119,6 +126,7 @@ public final class VistaPrincipal extends BorderPane {
         tarjetas.getChildren().clear();
         estados.clear();
         resultados.clear();
+        botonesInventario.clear();
         resumen.setText("Clientes configurados  ·  " + configuracion.clientes().size());
         var problemas = servicio.problemasConfiguracion();
         avisos.getChildren().clear();
@@ -145,12 +153,17 @@ public final class VistaPrincipal extends BorderPane {
             return;
         }
         etiqueta.setText(textoEstado(estado));
-        etiqueta.getStyleClass().removeAll("status-ready", "status-running", "status-stopped", "status-error");
+        etiqueta.getStyleClass().removeAll("status-ready", "status-running", "status-stopped", "status-error",
+                "status-alert");
         etiqueta.getStyleClass().add(claseEstado(estado));
         Label resultado = resultados.get(clienteId);
         if (resultado != null) {
             String ultimo = monitores.ultimoResultado(clienteId);
-            resultado.setText(ultimo.isBlank() ? "Todavía no hay resultados." : "Último ciclo · " + ultimo);
+            resultado.setText(ultimo.isBlank() ? "Todavía no hay resultados." : ultimo);
+        }
+        Button inventario = botonesInventario.get(clienteId);
+        if (inventario != null) {
+            inventario.setDisable(monitores.ultimoSnapshot(clienteId).isEmpty());
         }
     }
 
@@ -197,7 +210,13 @@ public final class VistaPrincipal extends BorderPane {
         Button reconocer = new Button("Reconocer alerta");
         reconocer.getStyleClass().add("secondary-button");
         reconocer.setOnAction(event -> alertas.reconocer(cliente.id()));
-        acciones.getChildren().addAll(sesion, iniciar, detener, reconocer);
+        Button verInventario = new Button("Historial");
+        verInventario.getStyleClass().add("secondary-button");
+        verInventario.setTooltip(new Tooltip("Consultar los snapshots locales del inventario analizado."));
+        verInventario.setDisable(monitores.ultimoSnapshot(cliente.id()).isEmpty());
+        verInventario.setOnAction(event -> mostrarHistorial(cliente.id()));
+        botonesInventario.put(cliente.id(), verInventario);
+        acciones.getChildren().addAll(sesion, iniciar, detener, reconocer, verInventario);
         tarjeta.getChildren().addAll(fila, seccional, resultado, acciones);
         return tarjeta;
     }
@@ -264,11 +283,88 @@ public final class VistaPrincipal extends BorderPane {
                 "Prueba de alarma de Monitor SIAE."));
     }
 
+    private void mostrarHistorial(String clienteId) {
+        List<OpcionSnapshot> opciones = monitores.historialSnapshots(clienteId).stream()
+                .map(OpcionSnapshot::new)
+                .toList();
+        if (opciones.isEmpty()) {
+            return;
+        }
+        if (opciones.size() == 1) {
+            mostrarSnapshot(opciones.getFirst().snapshot());
+            return;
+        }
+        ChoiceDialog<OpcionSnapshot> dialogo = new ChoiceDialog<>(opciones.getFirst(), opciones);
+        dialogo.initOwner(propietario);
+        EstilosJavaFx.aplicar(dialogo.getDialogPane());
+        dialogo.setTitle("Historial de inventarios");
+        dialogo.setHeaderText("Selecciona un snapshot para revisar la decisión");
+        dialogo.setContentText("Inventarios guardados localmente:");
+        dialogo.showAndWait().ifPresent(opcion -> mostrarSnapshot(opcion.snapshot()));
+    }
+
+    private void mostrarSnapshot(SnapshotInventario snapshot) {
+        TextArea contenido = new TextArea(textoSnapshot(snapshot));
+        contenido.setEditable(false);
+        contenido.setWrapText(true);
+        contenido.setPrefColumnCount(72);
+        contenido.setPrefRowCount(22);
+        Alert alerta = new Alert(Alert.AlertType.INFORMATION);
+        alerta.initOwner(propietario);
+        EstilosJavaFx.aplicar(alerta.getDialogPane());
+        alerta.setTitle("Inventario analizado");
+        alerta.setHeaderText("Evidencia de la elección del sistema");
+        alerta.getDialogPane().setContent(contenido);
+        alerta.showAndWait();
+    }
+
+    private static String textoSnapshot(SnapshotInventario snapshot) {
+        String fecha = fechaSnapshot(snapshot);
+        var eleccion = snapshot.eleccion();
+        String motivo = switch (eleccion.motivo()) {
+            case OBJETIVO -> "Objetivo prioritario #" + (eleccion.prioridad() + 1);
+            case ALTERNATIVA -> "Alternativa #" + (eleccion.prioridad() + 1);
+            case CUALQUIERA_DEL_TIPO -> "Comodín por tipo";
+        };
+        StringBuilder texto = new StringBuilder()
+                .append("Cliente: ").append(snapshot.clienteNombre()).append(System.lineSeparator())
+                .append("Fecha: ").append(fecha).append(System.lineSeparator())
+                .append("Seccional: ").append(snapshot.seccional()).append(System.lineSeparator())
+                .append("Elección: ").append(eleccion.arma().descripcion()).append(System.lineSeparator())
+                .append("Regla aplicada: ").append(motivo)
+                .append(eleccion.criterio().isBlank() ? "" : " · " + eleccion.criterio())
+                .append(System.lineSeparator())
+                .append("Inventario observado (").append(snapshot.inventario().size()).append("):")
+                .append(System.lineSeparator());
+        snapshot.inventario().forEach(arma -> texto
+                .append(arma.posicion() == eleccion.arma().posicion() ? "→ " : "  ")
+                .append(arma.posicion() + 1).append(". ")
+                .append(arma.descripcion()).append(System.lineSeparator()));
+        return texto.toString();
+    }
+
+    private static String fechaSnapshot(SnapshotInventario snapshot) {
+        return DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss z")
+                .withZone(ZoneId.systemDefault())
+                .format(snapshot.registradoEn());
+    }
+
+    private record OpcionSnapshot(SnapshotInventario snapshot) {
+        @Override
+        public String toString() {
+            return fechaSnapshot(snapshot) + " · " + snapshot.seccional() + " · "
+                    + snapshot.eleccion().arma().descripcion();
+        }
+    }
+
     private static String textoEstado(CoordinadorMonitores.Estado estado) {
         return switch (estado) {
             case LISTO -> "Listo";
             case INICIANDO -> "Iniciando";
             case MONITOREANDO -> "Monitoreando · simulador";
+            case FUERA_DE_HORARIO -> "Fuera del horario";
+            case ALERTA_ENCONTRADA -> "Alerta encontrada";
+            case ARMA_APARTADA -> "Arma apartada";
             case DETENIENDO -> "Deteniendo";
             case DETENIDO -> "Detenido";
             case ERROR -> "Error";
@@ -278,7 +374,10 @@ public final class VistaPrincipal extends BorderPane {
     private static String claseEstado(CoordinadorMonitores.Estado estado) {
         return switch (estado) {
             case MONITOREANDO -> "status-running";
+            case ALERTA_ENCONTRADA -> "status-alert";
+            case ARMA_APARTADA -> "status-running";
             case ERROR -> "status-error";
+            case FUERA_DE_HORARIO -> "status-stopped";
             case DETENIDO -> "status-stopped";
             default -> "status-ready";
         };

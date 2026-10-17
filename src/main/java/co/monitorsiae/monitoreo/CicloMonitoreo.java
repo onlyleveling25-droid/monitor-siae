@@ -64,18 +64,19 @@ public final class CicloMonitoreo {
         }
 
         if (cliente.modo() == ModoReaccion.ALERTA) {
-            return new ResultadoCiclo.ArmaEncontrada(seccional.get(), eleccion.get());
+            return new ResultadoCiclo.ArmaEncontrada(seccional.get(), eleccion.get(), inventario);
         }
-        return apartar(portal, seccional.get(), eleccion.get(), cliente.seleccion());
+        return apartar(portal, seccional.get(), eleccion.get(), cliente.seleccion(), inventario);
     }
 
     private static ResultadoCiclo apartar(
-            PortalDriver portal, String seccional, EleccionArma eleccion, ReglasSeleccion reglas) {
+            PortalDriver portal, String seccional, EleccionArma eleccion, ReglasSeleccion reglas,
+            List<ArmaInventario> inventario) {
         for (int intento = 1; intento <= reglas.reintentos(); intento++) {
             if (portal.apartar(eleccion.arma(), reglas.modalidad())) {
-                return new ResultadoCiclo.ArmaApartada(seccional, eleccion, intento);
+                return new ResultadoCiclo.ArmaApartada(seccional, eleccion, intento, inventario);
             }
         }
-        return new ResultadoCiclo.ApartadoFallido(seccional, eleccion, reglas.reintentos());
+        return new ResultadoCiclo.ApartadoFallido(seccional, eleccion, reglas.reintentos(), inventario);
     }
 }

@@ -12,5 +12,8 @@ public enum PoliticaSinObjetivo {
     USAR_ALTERNATIVAS,
 
     /** Toma cualquier arma cuyo tipo sea el tipo comodin (por ejemplo, cualquier pistola). */
-    CUALQUIERA_DEL_TIPO
+    CUALQUIERA_DEL_TIPO,
+
+    /** Prueba las alternativas y, si ninguna aparece, toma la primera arma del tipo comodin. */
+    USAR_ALTERNATIVAS_LUEGO_TIPO
 }

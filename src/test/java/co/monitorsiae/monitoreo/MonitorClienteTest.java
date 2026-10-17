@@ -12,8 +12,10 @@ import java.time.DayOfWeek;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -101,6 +103,48 @@ class MonitorClienteTest {
         assertEquals(MotivoDetencion.SOLICITADO_POR_USUARIO, oyente.motivo);
     }
 
+    @Test
+    void notificaCuandoEntraAlHorarioYReanudaLasConsultas() {
+        AtomicReference<Instant> ahora = new AtomicReference<>(Instant.parse("2026-10-17T15:00:00Z"));
+        Clock reloj = new Clock() {
+            @Override
+            public ZoneId getZone() {
+                return HorarioOperacion.ZONA_COLOMBIA;
+            }
+
+            @Override
+            public Clock withZone(ZoneId zone) {
+                return this;
+            }
+
+            @Override
+            public Instant instant() {
+                return ahora.get();
+            }
+        };
+        HorarioOperacion horario = new HorarioOperacion(true, List.of(DayOfWeek.MONDAY, DayOfWeek.TUESDAY,
+                DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY, DayOfWeek.FRIDAY),
+                LocalTime.of(8, 0), LocalTime.of(16, 0), HorarioOperacion.ZONA_COLOMBIA);
+        PortalSimulado portal = PortalSimulado.con(Escena.seccionalesCerradas());
+        MonitorCliente[] monitor = new MonitorCliente[1];
+        Pausa avanzarRelojYDetener = duracion -> {
+            esperas.add(duracion);
+            if (esperas.size() == 1) {
+                ahora.set(Instant.parse("2026-10-19T14:00:00Z"));
+            } else {
+                monitor[0].detener();
+            }
+        };
+        monitor[0] = new MonitorCliente(cliente, portal, nuevoCiclo(),
+                new VentanaHoraria(horario, reloj), INTERVALO, avanzarRelojYDetener, oyente);
+
+        monitor[0].run();
+
+        assertEquals(1, oyente.fueraDeHorario);
+        assertEquals(1, oyente.dentroDeHorario);
+        assertEquals(1, portal.formulariosAbiertos());
+    }
+
     private MonitorCliente monitor(PortalSimulado portal, VentanaHoraria ventana) {
         return new MonitorCliente(cliente, portal, nuevoCiclo(), ventana, INTERVALO, esperas::add, oyente);
     }
@@ -116,11 +160,17 @@ class MonitorClienteTest {
     private static final class OyenteDePrueba implements OyenteMonitoreo {
         final List<ResultadoCiclo> resultados = new ArrayList<>();
         int fueraDeHorario;
+        int dentroDeHorario;
         MotivoDetencion motivo;
 
         @Override
         public void fueraDeHorario(Cliente cliente) {
             fueraDeHorario++;
+        }
+
+        @Override
+        public void dentroDeHorario(Cliente cliente) {
+            dentroDeHorario++;
         }
 
         @Override

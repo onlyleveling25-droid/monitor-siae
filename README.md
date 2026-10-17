@@ -91,6 +91,19 @@ local de la aplicación; no se solicitan ni se guardan las credenciales de SIAE.
 de sesión permanece deshabilitado hasta implementar `PlaywrightPortalDriver` en la fase 7. Por
 ahora, iniciar el monitor recorre el portal simulado y no realiza acciones en el sitio real.
 
+El simulador incluye dos pistolas de prueba (Cordova y CZ P10). Para ver una alerta sin apartar un
+arma, crea un cliente en modo **ALERTA**, agrega como objetivo `glock, g-43`, una alternativa
+`jericho`, selecciona la política **alternativas y luego tipo**, y deja `Pistola` como tipo comodín.
+Como el inventario simulado no contiene Glock ni Jericho, se elegirá la primera pistola, Cordova.
+Las exclusiones se aplican antes de objetivos, alternativas y comodín. Si el cliente prefiere
+cualquier pistola antes que modelos concretos, agrega `Pistola` como primer objetivo prioritario;
+el tipo comodín sigue siendo el último recurso.
+
+Cuando el sistema encuentra un arma, guarda el inventario completo y la regla que eligió el arma en
+`%APPDATA%\MonitorSIAE\inventarios.json`. El historial conserva los últimos 100 hallazgos y se
+consulta con **Historial** en la tarjeta del cliente. No se guarda cada consulta sin coincidencias.
+Este archivo permanece local y puede contener información sensible del inventario.
+
 ## Estructura
 
 ```
@@ -100,7 +113,7 @@ src/main/java/co/monitorsiae/
   monitoreo/      Ciclo por cliente, horario y filtro de armas
   portal/         Interfaz PortalDriver, implementación con Playwright y simulador
   notificacion/   Voz, sonido, ventana y parpadeo
-  persistencia/   Configuración en JSON
+  persistencia/   Configuración e historial de inventarios en JSON
   acceso/         Contraseña opcional de la aplicación
   ui/             Pantallas JavaFX y editor protegido de configuración
 herramientas/maven/  Wrapper de Maven (lo invoca mvnw.cmd)
@@ -130,7 +143,7 @@ Se guarda en `%APPDATA%\MonitorSIAE\config.json` y se edita desde la aplicación
     { "palabrasClave": ["glock", "g-43"] },
     { "palabrasClave": ["glock", "g-26"] }
   ],
-  "siNoHayObjetivo": "USAR_ALTERNATIVAS",
+  "siNoHayObjetivo": "USAR_ALTERNATIVAS_LUEGO_TIPO",
   "alternativas": [ { "palabrasClave": ["cordova", "compacta"] } ],
   "tipoComodin": "Pistola",
   "excluir": ["22 lr"],
@@ -142,7 +155,13 @@ Se guarda en `%APPDATA%\MonitorSIAE\config.json` y se edita desde la aplicación
     arma como palabras completas. No importan tildes, mayúsculas ni guiones: `g43` encuentra
     `G-43`, pero `22` no encuentra `225`. Escriba las marcas como aparecen en la plataforma
     (por ejemplo, `cordova` y no `córdoba`).
-  - `siNoHayObjetivo`: `SEGUIR_ESPERANDO`, `USAR_ALTERNATIVAS` o `CUALQUIERA_DEL_TIPO`.
+  - `siNoHayObjetivo`: `SEGUIR_ESPERANDO`, `USAR_ALTERNATIVAS`, `CUALQUIERA_DEL_TIPO` o
+    `USAR_ALTERNATIVAS_LUEGO_TIPO`.
+  - `USAR_ALTERNATIVAS_LUEGO_TIPO` prueba primero todas las alternativas en orden. Si ninguna
+    coincide, elige la primera arma del inventario cuyo tipo sea `tipoComodin` (por ejemplo,
+    `Pistola`). Las alternativas pueden quedar vacías para pasar directamente al tipo comodín.
+  - `excluir` se aplica antes de objetivos, alternativas y comodín: cualquier palabra excluida
+    descarta el arma aunque coincida con otra regla.
   - `excluir`: palabras que descartan un arma aunque coincida.
 
 Además, a nivel general: navegador (Chrome o Edge), segundos entre consultas y horario de operación

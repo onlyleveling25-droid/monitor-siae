@@ -33,6 +33,10 @@ public final class UbicacionDatos {
         return raiz.resolve("config.json");
     }
 
+    public Path archivoHistorialInventarios() {
+        return raiz.resolve("inventarios.json");
+    }
+
     public Path perfilesNavegador() {
         return raiz.resolve("perfiles");
     }

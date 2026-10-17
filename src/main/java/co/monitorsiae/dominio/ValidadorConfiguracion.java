@@ -99,6 +99,12 @@ public final class ValidadorConfiguracion {
                             "La regla es tomar cualquier arma de un tipo, pero falta el tipo."));
                 }
             }
+            case USAR_ALTERNATIVAS_LUEGO_TIPO -> {
+                if (reglas.tipoComodin().isEmpty()) {
+                    problemas.add(new ProblemaConfiguracion(ubicacion,
+                            "Falta el tipo de arma para el último recurso."));
+                }
+            }
         }
 
         if (reglas.reintentos() > REINTENTOS_MAXIMOS) {

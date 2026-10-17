@@ -56,7 +56,16 @@ public sealed interface ResultadoCiclo {
     }
 
     /** Modo alerta: hay un arma que cumple, pero no se selecciona. */
-    record ArmaEncontrada(String seccional, EleccionArma eleccion) implements ResultadoCiclo {
+    record ArmaEncontrada(String seccional, EleccionArma eleccion, List<ArmaInventario> inventario)
+            implements ResultadoCiclo {
+        public ArmaEncontrada {
+            inventario = List.copyOf(inventario);
+        }
+
+        public ArmaEncontrada(String seccional, EleccionArma eleccion) {
+            this(seccional, eleccion, List.of(eleccion.arma()));
+        }
+
         public boolean detieneMonitoreo() {
             return true;
         }
@@ -66,7 +75,16 @@ public sealed interface ResultadoCiclo {
         }
     }
 
-    record ArmaApartada(String seccional, EleccionArma eleccion, int intentos) implements ResultadoCiclo {
+    record ArmaApartada(String seccional, EleccionArma eleccion, int intentos, List<ArmaInventario> inventario)
+            implements ResultadoCiclo {
+        public ArmaApartada {
+            inventario = List.copyOf(inventario);
+        }
+
+        public ArmaApartada(String seccional, EleccionArma eleccion, int intentos) {
+            this(seccional, eleccion, intentos, List.of(eleccion.arma()));
+        }
+
         public boolean detieneMonitoreo() {
             return true;
         }
@@ -77,7 +95,16 @@ public sealed interface ResultadoCiclo {
     }
 
     /** Se intento apartar y la plataforma no lo confirmo; probablemente otra persona la tomo. */
-    record ApartadoFallido(String seccional, EleccionArma eleccion, int intentos) implements ResultadoCiclo {
+    record ApartadoFallido(String seccional, EleccionArma eleccion, int intentos,
+                           List<ArmaInventario> inventario) implements ResultadoCiclo {
+        public ApartadoFallido {
+            inventario = List.copyOf(inventario);
+        }
+
+        public ApartadoFallido(String seccional, EleccionArma eleccion, int intentos) {
+            this(seccional, eleccion, intentos, List.of(eleccion.arma()));
+        }
+
         public String descripcion() {
             return "No se pudo apartar tras " + intentos + " intentos: " + eleccion.arma().descripcion();
         }

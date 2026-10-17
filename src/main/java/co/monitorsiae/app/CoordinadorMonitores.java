@@ -7,18 +7,25 @@ import co.monitorsiae.monitoreo.MonitorCliente;
 import co.monitorsiae.monitoreo.OyenteMonitoreo;
 import co.monitorsiae.monitoreo.OyenteRegistro;
 import co.monitorsiae.monitoreo.Pausa;
+import co.monitorsiae.monitoreo.ResultadoCiclo;
 import co.monitorsiae.monitoreo.SelectorArma;
 import co.monitorsiae.monitoreo.SelectorSeccional;
+import co.monitorsiae.monitoreo.SnapshotInventario;
 import co.monitorsiae.monitoreo.VentanaHoraria;
 import co.monitorsiae.notificacion.CentralAlertas;
 import co.monitorsiae.notificacion.OyenteAlertas;
 import co.monitorsiae.notificacion.TraductorAlertas;
 import co.monitorsiae.portal.PortalDriver;
+import co.monitorsiae.persistencia.RepositorioSnapshots;
+import co.monitorsiae.persistencia.RepositorioSnapshotsMemoria;
 
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -35,6 +42,9 @@ public final class CoordinadorMonitores implements AutoCloseable {
         LISTO,
         INICIANDO,
         MONITOREANDO,
+        FUERA_DE_HORARIO,
+        ALERTA_ENCONTRADA,
+        ARMA_APARTADA,
         DETENIENDO,
         DETENIDO,
         ERROR
@@ -44,16 +54,25 @@ public final class CoordinadorMonitores implements AutoCloseable {
     private final BiConsumer<String, Estado> alCambiarEstado;
     private final CentralAlertas alertas;
     private final Function<Cliente, PortalDriver> fabricaPortal;
+    private final RepositorioSnapshots snapshots;
     private volatile Configuracion configuracion;
     private volatile boolean cerrado;
 
     public CoordinadorMonitores(Configuracion configuracion, CentralAlertas alertas,
                                 Function<Cliente, PortalDriver> fabricaPortal,
                                 BiConsumer<String, Estado> alCambiarEstado) {
+        this(configuracion, alertas, fabricaPortal, alCambiarEstado, new RepositorioSnapshotsMemoria());
+    }
+
+    public CoordinadorMonitores(Configuracion configuracion, CentralAlertas alertas,
+                                Function<Cliente, PortalDriver> fabricaPortal,
+                                BiConsumer<String, Estado> alCambiarEstado,
+                                RepositorioSnapshots snapshots) {
         this.configuracion = Objects.requireNonNull(configuracion);
         this.alertas = Objects.requireNonNull(alertas);
         this.fabricaPortal = Objects.requireNonNull(fabricaPortal);
         this.alCambiarEstado = Objects.requireNonNull(alCambiarEstado);
+        this.snapshots = Objects.requireNonNull(snapshots);
     }
 
     public synchronized void actualizarConfiguracion(Configuracion nueva) {
@@ -70,6 +89,14 @@ public final class CoordinadorMonitores implements AutoCloseable {
         return sesion == null ? "" : sesion.ultimoResultado;
     }
 
+    public Optional<SnapshotInventario> ultimoSnapshot(String clienteId) {
+        return snapshots.ultimoDe(clienteId);
+    }
+
+    public List<SnapshotInventario> historialSnapshots(String clienteId) {
+        return snapshots.historialDe(clienteId);
+    }
+
     public void iniciar(Cliente cliente) {
         if (cerrado) {
             throw new IllegalStateException("La aplicación se está cerrando.");
@@ -81,6 +108,7 @@ public final class CoordinadorMonitores implements AutoCloseable {
                 return;
             }
             sesion.estado = Estado.INICIANDO;
+            sesion.ultimoResultado = "Iniciando y preparando una nueva consulta.";
             notificar(sesion.id, Estado.INICIANDO);
             sesion.trabajador.submit(() -> ejecutar(cliente, sesion));
         }
@@ -122,6 +150,7 @@ public final class CoordinadorMonitores implements AutoCloseable {
                 public void alIniciar(Cliente iniciado) {
                     synchronized (sesion) {
                         sesion.estado = sesion.detencionSolicitada ? Estado.DETENIENDO : Estado.MONITOREANDO;
+                        sesion.ultimoResultado = "Consultando el inventario.";
                     }
                     notificar(sesion.id, sesion.estado);
                     registro.alIniciar(iniciado);
@@ -130,13 +159,35 @@ public final class CoordinadorMonitores implements AutoCloseable {
 
                 @Override
                 public void fueraDeHorario(Cliente iniciado) {
+                    sesion.estado = Estado.FUERA_DE_HORARIO;
+                    sesion.ultimoResultado = "Fuera del horario configurado; reintentaré en 30 segundos.";
+                    notificar(sesion.id, Estado.FUERA_DE_HORARIO);
                     registro.fueraDeHorario(iniciado);
                     oyenteAlertas.fueraDeHorario(iniciado);
                 }
 
                 @Override
-                public void alTerminarCiclo(Cliente iniciado, co.monitorsiae.monitoreo.ResultadoCiclo resultado) {
+                public void dentroDeHorario(Cliente iniciado) {
+                    sesion.estado = Estado.MONITOREANDO;
+                    sesion.ultimoResultado = "Horario habilitado; consultando el inventario.";
+                    notificar(sesion.id, Estado.MONITOREANDO);
+                }
+
+                @Override
+                public void alTerminarCiclo(Cliente iniciado, ResultadoCiclo resultado) {
                     sesion.ultimoResultado = resultado.descripcion();
+                    if (resultado instanceof ResultadoCiclo.ArmaEncontrada encontrada) {
+                        snapshots.guardar(new SnapshotInventario(Instant.now(), iniciado.id(), iniciado.nombre(),
+                                encontrada.seccional(), encontrada.inventario(), encontrada.eleccion()));
+                        sesion.estado = Estado.ALERTA_ENCONTRADA;
+                    } else if (resultado instanceof ResultadoCiclo.ArmaApartada apartada) {
+                        snapshots.guardar(new SnapshotInventario(Instant.now(), iniciado.id(), iniciado.nombre(),
+                                apartada.seccional(), apartada.inventario(), apartada.eleccion()));
+                        sesion.estado = Estado.ARMA_APARTADA;
+                    } else if (resultado instanceof ResultadoCiclo.ApartadoFallido fallo) {
+                        snapshots.guardar(new SnapshotInventario(Instant.now(), iniciado.id(), iniciado.nombre(),
+                                fallo.seccional(), fallo.inventario(), fallo.eleccion()));
+                    }
                     notificar(sesion.id, sesion.estado);
                     registro.alTerminarCiclo(iniciado, resultado);
                     oyenteAlertas.alTerminarCiclo(iniciado, resultado);
@@ -170,12 +221,13 @@ public final class CoordinadorMonitores implements AutoCloseable {
         synchronized (sesion) {
             sesion.monitor = null;
             sesion.detencionSolicitada = false;
-            if (sesion.estado != Estado.ERROR) {
+            if (sesion.estado != Estado.ERROR && sesion.estado != Estado.ALERTA_ENCONTRADA
+                    && sesion.estado != Estado.ARMA_APARTADA) {
                 sesion.estado = Estado.DETENIDO;
             }
         }
         if (sesion.estado != Estado.ERROR) {
-            notificar(sesion.id, Estado.DETENIDO);
+            notificar(sesion.id, sesion.estado);
         }
     }
 

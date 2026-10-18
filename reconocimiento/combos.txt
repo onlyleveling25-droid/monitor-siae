@@ -1,0 +1,86 @@
+# Combos detectados: 3
+
+## Combo 0
+selector: #asynchronous-demo
+attrs:    {"aria-invalid":"false","autocomplete":"off","id":"asynchronous-demo","placeholder":"Seleccione como desea obtener el permiso","type":"text","class":"MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused css-1uvydh2","aria-autocomplete":"list","aria-expanded":"false","autocapitalize":"none","spellcheck":"false","role":"combobox","value":"","style":""}
+texto:    
+opciones (2):
+   - Procesos generales persona natural
+   - Defensa Personal
+ELEGIDO: Defensa Personal
+
+## Combo 1
+selector: #asynchronous-demo
+attrs:    {"aria-invalid":"false","autocomplete":"off","id":"asynchronous-demo","placeholder":"Ingrese el parametro Tipo de Tramite / Clase de Tramite","type":"text","class":"MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused css-1uvydh2","aria-autocomplete":"list","aria-expanded":"false","autocapitalize":"none","spellcheck":"false","role":"combobox","value":"","style":""}
+texto:    
+opciones (25):
+   - Armas personas naturales: Revalidación
+   - Armas personas naturales: Cesión
+   - Armas personas naturales: Cesión por fallecimiento
+   - Armas personas naturales: Descargo por hurto o pérdida
+   - Asignación de armas
+   - Armas personas naturales: Duplicado
+   - Armas personas naturales: Recuperación de arma
+   - Armas personas naturales: Cambio de dirección
+   - Armas personas naturales: Adquisición de munición
+   - Armas personas naturales: Transporte de armas
+   - Expedición credenciales de armas anteriores a 1900 y posteriores - certificado arma de fuego inutilizada
+   - Armas personas naturales: Devolución de armas de fuego
+   - Armas personas naturales: Cambio de permisos
+   - Certificaciones para armero
+   - Permiso especial nacional - Excepcionado
+   - Permiso especial regional - Excepcionado
+   - Permiso especial regional - Persona natural
+   - Permiso especial nacional - Persona natural
+   - Armas personas naturales: Adquisición de arma
+   - Permisos de importación y exportación temporal de armas de fuego, munición y accesorios para deportistas, coleccionistas y uniformados
+   - Armas uso restringido personas naturales: Recuperación
+   - Armas uso restringido personas naturales: Reducción de capacidad de carga
+   - Armas uso restringido personas naturales: Revalidación
+   - Armas uso restringido personas naturales: Cesión de arma
+   - Armas uso restringido personas naturales: Adquisición de arma
+ELEGIDO: Armas personas naturales: Revalidación
+
+## Combo 2
+selector: #asynchronous-demo
+attrs:    {"aria-invalid":"false","autocomplete":"off","id":"asynchronous-demo","placeholder":"Indique la seccional donde va a tramitar el permiso para porte o tenencia","type":"text","class":"MuiInputBase-input MuiOutlinedInput-input jss109 MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused css-1uvydh2","aria-autocomplete":"list","aria-expanded":"false","autocapitalize":"none","spellcheck":"false","role":"combobox","value":"","style":""}
+texto:    
+opciones (36):
+   - 21 - Principal, Bogotá D.C.
+   - 16 - Usaquén, Bogotá D.C.
+   - 18 - Centro Atención Oficiales y Suboficiales Retirados de la Fuerza Pública CAORFP, Bogotá D.C.
+   - 39 - Tolemaida
+   - 27 - Villavicencio, Meta
+   - 53 - Barrancabermeja, Santander
+   - 55 - Bucaramanga, Santander
+   - 59 - Socorro, Santander
+   - 23 - Sogamoso, Boyacá
+   - 25 - Tunja, Boyacá
+   - 63 - Cartagena, Bolívar
+   - 71 - Buga, Valle del Cauca
+   - 72 - Buenaventura, Valle de Cauca
+   - 73 - Cali, Valle del Cauca
+   - 65 - Montería, Córdoba
+   - 30 - Arauca, Arauca
+   - 44 - Carepa, Antioquia
+   - 45 - Medellín, Antioquia
+   - 85 - Neiva, Huila
+   - 64 - Corozal, Sucre
+   - 62 - Buenavista, La Guajira
+   - 34 - Puerto Salgar, Cundinamarca
+   - 29 - Yopal, Casanare
+   - 47 - Puerto Berrío, Antioquia
+   - 67 - Santa Marta, Magdalena
+   - 61 - Barranquilla, Atlántico
+   - 31 - Armenia, Quindío
+   - 33 - Ibagué, Tolima
+   - 35 - Manizales, Caldas
+   - 37 - Pereira, Risaralda
+   - 57 - Cúcuta, Norte de Santander
+   - 68 - Riohacha, La Guajira
+   - 69 - Valledupar, Cesar
+   - 77 - Pasto, Nariño
+   - 79 - Popayán, Cauca
+   - 83 - Florencia, Caquetá
+ELEGIDO: 21 - Principal, Bogotá D.C.
+

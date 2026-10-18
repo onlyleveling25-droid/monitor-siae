@@ -1,0 +1,214 @@
+# 02-paso1-con-combos
+URL: https://dccae.cgfm.mil.co/dccae/main/SolicitudTramite
+Elementos: 42
+
+0. div  caja=0,0,1600,900
+   selector: div[role="main"]
+   attrs:    {"role":"main"}
+   texto:    DCCAE | DEPARTAMENTO CONTROL COMERCIO DE ARMAS, MUNICIONES Y EXPLOSIVOS 0 Estado de trámite Solicitud del trámite Mis citas Armas registradas Actas transporte Formularios Documentos aprobados Descargos SQC Descargo Explosivos Evento municiones Inicio de Tramite Formulario de Solicitud Cargue de Documentos Señor(a) usuario(a), actualmente no esta disponible el inicio de los tramites los fines de semana , podrá gestionar los tramites ya iniciados. Tipo de Usuario Tipo de Usuario Identificación Identificación Nombre Usuario Nombre Usuario Seleccione como desea obtener el permiso Seleccione como desea obtener el permiso Tipo de Tramite / Clase de Tramite Tipo de Tramite / Clase de Tramite Seccional Seccional Descripción (Máx 500 Caracteres, mínimo 150 Caracteres, restantes 500) Descripción (Máx 500 Caracteres, mínimo 150 Caracteres, restantes 500) GUARDAR
+
+1. button  caja=12,16,48,48
+   selector: button[aria-label="open drawer"]
+   attrs:    {"class":"MuiButtonBase-root MuiIconButton-root MuiIconButton-colorInherit MuiIconButton-edgeStart MuiIconButton-sizeLarge jss55 css-1x52uzk","tabindex":"0","type":"button","aria-label":"open drawer"}
+   texto:    
+
+2. button  caja=1328,12,56,56
+   selector: button[aria-label="usuarios encontrados"]
+   attrs:    {"class":"MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textInherit MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorInherit MuiButton-root MuiButton-text MuiButton-textInherit MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorInherit jss106 css-b7766g","tabindex":"0","type":"button","aria-label":"usuarios encontrados"}
+   texto:    
+
+3. button  caja=1392,12,56,56
+   selector: button[aria-label="usuarios encontrados"]
+   attrs:    {"class":"MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textInherit MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorInherit MuiButton-root MuiButton-text MuiButton-textInherit MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorInherit jss106 css-b7766g","tabindex":"0","type":"button","aria-label":"usuarios encontrados"}
+   texto:    
+
+4. button  caja=1456,12,56,56
+   selector: button[aria-label="usuarios encontrados"]
+   attrs:    {"class":"MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textInherit MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorInherit MuiButton-root MuiButton-text MuiButton-textInherit MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorInherit jss106 css-b7766g","tabindex":"0","type":"button","aria-label":"usuarios encontrados"}
+   texto:    0
+
+5. button  caja=1520,12,56,56
+   selector: button[aria-label="usuarios encontrados"]
+   attrs:    {"class":"MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textInherit MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorInherit MuiButton-root MuiButton-text MuiButton-textInherit MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorInherit jss106 css-b7766g","tabindex":"0","type":"button","aria-label":"usuarios encontrados"}
+   texto:    
+
+6. button  caja=0,8,48,48
+   selector: button[type="button"]
+   attrs:    {"class":"MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeLarge css-1w8s6so","tabindex":"0","type":"button"}
+   texto:    
+
+7. button  caja=71,32,0,0
+   selector: button[type="button"]
+   attrs:    {"class":"MuiButtonBase-root mr-3 css-1b47e06","tabindex":"0","type":"button"}
+   texto:    
+
+8. div  caja=0,74,71,60
+   selector: div[role="button"]
+   attrs:    {"class":"MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button jss112 css-j5ar9c","tabindex":"0","role":"button"}
+   texto:    Estado de trámite
+
+9. div  caja=0,134,71,60
+   selector: div[role="button"]
+   attrs:    {"class":"MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button jss112 css-j5ar9c","tabindex":"0","role":"button"}
+   texto:    Solicitud del trámite
+
+10. div  caja=0,194,71,60
+   selector: div[role="button"]
+   attrs:    {"class":"MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button jss112 css-j5ar9c","tabindex":"0","role":"button"}
+   texto:    Mis citas
+
+11. div  caja=0,254,71,60
+   selector: div[role="button"]
+   attrs:    {"class":"MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button jss112 css-j5ar9c","tabindex":"0","role":"button"}
+   texto:    Armas registradas
+
+12. div  caja=0,314,71,60
+   selector: div[role="button"]
+   attrs:    {"class":"MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button jss112 css-j5ar9c","tabindex":"0","role":"button"}
+   texto:    Actas transporte
+
+13. div  caja=0,374,71,60
+   selector: div[role="button"]
+   attrs:    {"class":"MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button jss112 css-j5ar9c","tabindex":"0","role":"button"}
+   texto:    Formularios
+
+14. div  caja=0,434,71,60
+   selector: div[role="button"]
+   attrs:    {"class":"MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button jss112 css-j5ar9c","tabindex":"0","role":"button"}
+   texto:    Documentos aprobados
+
+15. div  caja=0,494,71,60
+   selector: div[role="button"]
+   attrs:    {"class":"MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button jss112 css-j5ar9c","tabindex":"0","role":"button"}
+   texto:    Descargos SQC
+
+16. div  caja=0,554,71,60
+   selector: div[role="button"]
+   attrs:    {"class":"MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button jss112 css-j5ar9c","tabindex":"0","role":"button"}
+   texto:    Descargo Explosivos
+
+17. div  caja=0,614,71,60
+   selector: div[role="button"]
+   attrs:    {"class":"MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button jss112 css-j5ar9c","tabindex":"0","role":"button"}
+   texto:    Evento municiones
+
+18. div  caja=116,299,1400,48
+   selector: div[role="alert"]
+   attrs:    {"class":"MuiPaper-root MuiPaper-elevation MuiPaper-rounded MuiPaper-elevation0 MuiAlert-root MuiAlert-colorError MuiAlert-standardError MuiAlert-standard css-1tl1itu","role":"alert","style":"font-size: 14px;"}
+   texto:    Señor(a) usuario(a), actualmente no esta disponible el inicio de los tramites los fines de semana , podrá gestionar los tramites ya iniciados.
+
+19. input  caja=116,373,692,56
+   selector: #:r9:
+   attrs:    {"aria-invalid":"false","id":":r9:","type":"text","class":"MuiInputBase-input MuiOutlinedInput-input css-1x5jdmq","value":"PERSONA NATURAL","style":""}
+   texto:    
+
+20. input  caja=824,373,692,56
+   selector: #:ra:
+   attrs:    {"aria-invalid":"false","id":":ra:","type":"text","class":"MuiInputBase-input MuiOutlinedInput-input css-1x5jdmq","value":"1007652942","style":""}
+   texto:    
+
+21. input  caja=116,445,692,56
+   selector: #:rb:
+   attrs:    {"aria-invalid":"false","id":":rb:","type":"text","class":"MuiInputBase-input MuiOutlinedInput-input css-1x5jdmq","value":"YEFERSON ALEJANDRO GARCIA MARIN","style":""}
+   texto:    
+
+22. input  caja=833,454,618,38
+   selector: #asynchronous-demo
+   attrs:    {"aria-invalid":"false","autocomplete":"off","id":"asynchronous-demo","placeholder":"Seleccione como desea obtener el permiso","type":"text","class":"MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused css-1uvydh2","aria-autocomplete":"list","aria-expanded":"false","autocapitalize":"none","spellcheck":"false","role":"combobox","value":"Defensa Personal","style":""}
+   texto:    
+
+23. button  caja=1455,459,28,28
+   selector: button[aria-label="Clear"]
+   attrs:    {"class":"MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium MuiAutocomplete-clearIndicator css-edpqz1","tabindex":"-1","type":"button","aria-label":"Clear","title":"Clear"}
+   texto:    
+
+24. button  caja=1481,459,28,28
+   selector: button[aria-label="Open"]
+   attrs:    {"class":"MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium MuiAutocomplete-popupIndicator css-uge3vf","tabindex":"-1","type":"button","aria-label":"Open","title":"Open"}
+   texto:    
+
+25. input  caja=125,526,618,38
+   selector: #asynchronous-demo
+   attrs:    {"aria-invalid":"false","autocomplete":"off","id":"asynchronous-demo","placeholder":"Ingrese el parametro Tipo de Tramite / Clase de Tramite","type":"text","class":"MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused css-1uvydh2","aria-autocomplete":"list","aria-expanded":"false","autocapitalize":"none","spellcheck":"false","role":"combobox","value":"Armas personas naturales: Revalidación","style":""}
+   texto:    
+
+26. button  caja=747,531,28,28
+   selector: button[aria-label="Clear"]
+   attrs:    {"class":"MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium MuiAutocomplete-clearIndicator css-edpqz1","tabindex":"-1","type":"button","aria-label":"Clear","title":"Clear"}
+   texto:    
+
+27. button  caja=773,531,28,28
+   selector: button[aria-label="Open"]
+   attrs:    {"class":"MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium MuiAutocomplete-popupIndicator css-uge3vf","tabindex":"-1","type":"button","aria-label":"Open","title":"Open"}
+   texto:    
+
+28. input  caja=833,526,618,38
+   selector: #asynchronous-demo
+   attrs:    {"aria-invalid":"false","autocomplete":"off","id":"asynchronous-demo","placeholder":"Indique la seccional donde va a tramitar el permiso para porte o tenencia","type":"text","class":"MuiInputBase-input MuiOutlinedInput-input jss109 MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused css-1uvydh2","aria-autocomplete":"list","aria-expanded":"false","autocapitalize":"none","spellcheck":"false","role":"combobox","value":"21 - Principal, Bogotá D.C.","style":""}
+   texto:    
+
+29. button  caja=1455,531,28,28
+   selector: button[aria-label="Clear"]
+   attrs:    {"class":"MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium MuiAutocomplete-clearIndicator css-edpqz1","tabindex":"-1","type":"button","aria-label":"Clear","title":"Clear"}
+   texto:    
+
+30. button  caja=1481,531,28,28
+   selector: button[aria-label="Open"]
+   attrs:    {"class":"MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium MuiAutocomplete-popupIndicator css-uge3vf","tabindex":"-1","type":"button","aria-label":"Open","title":"Open"}
+   texto:    
+
+31. textarea  caja=130,606,1372,92
+   selector: #:ri:
+   attrs:    {"rows":"4","aria-invalid":"false","id":":ri:","name":"descripcion","placeholder":"Escriba la solicitud correspondiente al trámite que desea iniciar, indicando toda la información correspondiente relacionada (datos personales, datos del arma), argumente de manera clara la necesidad especifica que buscar ser atendida con el trámite a realizar","maxlength":"500","class":"MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputMultiline css-u36398","style":"height: 92px;"}
+   texto:    
+
+32. textarea  caja=116,589,1372,0
+   selector: div > div:nth-of-type(9) > div > div > textarea:nth-of-type(2)
+   attrs:    {"aria-hidden":"true","class":"MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputMultiline css-u36398","readonly":"","tabindex":"-1","style":"visibility: hidden; position: absolute; overflow: hidden; height: 0px; top: 0px; left: 0px; transform: translateZ(0px); padding-top: 0px; padding-bottom: 0px; width: 1372px;"}
+   texto:    
+
+33. button  caja=706,730,220,37
+   selector: button[type="button"]
+   attrs:    {"class":"MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-fullWidth Mui-disabled MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-fullWidth css-16hc19s","tabindex":"-1","type":"button","disabled":""}
+   texto:    GUARDAR
+
+34. p  caja=-1,-1,1,1
+   selector: #__next-route-announcer__
+   attrs:    {"aria-live":"assertive","id":"__next-route-announcer__","role":"alert","style":"border: 0px; clip: rect(0px, 0px, 0px, 0px); height: 1px; margin: -1px; overflow: hidden; padding: 0px; position: absolute; top: 0px; width: 1px; white-space: nowrap; overflow-wrap: normal;"}
+   texto:    DCCAE :: DEPARTAMENTO CONTROL COMERCIO DE ARMAS
+
+35. div  caja=0,15,1600,885
+   selector: #customized-menu
+   attrs:    {"role":"presentation","id":"customized-menu","class":"MuiPopover-root MuiMenu-root MuiModal-root MuiModal-hidden css-xuzscv","aria-hidden":"true","style":"margin-top: 15px;"}
+   texto:    
+
+36. ul  caja=47,79,279,164
+   selector: ul[role="menu"]
+   attrs:    {"class":"MuiList-root MuiList-padding MuiMenu-list css-r8u8y9","role":"menu","tabindex":"-1"}
+   texto:    
+
+37. li  caja=47,83,279,64
+   selector: li[role="menuitem"]
+   attrs:    {"class":"MuiButtonBase-root MuiMenuItem-root MuiMenuItem-gutters MuiMenuItem-root MuiMenuItem-gutters css-ja7cw5","tabindex":"0","role":"menuitem"}
+   texto:    
+
+38. li  caja=47,157,279,20
+   selector: li[role="menuitem"]
+   attrs:    {"class":"MuiButtonBase-root MuiMenuItem-root MuiMenuItem-gutters MuiMenuItem-root MuiMenuItem-gutters css-ja7cw5","tabindex":"-1","role":"menuitem"}
+   texto:    
+
+39. li  caja=47,177,279,20
+   selector: li[role="menuitem"]
+   attrs:    {"class":"MuiButtonBase-root MuiMenuItem-root MuiMenuItem-gutters MuiMenuItem-root MuiMenuItem-gutters css-ja7cw5","tabindex":"-1","role":"menuitem"}
+   texto:    
+
+40. li  caja=47,197,279,20
+   selector: li[role="menuitem"]
+   attrs:    {"class":"MuiButtonBase-root MuiMenuItem-root MuiMenuItem-gutters MuiMenuItem-root MuiMenuItem-gutters css-ja7cw5","tabindex":"-1","role":"menuitem"}
+   texto:    
+
+41. li  caja=47,218,279,20
+   selector: li[role="menuitem"]
+   attrs:    {"class":"MuiButtonBase-root MuiMenuItem-root MuiMenuItem-gutters MuiMenuItem-root MuiMenuItem-gutters css-ja7cw5","tabindex":"-1","role":"menuitem"}
+   texto:    
+

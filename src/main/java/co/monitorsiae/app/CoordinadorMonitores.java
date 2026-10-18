@@ -1,5 +1,18 @@
 package co.monitorsiae.app;
 
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
+
 import co.monitorsiae.dominio.Cliente;
 import co.monitorsiae.dominio.Configuracion;
 import co.monitorsiae.dominio.EntornoPortal;
@@ -16,25 +29,13 @@ import co.monitorsiae.monitoreo.VentanaHoraria;
 import co.monitorsiae.notificacion.CentralAlertas;
 import co.monitorsiae.notificacion.OyenteAlertas;
 import co.monitorsiae.notificacion.TraductorAlertas;
-import co.monitorsiae.portal.PortalDriver;
 import co.monitorsiae.persistencia.RepositorioSnapshots;
 import co.monitorsiae.persistencia.RepositorioSnapshotsMemoria;
-
-import java.time.Clock;
-import java.time.Duration;
-import java.time.Instant;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.function.BiConsumer;
-import java.util.function.Function;
+import co.monitorsiae.portal.PortalDriver;
 
 /**
- * Mantiene un hilo propietario por cliente y ejecuta en el todos los accesos a su PortalDriver.
+ * Mantiene un hilo propietario por cliente y ejecuta en el todos los accesos a
+ * su PortalDriver.
  */
 public final class CoordinadorMonitores implements AutoCloseable {
 
@@ -61,15 +62,15 @@ public final class CoordinadorMonitores implements AutoCloseable {
     private volatile boolean cerrado;
 
     public CoordinadorMonitores(Configuracion configuracion, CentralAlertas alertas,
-                                Function<Cliente, PortalDriver> fabricaPortal,
-                                BiConsumer<String, Estado> alCambiarEstado) {
+            Function<Cliente, PortalDriver> fabricaPortal,
+            BiConsumer<String, Estado> alCambiarEstado) {
         this(configuracion, alertas, fabricaPortal, alCambiarEstado, new RepositorioSnapshotsMemoria());
     }
 
     public CoordinadorMonitores(Configuracion configuracion, CentralAlertas alertas,
-                                Function<Cliente, PortalDriver> fabricaPortal,
-                                BiConsumer<String, Estado> alCambiarEstado,
-                                RepositorioSnapshots snapshots) {
+            Function<Cliente, PortalDriver> fabricaPortal,
+            BiConsumer<String, Estado> alCambiarEstado,
+            RepositorioSnapshots snapshots) {
         this.configuracion = Objects.requireNonNull(configuracion);
         this.alertas = Objects.requireNonNull(alertas);
         this.fabricaPortal = Objects.requireNonNull(fabricaPortal);
@@ -91,6 +92,11 @@ public final class CoordinadorMonitores implements AutoCloseable {
         return sesion == null ? "" : sesion.ultimoResultado;
     }
 
+    public boolean sesionAbierta(String clienteId) {
+        SesionCliente sesion = sesiones.get(clienteId);
+        return sesion != null && sesion.portal != null;
+    }
+
     public Optional<SnapshotInventario> ultimoSnapshot(String clienteId) {
         return snapshots.ultimoDe(clienteId);
     }
@@ -103,10 +109,12 @@ public final class CoordinadorMonitores implements AutoCloseable {
         if (cerrado) {
             throw new IllegalStateException("La aplicación se está cerrando.");
         }
-        if (configuracion.entornoPortal() == EntornoPortal.PORTAL_REAL) {
-            throw new IllegalStateException("El monitoreo real está deshabilitado hasta validar los selectores "
-                    + "y el comportamiento del portal. La sesión del navegador sí puede abrirse.");
+
+        if (configuracion.entornoPortal() == EntornoPortal.PORTAL_REAL && !sesionAbierta(cliente.id())) {
+            throw new IllegalStateException("Abre la sesión de " + cliente.nombre()
+                    + " e inicia sesión en la plataforma antes de monitorear.");
         }
+
         SesionCliente sesion = sesiones.computeIfAbsent(cliente.id(), id -> new SesionCliente(id));
         synchronized (sesion) {
             if (sesion.estado == Estado.MONITOREANDO || sesion.estado == Estado.INICIANDO
@@ -171,7 +179,7 @@ public final class CoordinadorMonitores implements AutoCloseable {
                 sesion.estado = Estado.DETENIENDO;
                 notificar(sesion.id, Estado.DETENIENDO);
                 sesion.monitor.detener();
-            } else if (sesion.estado == Estado.SESION_ABIERTA) {
+            } else if (sesion.monitor == null && sesion.portal != null) {
                 sesion.estado = Estado.DETENIENDO;
                 notificar(sesion.id, Estado.DETENIENDO);
                 sesion.trabajador.submit(() -> {
@@ -335,6 +343,7 @@ public final class CoordinadorMonitores implements AutoCloseable {
     }
 
     private static final class SesionCliente {
+
         private final String id;
         private final ExecutorService trabajador;
         private volatile Estado estado = Estado.LISTO;

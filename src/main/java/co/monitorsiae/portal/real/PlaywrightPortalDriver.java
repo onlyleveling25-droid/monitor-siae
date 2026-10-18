@@ -4,27 +4,45 @@ import co.monitorsiae.dominio.ArmaInventario;
 import co.monitorsiae.dominio.Modalidad;
 import co.monitorsiae.dominio.NavegadorPreferido;
 import co.monitorsiae.dominio.ParametrosTramite;
+import co.monitorsiae.dominio.Texto;
+import co.monitorsiae.portal.OpcionNoDisponibleException;
 import co.monitorsiae.portal.PortalDriver;
-import co.monitorsiae.portal.PortalInesperadoException;
 import co.monitorsiae.portal.PortalException;
+import co.monitorsiae.portal.PortalInesperadoException;
 import co.monitorsiae.portal.ResultadoGuardar;
+import co.monitorsiae.portal.SesionVencidaException;
 import com.microsoft.playwright.BrowserContext;
 import com.microsoft.playwright.BrowserType;
+import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
+import com.microsoft.playwright.options.WaitForSelectorState;
+import com.microsoft.playwright.options.WaitUntilState;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 
 public final class PlaywrightPortalDriver implements PortalDriver {
 
     public static final String URL_TRAMITE = "https://dccae.cgfm.mil.co/dccae/main/SolicitudTramite";
 
+    private static final Duration ESPERA_CORTA = Duration.ofSeconds(6);
+    private static final Duration ESPERA_MEDIA = Duration.ofSeconds(20);
+    private static final Duration ESPERA_LARGA = Duration.ofSeconds(30);
+
     private final Playwright playwright;
     private final BrowserContext contexto;
     private final Page pagina;
+    private final Path capturas;
 
-    public PlaywrightPortalDriver(Path perfil, NavegadorPreferido navegador) {
+    public PlaywrightPortalDriver(Path perfil, NavegadorPreferido navegador, Path capturas) {
+        this.capturas = capturas;
         Playwright runtime = Playwright.create();
         BrowserContext contextoCreado;
         Page paginaCreada;
@@ -32,12 +50,14 @@ public final class PlaywrightPortalDriver implements PortalDriver {
             BrowserType.LaunchPersistentContextOptions opciones =
                     new BrowserType.LaunchPersistentContextOptions()
                             .setChannel(canal(navegador))
-                            .setHeadless(false);
+                            .setHeadless(false)
+                            .setViewportSize(false, false);
             contextoCreado = runtime.chromium().launchPersistentContext(perfil, opciones);
             paginaCreada = contextoCreado.pages().isEmpty()
                     ? contextoCreado.newPage()
                     : contextoCreado.pages().getFirst();
-            paginaCreada.navigate(URL_TRAMITE);
+            paginaCreada.navigate(URL_TRAMITE,
+                    new Page.NavigateOptions().setWaitUntil(WaitUntilState.DOMCONTENTLOADED));
         } catch (RuntimeException e) {
             try {
                 runtime.close();
@@ -59,29 +79,308 @@ public final class PlaywrightPortalDriver implements PortalDriver {
         };
     }
 
+    // --- Paso 1 ---------------------------------------------------------------
+
     @Override
     public List<String> abrirFormulario(ParametrosTramite tramite) {
-        throw automatizacionPendiente();
+        recargarPaso1();
+        elegirCombo(SelectoresSiae.PLACEHOLDER_PERMISO, tramite.obtenerPermiso(),
+                "como desea obtener el permiso");
+        elegirCombo(SelectoresSiae.PLACEHOLDER_TIPO_TRAMITE, tramite.tipoTramite(),
+                "tipo de trámite");
+        return leerOpciones(SelectoresSiae.PLACEHOLDER_SECCIONAL, null);
     }
 
     @Override
     public ResultadoGuardar enviarPaso1(String seccional, String descripcion) {
-        throw automatizacionPendiente();
+        elegirCombo(SelectoresSiae.PLACEHOLDER_SECCIONAL, seccional, "seccional");
+
+        Locator campo = pagina.locator(SelectoresSiae.CAMPO_DESCRIPCION).first();
+        campo.waitFor(new Locator.WaitForOptions().setState(WaitForSelectorState.VISIBLE)
+                .setTimeout(ESPERA_CORTA.toMillis()));
+        campo.fill(descripcion);
+
+        Locator guardar = pagina.locator(SelectoresSiae.BOTON_GUARDAR).first();
+        esperarGuardarHabilitado(guardar);
+        guardar.click();
+        return esperarResultadoGuardar();
     }
+
+    private void recargarPaso1() {
+        pagina.navigate(URL_TRAMITE,
+                new Page.NavigateOptions().setWaitUntil(WaitUntilState.DOMCONTENTLOADED));
+        esperarPaso1();
+    }
+
+    private void esperarPaso1() {
+        long limite = System.nanoTime() + ESPERA_MEDIA.toNanos();
+        while (System.nanoTime() < limite) {
+            detectarSesionVencida();
+            if (pagina.locator(SelectoresSiae.CAMPO_DESCRIPCION).count() > 0) {
+                return;
+            }
+            pagina.waitForTimeout(250);
+        }
+        throw inesperado("No se abrió el formulario del paso 1.", null);
+    }
+
+    private void elegirCombo(String placeholder, String valor, String nombre) {
+        int indice = -1;
+        List<Locator> utiles = new ArrayList<>();
+        List<String> textos = new ArrayList<>();
+
+        Locator combo = combo(placeholder);
+        combo.waitFor(new Locator.WaitForOptions().setState(WaitForSelectorState.VISIBLE)
+                .setTimeout(ESPERA_CORTA.toMillis()));
+        combo.click();
+
+        long limite = System.nanoTime() + ESPERA_CORTA.toNanos();
+        while (System.nanoTime() < limite) {
+            utiles.clear();
+            textos.clear();
+            for (Locator opcion : pagina.locator(SelectoresSiae.OPCIONES).all()) {
+                String texto = textoDe(opcion);
+                if (esRuido(texto)) {
+                    continue;
+                }
+                utiles.add(opcion);
+                textos.add(texto);
+            }
+            if (!textos.isEmpty()) {
+                break;
+            }
+            pagina.waitForTimeout(250);
+        }
+
+        indice = indiceQueCoincide(textos, valor);
+        if (indice < 0) {
+            pagina.keyboard().press("Escape");
+            throw new OpcionNoDisponibleException("No apareció \"" + valor + "\" en la lista de "
+                    + nombre + ". Opciones vistas: " + String.join(" | ", textos));
+        }
+        utiles.get(indice).click();
+        pagina.waitForTimeout(400);
+    }
+
+    private List<String> leerOpciones(String placeholder, String valorAElegir) {
+        Locator combo = combo(placeholder);
+        combo.waitFor(new Locator.WaitForOptions().setState(WaitForSelectorState.VISIBLE)
+                .setTimeout(ESPERA_CORTA.toMillis()));
+        combo.click();
+
+        List<String> textos = new ArrayList<>();
+        long limite = System.nanoTime() + ESPERA_CORTA.toNanos();
+        while (System.nanoTime() < limite) {
+            textos.clear();
+            for (Locator opcion : pagina.locator(SelectoresSiae.OPCIONES).all()) {
+                String texto = textoDe(opcion);
+                if (!esRuido(texto)) {
+                    textos.add(texto);
+                }
+            }
+            if (!textos.isEmpty()) {
+                break;
+            }
+            pagina.waitForTimeout(250);
+        }
+        pagina.keyboard().press("Escape");
+        return textos;
+    }
+
+    private Locator combo(String placeholder) {
+        return pagina.locator("input[role='combobox'][placeholder='" + placeholder + "']").first();
+    }
+
+    private static String textoDe(Locator elemento) {
+        try {
+            String texto = elemento.innerText();
+            return texto == null ? "" : texto.replaceAll("\\s+", " ").strip();
+        } catch (RuntimeException e) {
+            return "";
+        }
+    }
+
+    private static boolean esRuido(String texto) {
+        String plano = Texto.normalizar(texto);
+        return plano.isEmpty() || plano.startsWith("cargando") || plano.startsWith("loading")
+                || plano.startsWith("no option") || plano.startsWith("sin opcion")
+                || plano.startsWith("no hay opcion");
+    }
+
+    private static int indiceQueCoincide(List<String> opciones, String valor) {
+        for (int i = 0; i < opciones.size(); i++) {
+            if (Texto.equivalentes(opciones.get(i), valor)) {
+                return i;
+            }
+        }
+        for (int i = 0; i < opciones.size(); i++) {
+            if (Texto.contieneTermino(opciones.get(i), valor)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private void esperarGuardarHabilitado(Locator guardar) {
+        long limite = System.nanoTime() + ESPERA_CORTA.toNanos();
+        while (System.nanoTime() < limite) {
+            if (guardar.isEnabled()) {
+                return;
+            }
+            pagina.waitForTimeout(200);
+        }
+        if (hayAvisoNoDisponible()) {
+            throw new OpcionNoDisponibleException("El portal no habilita GUARDAR ahora: "
+                    + avisoNoDisponible());
+        }
+        throw inesperado("GUARDAR sigue deshabilitado con el formulario completo. "
+                + contadorDescripcion(), null);
+    }
+
+    private boolean hayAvisoNoDisponible() {
+        return pagina.locator(SelectoresSiae.AVISO_NO_DISPONIBLE).count() > 0;
+    }
+
+    private String avisoNoDisponible() {
+        return textoDe(pagina.locator(SelectoresSiae.AVISO_NO_DISPONIBLE).first());
+    }
+
+    private String contadorDescripcion() {
+        Locator contador = pagina.locator(SelectoresSiae.CONTADOR_DESCRIPCION).first();
+        return contador.count() == 0 ? "Sin contador visible." : textoDe(contador);
+    }
+
+    private ResultadoGuardar esperarResultadoGuardar() {
+        long limite = System.nanoTime() + ESPERA_LARGA.toNanos();
+        while (System.nanoTime() < limite) {
+            detectarSesionVencida();
+            if (pagina.locator(SelectoresSiae.PASO_2).count() > 0) {
+                return ResultadoGuardar.AVANZO_PASO_2;
+            }
+            if (pagina.locator(SelectoresSiae.SIN_INVENTARIO).count() > 0) {
+                return ResultadoGuardar.SIN_INVENTARIO;
+            }
+            pagina.waitForTimeout(300);
+        }
+        throw inesperado("No se reconoció la respuesta del portal después de GUARDAR.", null);
+    }
+
+    // --- Paso 2 ---------------------------------------------------------------
 
     @Override
     public List<ArmaInventario> leerInventario() {
-        throw automatizacionPendiente();
+        detectarSesionVencida();
+        esperarFilasInventario();
+
+        List<ArmaInventario> armas = new ArrayList<>();
+        List<Locator> filas = pagina.locator(SelectoresSiae.FILAS_INVENTARIO).all();
+        for (int i = 0; i < filas.size(); i++) {
+            Locator fila = filas.get(i);
+            String descripcion = textoDe(fila);
+            if (descripcion.isEmpty()) {
+                continue;
+            }
+            String tipo = "";
+            List<Locator> celdas = fila.locator("td").all();
+            if (!celdas.isEmpty()) {
+                tipo = textoDe(celdas.getFirst());
+            }
+            armas.add(new ArmaInventario(i, descripcion, tipo));
+        }
+        return armas;
     }
 
     @Override
     public boolean apartar(ArmaInventario arma, Modalidad modalidad) {
-        throw automatizacionPendiente();
+        detectarSesionVencida();
+
+        Locator fila = buscarFila(arma);
+        if (fila == null) {
+            throw inesperado("El arma ya no está en el listado: " + arma.descripcion(), null);
+        }
+        fila.click();
+
+        Locator botonModalidad = pagina.locator("button:has-text('" + etiqueta(modalidad) + "')").first();
+        botonModalidad.waitFor(new Locator.WaitForOptions().setState(WaitForSelectorState.VISIBLE)
+                .setTimeout(ESPERA_CORTA.toMillis()));
+        botonModalidad.click();
+
+        Locator confirmar = pagina.locator("button:has-text('Confirmar')").first();
+        confirmar.waitFor(new Locator.WaitForOptions().setState(WaitForSelectorState.VISIBLE)
+                .setTimeout(ESPERA_CORTA.toMillis()));
+        confirmar.click();
+
+        return esperarAsignacionExitosa();
     }
 
-    private static PortalInesperadoException automatizacionPendiente() {
-        return new PortalInesperadoException("La sesión real está abierta, pero la automatización del trámite "
-                + "aún no está habilitada: faltan validar los selectores del portal.");
+    private static String etiqueta(Modalidad modalidad) {
+        return switch (modalidad) {
+            case PORTE -> "Porte";
+            case TENENCIA -> "Tenencia";
+        };
+    }
+
+    private Locator buscarFila(ArmaInventario arma) {
+        List<Locator> filas = pagina.locator(SelectoresSiae.FILAS_INVENTARIO).all();
+        for (Locator fila : filas) {
+            String texto = textoDe(fila);
+            if (Texto.equivalentes(texto, arma.descripcion())
+                    || Texto.contieneTermino(texto, arma.descripcion())) {
+                return fila;
+            }
+        }
+        return arma.posicion() < filas.size() ? filas.get(arma.posicion()) : null;
+    }
+
+    private void esperarFilasInventario() {
+        long limite = System.nanoTime() + ESPERA_MEDIA.toNanos();
+        while (System.nanoTime() < limite) {
+            if (pagina.locator(SelectoresSiae.FILAS_INVENTARIO).count() > 0) {
+                return;
+            }
+            pagina.waitForTimeout(300);
+        }
+        throw inesperado("El paso 2 no mostró filas de inventario.", null);
+    }
+
+    private boolean esperarAsignacionExitosa() {
+        long limite = System.nanoTime() + ESPERA_MEDIA.toNanos();
+        while (System.nanoTime() < limite) {
+            detectarSesionVencida();
+            if (pagina.locator(SelectoresSiae.ASIGNACION_EXITOSA).count() > 0) {
+                return true;
+            }
+            pagina.waitForTimeout(300);
+        }
+        return false;
+    }
+
+    // --- Comunes --------------------------------------------------------------
+
+    private void detectarSesionVencida() {
+        Locator contrasena = pagina.locator(SelectoresSiae.LOGIN_PASSWORD).first();
+        if (contrasena.count() > 0 && contrasena.isVisible()) {
+            throw new SesionVencidaException("La plataforma pidió iniciar sesión de nuevo. "
+                    + "Resuelve el captcha en la ventana del cliente.");
+        }
+    }
+
+    private PortalInesperadoException inesperado(String mensaje, Throwable causa) {
+        Path captura = capturar(mensaje);
+        String sufijo = captura == null ? "" : " (captura: " + captura.getFileName() + ")";
+        return new PortalInesperadoException(mensaje + sufijo, captura, causa);
+    }
+
+    private Path capturar(String motivo) {
+        try {
+            Files.createDirectories(capturas);
+            String marca = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss").format(LocalDateTime.now());
+            Path destino = capturas.resolve("fallo-" + marca + ".png");
+            pagina.screenshot(new Page.ScreenshotOptions().setPath(destino));
+            return destino;
+        } catch (RuntimeException | IOException e) {
+            return null;
+        }
     }
 
     @Override

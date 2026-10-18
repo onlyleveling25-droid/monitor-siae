@@ -1,15 +1,15 @@
 package co.monitorsiae.portal.real;
 
+import java.nio.file.Path;
+import java.util.Objects;
+import java.util.function.Function;
+import java.util.function.Supplier;
+
 import co.monitorsiae.dominio.Cliente;
 import co.monitorsiae.dominio.Configuracion;
 import co.monitorsiae.dominio.NavegadorPreferido;
 import co.monitorsiae.persistencia.UbicacionDatos;
 import co.monitorsiae.portal.PortalDriver;
-
-import java.nio.file.Path;
-import java.util.Objects;
-import java.util.function.Function;
-import java.util.function.Supplier;
 
 public final class FabricaPortalPlaywright implements Function<Cliente, PortalDriver> {
 
@@ -29,6 +29,6 @@ public final class FabricaPortalPlaywright implements Function<Cliente, PortalDr
             throw new IllegalArgumentException("El identificador del cliente no es válido para su perfil de navegador.");
         }
         NavegadorPreferido navegador = configuracion.get().navegador();
-        return new PlaywrightPortalDriver(perfil, navegador);
+        return new PlaywrightPortalDriver(perfil, navegador, ubicacion.capturas());
     }
 }

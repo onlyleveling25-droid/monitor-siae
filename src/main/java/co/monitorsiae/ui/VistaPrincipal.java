@@ -1,5 +1,12 @@
 package co.monitorsiae.ui;
 
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Consumer;
+
 import co.monitorsiae.app.CoordinadorMonitores;
 import co.monitorsiae.app.ServicioAplicacion;
 import co.monitorsiae.dominio.Cliente;
@@ -26,13 +33,6 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.Window;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
-import java.util.function.Consumer;
-
 /**
  * Vista operativa. Los casos de uso y las reglas permanecen fuera de los controles JavaFX.
  */
@@ -55,6 +55,9 @@ public final class VistaPrincipal extends BorderPane {
     private final Map<String, Label> estados = new HashMap<>();
     private final Map<String, Label> resultados = new HashMap<>();
     private final Map<String, Button> botonesInventario = new HashMap<>();
+    private final Map<String, Button> botonesIniciar = new HashMap<>();
+    private final Map<String, Button> botonesSesion = new HashMap<>();
+    private final Map<String, Cliente> clientesPorId = new HashMap<>();
     private boolean menuVisible = true;
 
     VistaPrincipal(Window propietario, ServicioAplicacion servicio, CoordinadorMonitores monitores,
@@ -81,7 +84,7 @@ public final class VistaPrincipal extends BorderPane {
         letra.getStyleClass().add("app-mark-letter");
         insignia.getChildren().add(letra);
         VBox identidad = new VBox(3);
-        Label nombre = new Label("Monitor SIAE");
+        Label nombre = new Label("Monitor SIAE 2.0");
         nombre.getStyleClass().add("brand");
         Label version = new Label("CENTRO DE OPERACIONES");
         version.getStyleClass().add("sidebar-caption");
@@ -96,7 +99,7 @@ public final class VistaPrincipal extends BorderPane {
         configuracion.setOnAction(event -> abrirConfiguracion());
         Region separador = new Region();
         VBox.setVgrow(separador, Priority.ALWAYS);
-        Label portal = new Label("PORTAL REAL\nSesión Playwright en validación");
+        Label portal = new Label("PORTAL REAL");
         portal.getStyleClass().add("sidebar-note");
         portal.setWrapText(true);
         barraLateral.getChildren().addAll(marca, inicio, configuracion, separador, portal);
@@ -179,11 +182,14 @@ public final class VistaPrincipal extends BorderPane {
         Configuracion configuracion = servicio.configuracion();
         modoTexto.setText(configuracion.entornoPortal() == EntornoPortal.SIMULADOR
                 ? "Simulador · pruebas sin conexión ni acciones en SIAE."
-                : "Portal real · sesión manual; monitoreo deshabilitado hasta validar selectores y acciones.");
+                : "Portal real · inicia sesión en el navegador de cada cliente antes de monitorear.");
         tarjetas.getChildren().clear();
         estados.clear();
         resultados.clear();
         botonesInventario.clear();
+        botonesIniciar.clear();
+        botonesSesion.clear();
+        clientesPorId.clear();
         resumen.setText("Clientes configurados  ·  " + configuracion.clientes().size());
         var problemas = servicio.problemasConfiguracion();
         avisos.getChildren().clear();
@@ -200,6 +206,7 @@ public final class VistaPrincipal extends BorderPane {
             return;
         }
         for (Cliente cliente : configuracion.clientes()) {
+            clientesPorId.put(cliente.id(), cliente);
             tarjetas.getChildren().add(tarjeta(cliente));
         }
     }
@@ -237,6 +244,17 @@ public final class VistaPrincipal extends BorderPane {
                 }
             }
         }
+
+        Cliente cliente = clientesPorId.get(clienteId);
+        Button botonIniciar = botonesIniciar.get(clienteId);
+        if (botonIniciar != null && cliente != null) {
+            botonIniciar.setDisable(!puedeIniciar(cliente));
+            botonIniciar.setTooltip(new Tooltip(motivoDeInicio(cliente)));
+        }
+        Button botonSesion = botonesSesion.get(clienteId);
+        if (botonSesion != null) {
+            botonSesion.setDisable(!esPortalReal() || ocupado(estado));
+        }
     }
 
     private VBox tarjeta(Cliente cliente) {
@@ -270,20 +288,19 @@ public final class VistaPrincipal extends BorderPane {
         HBox acciones = new HBox(9);
         Button sesion = new Button("Abrir sesión");
         sesion.getStyleClass().add("secondary-button");
-        boolean portalReal = servicio.configuracion().entornoPortal() == EntornoPortal.PORTAL_REAL;
-        sesion.setDisable(!portalReal);
-        sesion.setTooltip(new Tooltip(portalReal
+        sesion.setDisable(!esPortalReal());
+        sesion.setTooltip(new Tooltip(esPortalReal()
                 ? "Abre el navegador de este cliente; inicia sesión y resuelve el captcha manualmente."
                 : "Selecciona Portal real en Configuración para abrir una sesión."));
         sesion.setOnAction(event -> abrirSesion(cliente));
+        botonesSesion.put(cliente.id(), sesion);
+
         Button iniciar = new Button("Iniciar / reanudar");
         iniciar.getStyleClass().add("primary-button");
-        iniciar.setDisable(!cliente.activo() || !servicio.problemasConfiguracion().isEmpty() || portalReal);
-        if (portalReal) {
-            iniciar.setTooltip(new Tooltip("El monitoreo real se habilitará después de validar los selectores "
-                    + "y el flujo de apartado del portal."));
-        }
+        iniciar.setDisable(!puedeIniciar(cliente));
+        iniciar.setTooltip(new Tooltip(motivoDeInicio(cliente)));
         iniciar.setOnAction(event -> iniciar(cliente));
+        botonesIniciar.put(cliente.id(), iniciar);
         Button detener = new Button("Detener");
         detener.getStyleClass().add("secondary-button");
         detener.setOnAction(event -> monitores.detener(cliente.id()));
@@ -296,6 +313,38 @@ public final class VistaPrincipal extends BorderPane {
         acciones.getChildren().addAll(sesion, iniciar, detener, verInventario);
         tarjeta.getChildren().addAll(fila, seccional, resultado, acciones);
         return tarjeta;
+    }
+
+    private boolean esPortalReal() {
+        return servicio.configuracion().entornoPortal() == EntornoPortal.PORTAL_REAL;
+    }
+
+    private boolean puedeIniciar(Cliente cliente) {
+        if (!cliente.activo() || !servicio.problemasConfiguracion().isEmpty()) {
+            return false;
+        }
+        return !esPortalReal() || monitores.sesionAbierta(cliente.id());
+    }
+
+    private String motivoDeInicio(Cliente cliente) {
+        if (!cliente.activo()) {
+            return "El cliente está inactivo; habilítalo desde configuración.";
+        }
+        if (!servicio.problemasConfiguracion().isEmpty()) {
+            return "Completa la configuración antes de iniciar.";
+        }
+        if (esPortalReal() && !monitores.sesionAbierta(cliente.id())) {
+            return "Abre la sesión de este cliente e inicia sesión en la plataforma. "
+                    + "Después podrás iniciar el monitoreo.";
+        }
+        return "Empieza a consultar el inventario de este cliente.";
+    }
+
+    private static boolean ocupado(CoordinadorMonitores.Estado estado) {
+        return switch (estado) {
+            case ABRIENDO_SESION, INICIANDO, MONITOREANDO, DETENIENDO -> true;
+            default -> false;
+        };
     }
 
     private void iniciar(Cliente cliente) {
@@ -464,7 +513,7 @@ public final class VistaPrincipal extends BorderPane {
                 .append("Inventario observado (").append(snapshot.inventario().size()).append("):")
                 .append(System.lineSeparator());
         snapshot.inventario().forEach(arma -> texto
-                .append(arma.posicion() == eleccion.arma().posicion() ? "→ " : "  ")
+                .append(arma.posicion() == eleccion.arma().posicion() ? "→→ " : "  ")
                 .append(arma.posicion() + 1).append(". ")
                 .append(arma.descripcion()).append(System.lineSeparator()));
         return texto.toString();
@@ -490,7 +539,7 @@ public final class VistaPrincipal extends BorderPane {
             case ABRIENDO_SESION -> "Abriendo navegador";
             case SESION_ABIERTA -> "Sesión abierta";
             case INICIANDO -> "Iniciando";
-            case MONITOREANDO -> "Monitoreando · simulador";
+            case MONITOREANDO -> "Monitoreando";
             case FUERA_DE_HORARIO -> "Fuera del horario";
             case ALERTA_ENCONTRADA -> "Alerta encontrada";
             case ARMA_APARTADA -> "Arma apartada";

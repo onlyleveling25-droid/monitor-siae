@@ -63,6 +63,82 @@ class CoordinadorMonitoresTest {
     }
 
     @Test
+    void enfocaLaVentanaEnElHiloPropietarioDeLaSesion() throws Exception {
+        Cliente cliente = ClientesDePrueba.valido("Ana");
+        Configuracion configuracion = Configuracion.porDefecto()
+                .conEntornoPortal(EntornoPortal.PORTAL_REAL)
+                .conClientes(List.of(cliente));
+        BlockingQueue<Actualizacion> cambios = new LinkedBlockingQueue<>();
+        AtomicReference<PortalDePrueba> portal = new AtomicReference<>();
+        CoordinadorMonitores coordinador = new CoordinadorMonitores(configuracion,
+                new CentralAlertas(List.of()),
+                perfil -> {
+                    PortalDePrueba nuevo = new PortalDePrueba();
+                    portal.set(nuevo);
+                    return nuevo;
+                },
+                (id, estado) -> cambios.add(new Actualizacion(id, estado)));
+        try {
+            coordinador.abrirSesion(cliente);
+            esperar(cambios, CoordinadorMonitores.Estado.SESION_ABIERTA);
+
+            coordinador.enfocarVentana(cliente.id()).get(2, TimeUnit.SECONDS);
+
+            assertEquals(1, portal.get().enfoques.get());
+            assertEquals("monitor-cliente-" + cliente.id(), portal.get().hiloEnfoque.get());
+        } finally {
+            coordinador.close();
+        }
+    }
+
+    @Test
+    void enfocaLaVentanaMientrasMonitoreaSinEsperarElSiguienteCiclo() throws Exception {
+        Cliente cliente = ClientesDePrueba.valido("Ana");
+        Configuracion configuracion = Configuracion.porDefecto()
+                .conEntornoPortal(EntornoPortal.PORTAL_REAL)
+                .conClientes(List.of(cliente));
+        BlockingQueue<Actualizacion> cambios = new LinkedBlockingQueue<>();
+        AtomicReference<PortalEnfoqueContinuo> portal = new AtomicReference<>();
+        CoordinadorMonitores coordinador = new CoordinadorMonitores(configuracion,
+                new CentralAlertas(List.of()),
+                perfil -> {
+                    PortalEnfoqueContinuo nuevo = new PortalEnfoqueContinuo();
+                    portal.set(nuevo);
+                    return nuevo;
+                },
+                (id, estado) -> cambios.add(new Actualizacion(id, estado)));
+        try {
+            coordinador.abrirSesion(cliente);
+            esperar(cambios, CoordinadorMonitores.Estado.SESION_ABIERTA);
+            coordinador.iniciar(cliente);
+
+            assertTrue(portal.get().consultaIniciada.await(2, TimeUnit.SECONDS));
+            coordinador.enfocarVentana(cliente.id()).get(2, TimeUnit.SECONDS);
+
+            assertEquals(1, portal.get().enfoques.get());
+            assertEquals("monitor-cliente-" + cliente.id(), portal.get().hiloEnfoque.get());
+        } finally {
+            coordinador.close();
+        }
+    }
+
+    @Test
+    void enfocarSinSesionInformaQueDebeAbrirseElNavegador() {
+        CoordinadorMonitores coordinador = new CoordinadorMonitores(Configuracion.porDefecto(),
+                new CentralAlertas(List.of()), cliente -> new PortalDePrueba(), (id, estado) -> { });
+
+        try {
+            var error = org.junit.jupiter.api.Assertions.assertThrows(
+                    java.util.concurrent.CompletionException.class,
+                    () -> coordinador.enfocarVentana("sin-sesion").join());
+
+            assertTrue(error.getCause().getMessage().contains("no tiene una sesión de navegador abierta"));
+        } finally {
+            coordinador.close();
+        }
+    }
+
+    @Test
     void elSimuladorConectaInventarioConLaAlertaDeOportunidad() throws InterruptedException {
         Cliente base = ClientesDePrueba.valido("Ana");
         Cliente cliente = new Cliente(base.id(), base.nombre(), true, base.tramite(), ModoReaccion.ALERTA,
@@ -316,6 +392,8 @@ class CoordinadorMonitoresTest {
     private static final class PortalDePrueba implements PortalDriver {
 
         private final AtomicBoolean abierto = new AtomicBoolean(true);
+        private final AtomicInteger enfoques = new AtomicInteger();
+        private final AtomicReference<String> hiloEnfoque = new AtomicReference<>();
         private volatile Runnable accionAlCerrar = () -> { };
 
         @Override
@@ -352,6 +430,12 @@ class CoordinadorMonitoresTest {
         }
 
         @Override
+        public void enfocarVentana() {
+            enfoques.incrementAndGet();
+            hiloEnfoque.set(Thread.currentThread().getName());
+        }
+
+        @Override
         public void alCerrar(Runnable accion) {
             accionAlCerrar = accion;
             if (!abierto.get()) {
@@ -368,6 +452,51 @@ class CoordinadorMonitoresTest {
         @Override
         public void close() {
             cerrarManualmente();
+        }
+    }
+
+    private static final class PortalEnfoqueContinuo implements PortalDriver {
+
+        private final AtomicBoolean abierto = new AtomicBoolean(true);
+        private final AtomicInteger enfoques = new AtomicInteger();
+        private final AtomicReference<String> hiloEnfoque = new AtomicReference<>();
+        private final CountDownLatch consultaIniciada = new CountDownLatch(1);
+
+        @Override
+        public List<String> abrirFormulario(ParametrosTramite tramite) {
+            consultaIniciada.countDown();
+            return List.of();
+        }
+
+        @Override
+        public ResultadoGuardar enviarPaso1(String seccional, String descripcion) {
+            return ResultadoGuardar.SIN_INVENTARIO;
+        }
+
+        @Override
+        public List<ArmaInventario> leerInventario() {
+            return List.of();
+        }
+
+        @Override
+        public boolean apartar(ArmaInventario arma, Modalidad modalidad) {
+            return false;
+        }
+
+        @Override
+        public boolean estaAbierto() {
+            return abierto.get();
+        }
+
+        @Override
+        public void enfocarVentana() {
+            enfoques.incrementAndGet();
+            hiloEnfoque.set(Thread.currentThread().getName());
+        }
+
+        @Override
+        public void close() {
+            abierto.set(false);
         }
     }
 }

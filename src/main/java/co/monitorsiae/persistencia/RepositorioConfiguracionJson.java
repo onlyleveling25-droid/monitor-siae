@@ -108,7 +108,9 @@ public final class RepositorioConfiguracionJson implements RepositorioConfigurac
                     "La configuración fue creada por una versión más nueva de la aplicación (formato "
                             + configuracion.version() + "). Actualice la aplicación.");
         }
-        return configuracion;
+        return configuracion.version() < Configuracion.VERSION_ACTUAL
+                ? configuracion.conVersionActual()
+                : configuracion;
     }
 
     private static void reemplazar(Path origen, Path destino) throws IOException {

@@ -1,5 +1,8 @@
 package co.monitorsiae.notificacion;
 
+import co.monitorsiae.dominio.Configuracion;
+import co.monitorsiae.dominio.PreferenciasAlertas;
+import co.monitorsiae.dominio.TonoAlarma;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -49,6 +52,18 @@ class CanalVozTest {
         CanalVoz canal = new CanalVoz(dichos::add, duracion -> { });
 
         canal.mostrar(List.of());
+        canal.esperarSilencio(Duration.ofSeconds(1));
+
+        assertTrue(dichos.isEmpty());
+    }
+
+    @Test
+    void respetaLaPreferenciaDeVozDeshabilitada() throws InterruptedException {
+        Configuracion configuracion = Configuracion.porDefecto()
+                .conPreferenciasAlertas(new PreferenciasAlertas(true, false, TonoAlarma.SIRENA));
+        CanalVoz canal = new CanalVoz(dichos::add, duracion -> { }, () -> configuracion);
+
+        canal.mostrar(List.of(alerta("ana", "Alerta para Ana")));
         canal.esperarSilencio(Duration.ofSeconds(1));
 
         assertTrue(dichos.isEmpty());

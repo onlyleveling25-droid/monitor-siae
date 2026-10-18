@@ -1,7 +1,7 @@
 package co.monitorsiae.ui;
 
 import java.time.ZoneId;
-import java.time.LocalTime;
+import java.time.Instant;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
@@ -17,14 +17,22 @@ import co.monitorsiae.monitoreo.SnapshotInventario;
 import co.monitorsiae.notificacion.Alerta;
 import co.monitorsiae.notificacion.CentralAlertas;
 import co.monitorsiae.notificacion.Gravedad;
+import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.animation.FadeTransition;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
-import javafx.scene.control.ChoiceDialog;
+import javafx.scene.control.ButtonBar;
+import javafx.scene.control.ButtonType;
+import javafx.scene.control.ContextMenu;
+import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
+import javafx.scene.control.MenuItem;
+import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.control.ScrollPane;
-import javafx.scene.control.TextArea;
 import javafx.scene.control.Tooltip;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
@@ -32,6 +40,9 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
+import javafx.scene.shape.Circle;
+import javafx.util.Duration;
 import javafx.stage.Window;
 
 /**
@@ -44,8 +55,12 @@ public final class VistaPrincipal extends BorderPane {
     private final CoordinadorMonitores monitores;
     private final CentralAlertas alertas;
     private final Consumer<Configuracion> alGuardar;
-    private final VBox barraLateral = new VBox(18);
-    private final VBox tarjetas = new VBox(14);
+    private final VBox barraLateral = new VBox(14);
+    private final VBox tarjetas = new VBox(8);
+    private VBox panelPrincipal;
+    private EditorConfiguracion editorConfiguracion;
+    private Button navPanel;
+    private Button navAjustes;
     private final VBox avisos = new VBox(8);
     private final HBox avisoVisual = new HBox(10);
     private final Label iconoAviso = new Label();
@@ -57,12 +72,18 @@ public final class VistaPrincipal extends BorderPane {
     private final Map<String, Label> resultados = new HashMap<>();
     private final Map<String, Label> actividades = new HashMap<>();
     private final Map<String, Label> horasActividad = new HashMap<>();
-    private final Map<String, Button> botonesInventario = new HashMap<>();
-    private final Map<String, Button> botonesIniciar = new HashMap<>();
-    private final Map<String, Button> botonesSesion = new HashMap<>();
-    private final Map<String, Button> botonesDetener = new HashMap<>();
+    private final Map<String, Button> accionesPrincipales = new HashMap<>();
+    private final Map<String, MenuItem> detenerDesdeMenu = new HashMap<>();
+    private final Map<String, MenuItem> historialDesdeMenu = new HashMap<>();
+    private final Map<String, MenuItem> enfocarDesdeMenu = new HashMap<>();
+    private final Map<String, Region> acentosFila = new HashMap<>();
+    private final Map<String, HBox> filasClientes = new HashMap<>();
+    private final Map<String, Instant> tiemposActividad = new HashMap<>();
     private final Map<String, Cliente> clientesPorId = new HashMap<>();
-    private boolean menuVisible = true;
+    private final Label totalClientes = new Label("0");
+    private final Label clientesMonitoreados = new Label("0");
+    private final Label sesionesAbiertas = new Label("0");
+    private final Label alertasActivas = new Label("0");
     private List<String> problemas = List.of();
 
 
@@ -77,82 +98,95 @@ public final class VistaPrincipal extends BorderPane {
         crearBarraLateral();
         crearContenido();
         refrescarConfiguracion();
+        Timeline reloj = new Timeline(new KeyFrame(Duration.seconds(1), evento -> {
+            actualizarTiemposRelativos();
+            actualizarMetricas();
+        }));
+        reloj.setCycleCount(Timeline.INDEFINITE);
+        reloj.play();
     }
 
     private void crearBarraLateral() {
         barraLateral.getStyleClass().add("sidebar");
-        barraLateral.setPadding(new Insets(24, 16, 24, 16));
-        HBox marca = new HBox(11);
-        marca.setAlignment(Pos.CENTER_LEFT);
+        barraLateral.setPadding(new Insets(18, 10, 18, 10));
+        barraLateral.setAlignment(Pos.TOP_CENTER);
         StackPane insignia = new StackPane();
         insignia.getStyleClass().add("app-mark");
-        Label letra = new Label("M");
-        letra.getStyleClass().add("app-mark-letter");
-        insignia.getChildren().add(letra);
-        VBox identidad = new VBox(3);
-        Label nombre = new Label("Monitor SIAE 2.0");
-        nombre.getStyleClass().add("brand");
-        Label version = new Label("CENTRO DE OPERACIONES");
-        version.getStyleClass().add("sidebar-caption");
-        identidad.getChildren().addAll(nombre, version);
-        marca.getChildren().addAll(insignia, identidad);
-        Button inicio = new Button("⌂   Panel principal");
-        inicio.getStyleClass().add("nav-selected");
-        inicio.setMaxWidth(Double.MAX_VALUE);
-        Button configuracion = new Button("⚙   Configuración");
-        configuracion.getStyleClass().add("nav-button");
-        configuracion.setMaxWidth(Double.MAX_VALUE);
-        configuracion.setOnAction(event -> abrirConfiguracion());
+        insignia.getChildren().add(IconoSvg.crear("monitor", 22, "#1D4ED8"));
+        insignia.setAccessibleText("Monitor SIAE");
+        navPanel = botonNavegacion("dashboard", "Panel", true, this::solicitarVolverAlPanel);
+        navAjustes = botonNavegacion("settings", "Ajustes", false, this::abrirConfiguracion);
         Region separador = new Region();
         VBox.setVgrow(separador, Priority.ALWAYS);
-        Label portal = new Label("PORTAL REAL");
-        portal.getStyleClass().add("sidebar-note");
-        portal.setWrapText(true);
-        barraLateral.getChildren().addAll(marca, inicio, configuracion, separador, portal);
+        Label version = new Label("SIAE");
+        version.getStyleClass().add("sidebar-caption");
+        barraLateral.getChildren().addAll(insignia, navPanel, navAjustes, separador, version);
         setLeft(barraLateral);
     }
 
+    private Button botonNavegacion(String icono, String texto, boolean seleccionado, Runnable accion) {
+        Button boton = new Button();
+        establecerEstiloNavegacion(boton, icono, texto, seleccionado);
+        boton.setMaxWidth(Double.MAX_VALUE);
+        boton.setAccessibleText(texto);
+        boton.setTooltip(new Tooltip(texto));
+        boton.setOnAction(evento -> accion.run());
+        return boton;
+    }
+
+    private static void establecerEstiloNavegacion(Button boton, String icono, String texto,
+                                                    boolean seleccionado) {
+        boton.getStyleClass().setAll(seleccionado ? "rail-item-selected" : "rail-item");
+        VBox contenido = new VBox(6, IconoSvg.crear(icono, 20, seleccionado ? "#1D4ED8" : "#64748B"),
+                new Label(texto));
+        contenido.setAlignment(Pos.CENTER);
+        boton.setGraphic(contenido);
+    }
+
     private void crearContenido() {
-        VBox cuerpo = new VBox(20);
-        cuerpo.setPadding(new Insets(28, 34, 30, 34));
-        HBox encabezado = new HBox(16);
+        VBox cuerpo = new VBox(18);
+        cuerpo.setPadding(new Insets(28, 32, 28, 32));
+        HBox encabezado = new HBox(14);
         encabezado.getStyleClass().add("page-header");
         encabezado.setAlignment(Pos.CENTER_LEFT);
-        Button menu = new Button("☰");
-        menu.getStyleClass().add("icon-button");
-        menu.setTooltip(new Tooltip("Ocultar menú"));
-        menu.setAccessibleText("Alternar visibilidad del menú lateral");
-        menu.setOnAction(event -> alternarMenu(menu));
         VBox titulos = new VBox(4);
         Label saludo = new Label("Centro de monitoreo");
         saludo.getStyleClass().add("page-title");
-        Label subtitulo = new Label("Controla tus perfiles y consulta su actividad desde un solo lugar.");
+        Label subtitulo = new Label("Estado y actividad de cada cliente, en tiempo real.");
         subtitulo.getStyleClass().add("muted");
         titulos.getChildren().addAll(saludo, subtitulo);
         HBox.setHgrow(titulos, Priority.ALWAYS);
         Button reconocerTodas = new Button("Reconocer todas");
         reconocerTodas.getStyleClass().add("secondary-button");
+        reconocerTodas.setGraphic(IconoSvg.crear("bell", 16, "#475569"));
         reconocerTodas.setTooltip(new Tooltip(
                 "Silencia y cierra todas las notificaciones activas; no detiene el monitoreo."));
         reconocerTodas.setOnAction(event -> reconocerTodas());
         Button probar = new Button("Probar alarma");
-        probar.getStyleClass().add("secondary-button");
+        probar.getStyleClass().add("text-button");
         probar.setOnAction(event -> probarAlarma());
-        encabezado.getChildren().addAll(menu, titulos, reconocerTodas, probar);
+        encabezado.getChildren().addAll(titulos, reconocerTodas, probar);
 
         HBox modo = new HBox(10);
         modo.getStyleClass().add("environment-banner");
-        Label punto = new Label("●");
-        punto.getStyleClass().add("banner-dot");
+        Circle punto = new Circle(4, Color.web("#2563EB"));
         modoTexto.getStyleClass().add("banner-text");
         modo.getChildren().addAll(punto, modoTexto);
+
+        HBox metricas = new HBox(12);
+        metricas.getChildren().addAll(
+                tarjetaMetrica("Clientes", totalClientes, "activity", "#1D4ED8"),
+                tarjetaMetrica("Monitoreando", clientesMonitoreados, "monitor", "#2563EB"),
+                tarjetaMetrica("Sesiones abiertas", sesionesAbiertas, "dashboard", "#0D9488"),
+                tarjetaMetrica("Alertas activas", alertasActivas, "bell", "#EA580C"));
 
         iconoAviso.getStyleClass().add("visual-notice-icon");
         textoAviso.getStyleClass().add("visual-notice-text");
         textoAviso.setWrapText(true);
         HBox.setHgrow(textoAviso, Priority.ALWAYS);
-        Button cerrarAviso = new Button("×");
+        Button cerrarAviso = new Button();
         cerrarAviso.getStyleClass().add("visual-notice-close");
+        cerrarAviso.setGraphic(IconoSvg.crear("close", 14, "#64748B"));
         cerrarAviso.setTooltip(new Tooltip("Cerrar aviso"));
         cerrarAviso.setAccessibleText("Cerrar aviso");
         cerrarAviso.setOnAction(event -> ocultarAvisoVisual());
@@ -173,15 +207,26 @@ public final class VistaPrincipal extends BorderPane {
         desplazamiento.setFitToWidth(true);
         desplazamiento.getStyleClass().add("transparent-scroll");
         VBox.setVgrow(desplazamiento, Priority.ALWAYS);
-        cuerpo.getChildren().addAll(encabezado, avisoVisual, modo, avisos, confirmacionReconocimiento,
-                resumen, desplazamiento);
-        setCenter(cuerpo);
+        HBox tituloClientes = new HBox();
+        tituloClientes.setAlignment(Pos.CENTER_LEFT);
+        resumen.getStyleClass().add("section-title");
+        tituloClientes.getChildren().add(resumen);
+        cuerpo.getChildren().addAll(encabezado, modo, metricas, avisos, avisoVisual,
+                confirmacionReconocimiento, tituloClientes, desplazamiento);
+        panelPrincipal = cuerpo;
+        setCenter(panelPrincipal);
     }
 
-    private void alternarMenu(Button boton) {
-        menuVisible = !menuVisible;
-        setLeft(menuVisible ? barraLateral : null);
-        boton.setTooltip(new Tooltip(menuVisible ? "Ocultar menú" : "Mostrar menú"));
+    private VBox tarjetaMetrica(String titulo, Label valor, String icono, String color) {
+        HBox encabezado = new HBox(8, IconoSvg.crear(icono, 16, color), new Label(titulo));
+        encabezado.setAlignment(Pos.CENTER_LEFT);
+        encabezado.getStyleClass().add("metric-heading");
+        valor.getStyleClass().add("metric-value");
+        VBox tarjeta = new VBox(10, encabezado, valor);
+        tarjeta.getStyleClass().add("metric-card");
+        HBox.setHgrow(tarjeta, Priority.ALWAYS);
+        tarjeta.setMaxWidth(Double.MAX_VALUE);
+        return tarjeta;
     }
 
     public void refrescarConfiguracion() {
@@ -194,12 +239,14 @@ public final class VistaPrincipal extends BorderPane {
         resultados.clear();
         actividades.clear();
         horasActividad.clear();
-        botonesInventario.clear();
-        botonesIniciar.clear();
-        botonesSesion.clear();
-        botonesDetener.clear();
+        accionesPrincipales.clear();
+        detenerDesdeMenu.clear();
+        historialDesdeMenu.clear();
+        acentosFila.clear();
+        filasClientes.clear();
+        tiemposActividad.clear();
         clientesPorId.clear();
-        resumen.setText("Clientes configurados  ·  " + configuracion.clientes().size());
+        resumen.setText("Clientes configurados");
         problemas = servicio.problemasConfiguracion();
         avisos.getChildren().clear();
         if (!problemas.isEmpty()) {
@@ -209,15 +256,17 @@ public final class VistaPrincipal extends BorderPane {
             avisos.getChildren().add(aviso);
         }
         if (configuracion.clientes().isEmpty()) {
-            Label vacio = new Label("Aún no hay clientes. Abre Configuración para agregar el primero.");
+            Label vacio = new Label("Aún no hay clientes.\nAgrega el primero desde Ajustes para empezar.");
             vacio.getStyleClass().add("empty-state");
             tarjetas.getChildren().add(vacio);
+            actualizarMetricas();
             return;
         }
         for (Cliente cliente : configuracion.clientes()) {
             clientesPorId.put(cliente.id(), cliente);
             tarjetas.getChildren().add(tarjeta(cliente));
         }
+        actualizarMetricas();
     }
 
     public void actualizarEstado(String clienteId, CoordinadorMonitores.Estado estado) {
@@ -226,14 +275,18 @@ public final class VistaPrincipal extends BorderPane {
         if (etiqueta == null) {
             return;
         }
+        String estadoAnterior = etiqueta.getText();
         etiqueta.setText(textoEstado(estado));
         etiqueta.getStyleClass().removeAll("status-ready", "status-running", "status-stopped", "status-error",
-                "status-alert");
+                "status-alert", "status-session", "status-success", "status-waiting");
         etiqueta.getStyleClass().add(claseEstado(estado));
         Label resultado = resultados.get(clienteId);
+        boolean resultadoCambio = false;
         if (resultado != null) {
             String ultimo = monitores.ultimoResultado(clienteId);
-            resultado.setText(ultimo.isBlank() ? "Todavía no hay resultados." : ultimo);
+            String nuevo = ultimo.isBlank() ? "Todavía no hay resultados." : ultimo;
+            resultadoCambio = !resultado.getText().equals(nuevo);
+            resultado.setText(nuevo);
         }
         Label actividad = actividades.get(clienteId);
         if (actividad != null) {
@@ -241,11 +294,15 @@ public final class VistaPrincipal extends BorderPane {
         }
         Label hora = horasActividad.get(clienteId);
         if (hora != null) {
-            hora.setText("Actualizado a las " + LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")));
+            tiemposActividad.put(clienteId, Instant.now());
+            actualizarTiempoRelativo(clienteId);
         }
-        Button inventario = botonesInventario.get(clienteId);
-        if (inventario != null) {
-            inventario.setDisable(monitores.ultimoSnapshot(clienteId).isEmpty());
+        Region acento = acentosFila.get(clienteId);
+        if (acento != null && (!estadoAnterior.equals(textoEstado(estado)) || resultadoCambio)) {
+            FadeTransition transicion = new FadeTransition(Duration.millis(600), acento);
+            transicion.setFromValue(0.95);
+            transicion.setToValue(0.3);
+            transicion.playFromStart();
         }
         if (cliente != null && servicio.configuracion().entornoPortal() == EntornoPortal.PORTAL_REAL) {
             switch (estado) {
@@ -269,99 +326,192 @@ public final class VistaPrincipal extends BorderPane {
             }
         }
 
-        Button botonIniciar = botonesIniciar.get(clienteId);
-        if (botonIniciar != null && cliente != null) {
-            botonIniciar.setDisable(!puedeIniciar(cliente));
-            botonIniciar.setTooltip(new Tooltip(motivoDeInicio(cliente)));
+        if (cliente != null) {
+            Button accionPrincipal = accionesPrincipales.get(clienteId);
+            if (accionPrincipal != null) {
+                actualizarAccionPrincipal(cliente, accionPrincipal, estado);
+            }
         }
-
-        Button botonSesion = botonesSesion.get(clienteId);
-        if (botonSesion != null && cliente != null) {
-            actualizarBotonSesion(cliente, botonSesion, estado);
+        MenuItem detener = detenerDesdeMenu.get(clienteId);
+        if (detener != null) {
+            detener.setDisable(!puedeDetener(estado));
         }
-        Button botonDetener = botonesDetener.get(clienteId);
-        if (botonDetener != null) {
-            botonDetener.setDisable(!puedeDetener(estado));
+        MenuItem historial = historialDesdeMenu.get(clienteId);
+        if (historial != null) {
+            historial.setDisable(monitores.historialSnapshots(clienteId).isEmpty());
         }
+        MenuItem enfocar = enfocarDesdeMenu.get(clienteId);
+        if (enfocar != null) {
+            enfocar.setDisable(!esPortalReal() || !monitores.sesionAbierta(clienteId));
+        }
+        actualizarEstiloFila(clienteId, estado);
+        actualizarMetricas();
     }
 
-    private VBox tarjeta(Cliente cliente) {
-        VBox tarjeta = new VBox(12);
-        tarjeta.getStyleClass().add("client-card");
-        HBox fila = new HBox(12);
+    private HBox tarjeta(Cliente cliente) {
+        HBox fila = new HBox(16);
+        fila.setId("cliente-" + cliente.id().replace("-", ""));
+        fila.getStyleClass().add("client-row");
         fila.setAlignment(Pos.CENTER_LEFT);
+        filasClientes.put(cliente.id(), fila);
+        Region acento = new Region();
+        acento.getStyleClass().addAll("row-accent", claseAcento(monitores.estado(cliente.id())));
+        acentosFila.put(cliente.id(), acento);
+
         VBox identidad = new VBox(5);
         Label nombre = new Label(cliente.nombre().isBlank() ? "Cliente sin nombre" : cliente.nombre());
         nombre.getStyleClass().add("client-name");
-        Label detalle = new Label(cliente.activo() ? "Activo · " + cliente.modo().name()
-                : "Inactivo · habilítalo desde configuración");
-        detalle.getStyleClass().add("muted");
+        Label detalle = new Label(cliente.activo() ? "Activo · " + textoModo(cliente)
+                : "Inactivo · se puede editar en Ajustes");
+        detalle.getStyleClass().add(cliente.activo() ? "client-active" : "client-inactive");
         identidad.getChildren().addAll(nombre, detalle);
-        HBox.setHgrow(identidad, Priority.ALWAYS);
+        StackPane avatar = new StackPane(new Circle(17, Color.web("#EFF6FF")));
+        Label inicial = new Label(cliente.nombre().isBlank() ? "?" :
+                cliente.nombre().substring(0, 1).toUpperCase(java.util.Locale.ROOT));
+        inicial.getStyleClass().add("client-avatar-label");
+        avatar.getChildren().add(inicial);
+        HBox identidadCliente = new HBox(11, avatar, identidad);
+        identidadCliente.setAlignment(Pos.CENTER_LEFT);
+        identidadCliente.setMinWidth(190);
+        identidadCliente.setPrefWidth(235);
+
         CoordinadorMonitores.Estado estadoActual = monitores.estado(cliente.id());
         Label estado = new Label(textoEstado(estadoActual));
         estado.getStyleClass().addAll("status-pill", claseEstado(estadoActual));
         estados.put(cliente.id(), estado);
-        fila.getChildren().addAll(identidad, estado);
 
-        Label tituloPreferencias = new Label("PREFERENCIAS DE TRÁMITE");
-        tituloPreferencias.getStyleClass().add("activity-title");
-        Label seccional = new Label(cliente.tramite().seccionales().isEmpty()
-                ? "Seccionales: sin configurar"
-                : "Seccionales: " + String.join(" · ", cliente.tramite().seccionales()));
-        seccional.getStyleClass().add("activity-detail");
-        seccional.setWrapText(true);
-        VBox panelPreferencias = new VBox(5, tituloPreferencias, seccional);
-        panelPreferencias.getStyleClass().add("activity-panel");
+        VBox actividadReciente = new VBox(4);
+        Label actividad = new Label(textoActividad(estadoActual));
+        actividad.getStyleClass().add("activity-event");
+        actividad.setWrapText(false);
+        actividad.setTextOverrun(javafx.scene.control.OverrunStyle.ELLIPSIS);
+        actividades.put(cliente.id(), actividad);
         String mensaje = monitores.ultimoResultado(cliente.id());
         Label resultado = new Label(mensaje.isBlank() ? "Todavía no hay resultados." : mensaje);
         resultado.getStyleClass().add("activity-detail");
+        resultado.setMaxWidth(Double.MAX_VALUE);
+        resultado.setTextOverrun(javafx.scene.control.OverrunStyle.ELLIPSIS);
         resultado.setWrapText(true);
         resultados.put(cliente.id(), resultado);
-        Label tituloActividad = new Label("ACTIVIDAD RECIENTE");
-        tituloActividad.getStyleClass().add("activity-title");
-        Label actividad = new Label(textoActividad(estadoActual));
-        actividad.getStyleClass().add("activity-event");
-        actividad.setWrapText(true);
-        actividades.put(cliente.id(), actividad);
-        Label hora = new Label("Actualizado a las "
-                + LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")));
+        Label hora = new Label("ahora");
         hora.getStyleClass().add("activity-time");
         horasActividad.put(cliente.id(), hora);
-        VBox panelActividad = new VBox(5, tituloActividad, actividad, resultado, hora);
-        panelActividad.getStyleClass().add("activity-panel");
+        tiemposActividad.put(cliente.id(), Instant.now());
+        HBox detalleActividad = new HBox(8, resultado, hora);
+        detalleActividad.setAlignment(Pos.CENTER_LEFT);
+        HBox.setHgrow(resultado, Priority.ALWAYS);
+        actividadReciente.getChildren().addAll(actividad, detalleActividad);
+        HBox.setHgrow(actividadReciente, Priority.ALWAYS);
 
-        HBox acciones = new HBox(9);
-        Button sesion = new Button("Abrir sesión");
-        sesion.getStyleClass().add("secondary-button");
-        sesion.setOnAction(event -> abrirSesion(cliente));
-        botonesSesion.put(cliente.id(), sesion);
-        actualizarBotonSesion(cliente, sesion, monitores.estado(cliente.id()));
+        Button principal = new Button();
+        principal.getStyleClass().add("primary-button");
+        principal.setMinWidth(150);
+        principal.setOnAction(event -> {
+            if (esPortalReal() && monitores.estado(cliente.id()) == CoordinadorMonitores.Estado.ALERTA_ENCONTRADA
+                    && monitores.sesionAbierta(cliente.id())) {
+                irAlNavegador(cliente);
+            } else if (esPortalReal() && !monitores.sesionAbierta(cliente.id())) {
+                abrirSesion(cliente);
+            } else {
+                iniciar(cliente);
+            }
+        });
+        accionesPrincipales.put(cliente.id(), principal);
+        actualizarAccionPrincipal(cliente, principal, estadoActual);
 
-        Button iniciar = new Button("Iniciar / reanudar");
-        iniciar.getStyleClass().add("primary-button");
-        iniciar.setDisable(!puedeIniciar(cliente));
-        iniciar.setTooltip(new Tooltip(motivoDeInicio(cliente)));
-        iniciar.setOnAction(event -> iniciar(cliente));
-        botonesIniciar.put(cliente.id(), iniciar);
-        Button detener = new Button("Detener");
-        detener.getStyleClass().add("secondary-button");
+        MenuItem detener = new MenuItem("Detener monitoreo");
         detener.setOnAction(event -> monitores.detener(cliente.id()));
-        detener.setDisable(!puedeDetener(monitores.estado(cliente.id())));
-        botonesDetener.put(cliente.id(), detener);
-        Button verInventario = new Button("Historial");
-        verInventario.getStyleClass().add("secondary-button");
-        verInventario.setTooltip(new Tooltip("Consultar los snapshots locales del inventario analizado."));
-        verInventario.setDisable(monitores.ultimoSnapshot(cliente.id()).isEmpty());
-        verInventario.setOnAction(event -> mostrarHistorial(cliente.id()));
-        botonesInventario.put(cliente.id(), verInventario);
-        acciones.getChildren().addAll(sesion, iniciar, detener, verInventario);
-        tarjeta.getChildren().addAll(fila, panelPreferencias, panelActividad, acciones);
-        return tarjeta;
+        detener.setDisable(!puedeDetener(estadoActual));
+        MenuItem historial = new MenuItem("Ver historial de inventario");
+        historial.setDisable(monitores.historialSnapshots(cliente.id()).isEmpty());
+        historial.setOnAction(event -> mostrarHistorial(cliente.id()));
+        MenuItem irAlNavegador = new MenuItem("Ir al navegador");
+        irAlNavegador.setDisable(!esPortalReal() || !monitores.sesionAbierta(cliente.id()));
+        irAlNavegador.setOnAction(event -> irAlNavegador(cliente));
+        enfocarDesdeMenu.put(cliente.id(), irAlNavegador);
+        MenuItem editar = new MenuItem("Editar cliente");
+        editar.setOnAction(event -> abrirConfiguracion(cliente.id()));
+        detenerDesdeMenu.put(cliente.id(), detener);
+        historialDesdeMenu.put(cliente.id(), historial);
+        ContextMenu menu = new ContextMenu(detener, historial, irAlNavegador,
+                new SeparatorMenuItem(), editar);
+        Button mas = new Button();
+        mas.getStyleClass().add("overflow-button");
+        mas.setGraphic(IconoSvg.crear("more", 18, "#475569"));
+        mas.setAccessibleText("Más acciones para " + cliente.nombre());
+        mas.setTooltip(new Tooltip("Más acciones"));
+        mas.setOnAction(event -> menu.show(mas, javafx.geometry.Side.BOTTOM, 0, 2));
+
+        fila.getChildren().addAll(acento, identidadCliente, actividadReciente, estado, principal, mas);
+        if (estadoActual == CoordinadorMonitores.Estado.ALERTA_ENCONTRADA) {
+            fila.getStyleClass().add("client-row-alert");
+        }
+        return fila;
     }
 
     private boolean esPortalReal() {
         return servicio.configuracion().entornoPortal() == EntornoPortal.PORTAL_REAL;
+    }
+
+    private void actualizarMetricas() {
+        totalClientes.setText(Integer.toString(clientesPorId.size()));
+        long monitoreando = clientesPorId.keySet().stream()
+                .filter(id -> monitores.estado(id) == CoordinadorMonitores.Estado.MONITOREANDO)
+                .count();
+        long sesiones = clientesPorId.keySet().stream().filter(monitores::sesionAbierta).count();
+        clientesMonitoreados.setText(Long.toString(monitoreando));
+        sesionesAbiertas.setText(Long.toString(sesiones));
+        alertasActivas.setText(Integer.toString(alertas.activas().size()));
+    }
+
+    private void actualizarTiemposRelativos() {
+        tiemposActividad.keySet().forEach(this::actualizarTiempoRelativo);
+    }
+
+    private void actualizarTiempoRelativo(String clienteId) {
+        Instant actualizado = tiemposActividad.get(clienteId);
+        Label hora = horasActividad.get(clienteId);
+        if (actualizado == null || hora == null) {
+            return;
+        }
+        long segundos = Math.max(0, java.time.Duration.between(actualizado, Instant.now()).getSeconds());
+        String texto;
+        if (segundos < 60) {
+            texto = segundos == 0 ? "ahora" : "hace " + segundos + " s";
+        } else if (segundos < 3600) {
+            texto = "hace " + (segundos / 60) + " min";
+        } else {
+            texto = "hace " + (segundos / 3600) + " h";
+        }
+        hora.setText(texto);
+    }
+
+    private void actualizarEstiloFila(String clienteId, CoordinadorMonitores.Estado estado) {
+        Region acento = acentosFila.get(clienteId);
+        if (acento != null) {
+            acento.getStyleClass().removeAll("accent-neutral", "accent-info", "accent-session",
+                    "accent-waiting", "accent-alert", "accent-success", "accent-danger");
+            acento.getStyleClass().add(claseAcento(estado));
+        }
+        HBox fila = filasClientes.get(clienteId);
+        if (fila != null) {
+            fila.getStyleClass().remove("client-row-alert");
+            if (estado == CoordinadorMonitores.Estado.ALERTA_ENCONTRADA) {
+                fila.getStyleClass().add("client-row-alert");
+            }
+        }
+    }
+
+    private static String claseAcento(CoordinadorMonitores.Estado estado) {
+        return switch (estado) {
+            case ABRIENDO_SESION, INICIANDO, MONITOREANDO, DETENIENDO -> "accent-info";
+            case SESION_ABIERTA -> "accent-session";
+            case FUERA_DE_HORARIO, DETENIDO, SESION_CERRADA -> "accent-waiting";
+            case ALERTA_ENCONTRADA -> "accent-alert";
+            case ARMA_APARTADA -> "accent-success";
+            case ERROR -> "accent-danger";
+            default -> "accent-neutral";
+        };
     }
 
     private boolean puedeIniciar(Cliente cliente) {
@@ -371,15 +521,41 @@ public final class VistaPrincipal extends BorderPane {
         return !esPortalReal() || monitores.sesionAbierta(cliente.id());
     }
 
-    private void actualizarBotonSesion(Cliente cliente, Button boton, CoordinadorMonitores.Estado estado) {
-        boolean abierta = monitores.sesionAbierta(cliente.id());
-        boton.setText(abierta ? "Sesión abierta" : "Abrir sesión");
-        boton.setDisable(!esPortalReal() || ocupado(estado) || abierta);
-        boton.setTooltip(new Tooltip(!esPortalReal()
-                ? "Selecciona Portal real en Configuración para abrir una sesión."
-                : abierta
-                        ? "La sesión del navegador sigue abierta. Iniciar / reanudar continuará usando este navegador."
-                        : "Abre el navegador de este cliente; inicia sesión y resuelve el captcha manualmente."));
+    private void actualizarAccionPrincipal(Cliente cliente, Button boton, CoordinadorMonitores.Estado estado) {
+        if (esPortalReal() && estado == CoordinadorMonitores.Estado.ALERTA_ENCONTRADA
+                && monitores.sesionAbierta(cliente.id())) {
+            boton.setText("Ir al navegador");
+            boton.setDisable(false);
+            boton.setTooltip(new Tooltip("Muestra el navegador de este cliente para revisar la oportunidad."));
+            return;
+        }
+        boolean requiereAbrirSesion = esPortalReal() && !monitores.sesionAbierta(cliente.id());
+        if (requiereAbrirSesion) {
+            boton.setText("Abrir sesión");
+            boton.setDisable(ocupado(estado));
+            boton.setTooltip(new Tooltip("Abre el navegador de este cliente para iniciar sesión manualmente."));
+        } else if (estado == CoordinadorMonitores.Estado.MONITOREANDO
+                || estado == CoordinadorMonitores.Estado.FUERA_DE_HORARIO) {
+            boton.setText("Monitoreando");
+            boton.setDisable(true);
+            boton.setTooltip(new Tooltip("Detén el monitoreo desde el menú de más acciones."));
+        } else if (estado == CoordinadorMonitores.Estado.INICIANDO
+                || estado == CoordinadorMonitores.Estado.DETENIENDO) {
+            boton.setText(estado == CoordinadorMonitores.Estado.INICIANDO ? "Iniciando…" : "Deteniendo…");
+            boton.setDisable(true);
+            boton.setTooltip(new Tooltip("La acción solicitada está en curso."));
+        } else {
+            boton.setText("Iniciar / reanudar");
+            boton.setDisable(!puedeIniciar(cliente));
+            boton.setTooltip(new Tooltip(motivoDeInicio(cliente)));
+        }
+    }
+
+    private static String textoModo(Cliente cliente) {
+        return switch (cliente.modo()) {
+            case ALERTA -> "Solo alertar";
+            case APARTAR -> "Apartar automáticamente";
+        };
     }
 
     private static boolean puedeDetener(CoordinadorMonitores.Estado estado) {
@@ -439,6 +615,30 @@ public final class VistaPrincipal extends BorderPane {
         }
     }
 
+    private void irAlNavegador(Cliente cliente) {
+        monitores.enfocarVentana(cliente.id()).whenComplete((ignorado, error) -> Platform.runLater(() -> {
+            if (error == null) {
+                mostrarAvisoVisual(cliente.nombre()
+                        + ": solicitud de enfoque enviada. Si Windows no la trae al frente, "
+                        + "selecciona su icono en la barra de tareas.", TipoAviso.SUCCESS);
+            } else {
+                mostrarAvisoVisual(cliente.nombre() + ": " + mensajeErrorEnfoque(error), TipoAviso.ERROR);
+            }
+        }));
+    }
+
+    private static String mensajeErrorEnfoque(Throwable error) {
+        Throwable causa = error;
+        while (causa.getCause() != null
+                && (causa instanceof java.util.concurrent.CompletionException
+                || causa instanceof java.util.concurrent.ExecutionException)) {
+            causa = causa.getCause();
+        }
+        return causa.getMessage() == null || causa.getMessage().isBlank()
+                ? "No se pudo enfocar el navegador."
+                : causa.getMessage();
+    }
+
     private void abrirSesion(Cliente cliente) {
         try {
             monitores.abrirSesion(cliente);
@@ -448,14 +648,59 @@ public final class VistaPrincipal extends BorderPane {
     }
 
     private void abrirConfiguracion() {
+        abrirConfiguracion(null);
+    }
+
+    private void abrirConfiguracion(String clienteId) {
+        if (editorConfiguracion != null) {
+            if (getCenter() != editorConfiguracion) {
+                setCenter(editorConfiguracion);
+                actualizarNavegacion(true);
+            }
+            if (clienteId != null) {
+                editorConfiguracion.seleccionarCliente(clienteId);
+            }
+            return;
+        }
         if (!autorizarEdicion()) {
             return;
         }
-        boolean guardada = new EditorConfiguracion(propietario, servicio, alGuardar).showAndWait();
-        refrescarConfiguracion();
-        if (guardada) {
-            mostrarAvisoVisual("Configuración guardada correctamente.", TipoAviso.SUCCESS);
+        editorConfiguracion = new EditorConfiguracion(propietario, servicio, configuracion -> {
+            alGuardar.accept(configuracion);
+        }, this::solicitarVolverAlPanel);
+        if (clienteId != null) {
+            editorConfiguracion.seleccionarCliente(clienteId);
         }
+        setCenter(editorConfiguracion);
+        actualizarNavegacion(true);
+    }
+
+    private void solicitarVolverAlPanel() {
+        if (editorConfiguracion != null && editorConfiguracion.hayCambiosPendientes()) {
+            Alert confirmacion = new Alert(Alert.AlertType.CONFIRMATION,
+                    "Los cambios que no guardaste se perderán.");
+            confirmacion.initOwner(propietario);
+            EstilosJavaFx.aplicar(confirmacion.getDialogPane());
+            confirmacion.setTitle("Descartar cambios");
+            confirmacion.setHeaderText("¿Salir de Configuración?");
+            ButtonType descartar = new ButtonType("Descartar cambios", ButtonBar.ButtonData.OK_DONE);
+            confirmacion.getButtonTypes().setAll(descartar, ButtonType.CANCEL);
+            if (confirmacion.showAndWait().orElse(ButtonType.CANCEL) != descartar) {
+                return;
+            }
+        }
+        editorConfiguracion = null;
+        mostrarPanel();
+    }
+
+    private void mostrarPanel() {
+        setCenter(panelPrincipal);
+        actualizarNavegacion(false);
+    }
+
+    private void actualizarNavegacion(boolean configuracionActiva) {
+        establecerEstiloNavegacion(navPanel, "dashboard", "Panel", !configuracionActiva);
+        establecerEstiloNavegacion(navAjustes, "settings", "Ajustes", configuracionActiva);
     }
 
     private boolean autorizarEdicion() {
@@ -523,10 +768,10 @@ public final class VistaPrincipal extends BorderPane {
             case INFO -> "visual-notice-info";
             case ERROR -> "visual-notice-error";
         });
-        iconoAviso.setText(switch (tipo) {
-            case SUCCESS -> "✓";
-            case INFO -> "i";
-            case ERROR -> "!";
+        iconoAviso.setGraphic(switch (tipo) {
+            case SUCCESS -> IconoSvg.crear("check", 14, "#15803D");
+            case INFO -> IconoSvg.crear("info", 14, "#1D4ED8");
+            case ERROR -> IconoSvg.crear("alert", 14, "#B91C1C");
         });
         textoAviso.setText(mensaje);
         avisoVisual.setVisible(true);
@@ -539,77 +784,172 @@ public final class VistaPrincipal extends BorderPane {
     }
 
     private void mostrarHistorial(String clienteId) {
-        List<OpcionSnapshot> opciones = monitores.historialSnapshots(clienteId).stream()
-                .map(OpcionSnapshot::new)
-                .toList();
-        if (opciones.isEmpty()) {
+        List<SnapshotInventario> snapshots = monitores.historialSnapshots(clienteId);
+        if (snapshots.isEmpty()) {
             return;
         }
-        if (opciones.size() == 1) {
-            mostrarSnapshot(opciones.getFirst().snapshot());
+        if (snapshots.size() == 1) {
+            mostrarSnapshot(snapshots.getFirst());
             return;
         }
-        ChoiceDialog<OpcionSnapshot> dialogo = new ChoiceDialog<>(opciones.getFirst(), opciones);
+        Dialog<SnapshotInventario> dialogo = new Dialog<>();
         dialogo.initOwner(propietario);
-        EstilosJavaFx.aplicar(dialogo.getDialogPane());
         dialogo.setTitle("Historial de inventarios");
-        dialogo.setHeaderText("Selecciona un snapshot para revisar la decisión");
-        dialogo.setContentText("Inventarios guardados localmente:");
-        dialogo.showAndWait().ifPresent(opcion -> mostrarSnapshot(opcion.snapshot()));
+        dialogo.setHeaderText(null);
+        dialogo.getDialogPane().getStyleClass().add("history-dialog");
+        dialogo.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+        dialogo.setResultConverter(boton -> null);
+        EstilosJavaFx.aplicar(dialogo.getDialogPane());
+        dialogo.getDialogPane().lookupButton(ButtonType.CLOSE).getStyleClass().add("secondary-button");
+
+        VBox contenido = new VBox(12);
+        contenido.getStyleClass().add("history-content");
+        Label titulo = new Label("Historial de inventarios");
+        titulo.getStyleClass().add("dialog-title");
+        Label descripcion = new Label("Selecciona una consulta para revisar el inventario y la elección del sistema.");
+        descripcion.getStyleClass().add("dialog-description");
+        descripcion.setWrapText(true);
+        VBox lista = new VBox(6);
+        for (SnapshotInventario snapshot : snapshots) {
+            Button opcion = botonSnapshot(snapshot, dialogo);
+            lista.getChildren().add(opcion);
+        }
+        ScrollPane desplazamiento = new ScrollPane(lista);
+        desplazamiento.setFitToWidth(true);
+        desplazamiento.getStyleClass().add("history-scroll");
+        desplazamiento.setPrefViewportHeight(Math.min(430, snapshots.size() * 52));
+        contenido.getChildren().addAll(titulo, descripcion, desplazamiento);
+        dialogo.getDialogPane().setContent(contenido);
+        dialogo.getDialogPane().setPrefWidth(620);
+        dialogo.showAndWait().ifPresent(this::mostrarSnapshot);
+    }
+
+    private static Button botonSnapshot(SnapshotInventario snapshot, Dialog<SnapshotInventario> dialogo) {
+        Label fecha = new Label(fechaSnapshot(snapshot));
+        fecha.getStyleClass().add("history-date");
+        Label seccional = new Label(snapshot.seccional());
+        seccional.getStyleClass().add("history-location");
+        HBox resumen = new HBox(8, fecha, seccional);
+        resumen.setAlignment(Pos.CENTER_LEFT);
+        Label seleccion = new Label(snapshot.eleccion().arma().descripcion());
+        seleccion.getStyleClass().add("history-selection");
+        seleccion.setWrapText(true);
+        VBox textos = new VBox(2, resumen, seleccion);
+        HBox contenido = new HBox(12, IconoSvg.crear("activity", 18, "#1D4ED8"), textos);
+        contenido.setAlignment(Pos.CENTER_LEFT);
+        Button boton = new Button();
+        boton.setGraphic(contenido);
+        boton.setMaxWidth(Double.MAX_VALUE);
+        boton.setMinHeight(Region.USE_PREF_SIZE);
+        boton.setMaxHeight(Region.USE_PREF_SIZE);
+        boton.setAccessibleText("Ver inventario del " + fecha.getText() + ", " + seccional.getText());
+        boton.getStyleClass().add("history-entry");
+        boton.setOnAction(event -> {
+            dialogo.setResult(snapshot);
+            dialogo.close();
+        });
+        return boton;
     }
 
     private void mostrarSnapshot(SnapshotInventario snapshot) {
-        TextArea contenido = new TextArea(textoSnapshot(snapshot));
-        contenido.setEditable(false);
-        contenido.setWrapText(true);
-        contenido.setPrefColumnCount(72);
-        contenido.setPrefRowCount(22);
-        Alert alerta = new Alert(Alert.AlertType.INFORMATION);
-        alerta.initOwner(propietario);
-        EstilosJavaFx.aplicar(alerta.getDialogPane());
-        alerta.setTitle("Inventario analizado");
-        alerta.setHeaderText("Evidencia de la elección del sistema");
-        alerta.getDialogPane().setContent(contenido);
-        alerta.showAndWait();
-    }
-
-    private static String textoSnapshot(SnapshotInventario snapshot) {
-        String fecha = fechaSnapshot(snapshot);
         var eleccion = snapshot.eleccion();
         String motivo = switch (eleccion.motivo()) {
             case OBJETIVO -> "Objetivo prioritario #" + (eleccion.prioridad() + 1);
             case ALTERNATIVA -> "Alternativa #" + (eleccion.prioridad() + 1);
             case CUALQUIERA_DEL_TIPO -> "Comodín por tipo";
         };
-        StringBuilder texto = new StringBuilder()
-                .append("Cliente: ").append(snapshot.clienteNombre()).append(System.lineSeparator())
-                .append("Fecha: ").append(fecha).append(System.lineSeparator())
-                .append("Seccional: ").append(snapshot.seccional()).append(System.lineSeparator())
-                .append("Elección: ").append(eleccion.arma().descripcion()).append(System.lineSeparator())
-                .append("Regla aplicada: ").append(motivo)
-                .append(eleccion.criterio().isBlank() ? "" : " · " + eleccion.criterio())
-                .append(System.lineSeparator())
-                .append("Inventario observado (").append(snapshot.inventario().size()).append("):")
-                .append(System.lineSeparator());
-        snapshot.inventario().forEach(arma -> texto
-                .append(arma.posicion() == eleccion.arma().posicion() ? "→→ " : "  ")
-                .append(arma.posicion() + 1).append(". ")
-                .append(arma.descripcion()).append(System.lineSeparator()));
-        return texto.toString();
+        Dialog<Void> dialogo = new Dialog<>();
+        dialogo.initOwner(propietario);
+        dialogo.setTitle("Inventario analizado");
+        dialogo.setHeaderText(null);
+        dialogo.getDialogPane().getStyleClass().add("snapshot-dialog");
+        dialogo.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+        EstilosJavaFx.aplicar(dialogo.getDialogPane());
+        dialogo.getDialogPane().lookupButton(ButtonType.CLOSE).getStyleClass().add("secondary-button");
+
+        VBox contenido = new VBox(14);
+        contenido.getStyleClass().add("snapshot-content");
+        Label titulo = new Label("Inventario analizado");
+        titulo.getStyleClass().add("dialog-title");
+        Label subtitulo = new Label("Evidencia de la decisión del sistema");
+        subtitulo.getStyleClass().add("dialog-description");
+
+        VBox eleccionCard = new VBox(6);
+        eleccionCard.getStyleClass().add("snapshot-choice-card");
+        HBox rotulo = new HBox(8, IconoSvg.crear("check", 17, "#15803D"));
+        Label rotuloTexto = new Label("OBJETO ELEGIDO POR EL SISTEMA");
+        rotuloTexto.getStyleClass().add("snapshot-choice-label");
+        rotulo.getChildren().add(rotuloTexto);
+        Label armaElegida = new Label(eleccion.arma().descripcion());
+        armaElegida.getStyleClass().add("snapshot-choice-name");
+        armaElegida.setWrapText(true);
+        Label reglaAplicada = new Label(motivo
+                + (eleccion.criterio().isBlank() ? "" : " · " + eleccion.criterio()));
+        reglaAplicada.getStyleClass().add("snapshot-choice-reason");
+        reglaAplicada.setWrapText(true);
+        eleccionCard.getChildren().addAll(rotulo, armaElegida, reglaAplicada);
+
+        HBox datos = new HBox(10,
+                datoSnapshot("CLIENTE", snapshot.clienteNombre()),
+                datoSnapshot("SECCIONAL", snapshot.seccional()),
+                datoSnapshot("FECHA", fechaSnapshot(snapshot)));
+        datos.getStyleClass().add("snapshot-metadata");
+
+        Label inventarioTitulo = new Label("Inventario observado · " + snapshot.inventario().size() + " objetos");
+        inventarioTitulo.getStyleClass().add("section-title");
+        VBox objetos = new VBox(7);
+        objetos.getStyleClass().add("snapshot-items");
+        snapshot.inventario().forEach(arma -> objetos.getChildren().add(
+                filaInventario(arma.posicion() + 1, arma.descripcion(),
+                        arma.posicion() == eleccion.arma().posicion())));
+        ScrollPane lista = new ScrollPane(objetos);
+        lista.setFitToWidth(true);
+        lista.getStyleClass().add("history-scroll");
+        lista.setPrefViewportHeight(Math.min(360, Math.max(100, snapshot.inventario().size() * 52)));
+        contenido.getChildren().addAll(titulo, subtitulo, eleccionCard, datos, inventarioTitulo, lista);
+        dialogo.getDialogPane().setContent(contenido);
+        dialogo.getDialogPane().setPrefWidth(760);
+        dialogo.showAndWait();
+    }
+
+    private static VBox datoSnapshot(String etiqueta, String valor) {
+        Label titulo = new Label(etiqueta);
+        titulo.getStyleClass().add("snapshot-meta-label");
+        Label contenido = new Label(valor);
+        contenido.getStyleClass().add("snapshot-meta-value");
+        contenido.setWrapText(true);
+        VBox dato = new VBox(5, titulo, contenido);
+        dato.getStyleClass().add("snapshot-meta-card");
+        HBox.setHgrow(dato, Priority.ALWAYS);
+        dato.setMaxWidth(Double.MAX_VALUE);
+        return dato;
+    }
+
+    private static HBox filaInventario(int numero, String descripcion, boolean elegida) {
+        Label posicion = new Label(String.format("%02d", numero));
+        posicion.getStyleClass().add("snapshot-item-number");
+        Label nombre = new Label(descripcion);
+        nombre.getStyleClass().add("snapshot-item-name");
+        nombre.setWrapText(true);
+        HBox.setHgrow(nombre, Priority.ALWAYS);
+        HBox fila;
+        if (elegida) {
+            Label estado = new Label("ELEGIDO");
+            estado.getStyleClass().add("snapshot-item-badge");
+            fila = new HBox(10, IconoSvg.crear("check", 17, "#15803D"), posicion, nombre, estado);
+            fila.getStyleClass().add("snapshot-item-selected");
+        } else {
+            fila = new HBox(10, posicion, nombre);
+            fila.getStyleClass().add("snapshot-item");
+        }
+        fila.setAlignment(Pos.CENTER_LEFT);
+        return fila;
     }
 
     private static String fechaSnapshot(SnapshotInventario snapshot) {
         return DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss z")
                 .withZone(ZoneId.systemDefault())
                 .format(snapshot.registradoEn());
-    }
-
-    private record OpcionSnapshot(SnapshotInventario snapshot) {
-        @Override
-        public String toString() {
-            return fechaSnapshot(snapshot) + " · " + snapshot.seccional() + " · "
-                    + snapshot.eleccion().arma().descripcion();
-        }
     }
 
     private static String textoEstado(CoordinadorMonitores.Estado estado) {
@@ -631,13 +971,13 @@ public final class VistaPrincipal extends BorderPane {
 
     private static String claseEstado(CoordinadorMonitores.Estado estado) {
         return switch (estado) {
-            case SESION_ABIERTA -> "status-running";
-            case SESION_CERRADA -> "status-stopped";
-            case MONITOREANDO -> "status-running";
+            case SESION_ABIERTA -> "status-session";
+            case SESION_CERRADA -> "status-ready";
+            case MONITOREANDO, INICIANDO, DETENIENDO -> "status-running";
             case ALERTA_ENCONTRADA -> "status-alert";
-            case ARMA_APARTADA -> "status-running";
+            case ARMA_APARTADA -> "status-success";
             case ERROR -> "status-error";
-            case FUERA_DE_HORARIO -> "status-stopped";
+            case FUERA_DE_HORARIO -> "status-waiting";
             case DETENIDO -> "status-stopped";
             default -> "status-ready";
         };

@@ -5,6 +5,10 @@ import co.monitorsiae.dominio.ClientesDePrueba;
 import co.monitorsiae.dominio.Configuracion;
 import co.monitorsiae.dominio.EntornoPortal;
 import co.monitorsiae.dominio.HorarioOperacion;
+import co.monitorsiae.dominio.PreferenciaSonidoCliente;
+import co.monitorsiae.dominio.PreferenciasAlertas;
+import co.monitorsiae.dominio.TonoAlarma;
+import co.monitorsiae.dominio.Cliente;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -119,6 +123,38 @@ class RepositorioConfiguracionJsonTest {
         assertEquals(EntornoPortal.SIMULADOR, configuracion.entornoPortal());
         assertEquals("Ana", configuracion.clientes().get(0).nombre());
         assertFalse(configuracion.clientes().get(0).id().isBlank());
+    }
+
+    @Test
+    void migraVersionAnteriorConPreferenciasPredeterminadas() throws IOException {
+        Files.createDirectories(archivo.getParent());
+        Files.writeString(archivo, """
+                {
+                  "version": 1,
+                  "clientes": [{"id": "ana", "nombre": "Ana"}]
+                }
+                """);
+
+        Configuracion configuracion = repositorio.cargar();
+
+        assertEquals(Configuracion.VERSION_ACTUAL, configuracion.version());
+        assertEquals(PreferenciasAlertas.porDefecto(), configuracion.preferenciasAlertas());
+        assertEquals(PreferenciaSonidoCliente.HEREDAR,
+                configuracion.clientes().get(0).preferenciaSonido());
+    }
+
+    @Test
+    void conservaPreferenciasGlobalesYPorCliente() {
+        var cliente = ClientesDePrueba.valido("Ana");
+        var personalizado = new Cliente(
+                cliente.id(), cliente.nombre(), cliente.activo(), cliente.tramite(), cliente.modo(),
+                cliente.seleccion(), PreferenciaSonidoCliente.ACTIVADO);
+        Configuracion original = completa().conClientes(List.of(personalizado))
+                .conPreferenciasAlertas(new PreferenciasAlertas(false, false, TonoAlarma.DOBLE));
+
+        repositorio.guardar(original);
+
+        assertEquals(original, repositorio.cargar());
     }
 
     @Test

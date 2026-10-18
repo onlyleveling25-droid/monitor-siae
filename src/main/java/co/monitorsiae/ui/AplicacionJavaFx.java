@@ -26,6 +26,7 @@ import javafx.scene.Scene;
 import javafx.stage.Stage;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 
 /**
@@ -49,11 +50,12 @@ public final class AplicacionJavaFx extends Application {
                     new RepositorioConfiguracionJson(ubicacion.archivoConfiguracion());
             servicio = crearServicio(repositorio);
 
-            CanalAlertaJavaFx canalVentana = new CanalAlertaJavaFx(stage, id -> centralAlertas.reconocer(id));
+            CanalAlertaJavaFx canalVentana = new CanalAlertaJavaFx(stage,
+                    id -> centralAlertas.reconocer(id), this::enfocarCliente);
             centralAlertas = new CentralAlertas(List.of(
                     canalVentana,
-                    new CanalSonido(),
-                    new CanalVoz(new LocutorWindows(), Pausa.real())));
+                    new CanalSonido(servicio::configuracion),
+                    new CanalVoz(new LocutorWindows(), Pausa.real(), servicio::configuracion)));
             Function<co.monitorsiae.dominio.Cliente, PortalDriver> fabricaPortales = cliente ->
                     switch (servicio.configuracion().entornoPortal()) {
                         case SIMULADOR -> new FabricaPortalSimulada().apply(cliente);
@@ -108,7 +110,12 @@ public final class AplicacionJavaFx extends Application {
 
     private void actualizarConfiguracion(Configuracion configuracion) {
         monitores.actualizarConfiguracion(configuracion);
+        centralAlertas.actualizarPreferencias();
         vista.refrescarConfiguracion();
+    }
+
+    private CompletableFuture<Void> enfocarCliente(String clienteId) {
+        return monitores.enfocarVentana(clienteId);
     }
 
     private void cerrar() {

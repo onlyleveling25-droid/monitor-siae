@@ -2,8 +2,12 @@ package co.monitorsiae.monitoreo;
 
 import co.monitorsiae.dominio.Cliente;
 import co.monitorsiae.portal.PortalDriver;
+import co.monitorsiae.portal.SesionPortalCerradaException;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Repite el ciclo de un cliente hasta que haya algo que la persona deba atender o hasta que se
@@ -27,8 +31,11 @@ public final class MonitorCliente implements Runnable {
     private final Duration intervalo;
     private final Pausa pausa;
     private final OyenteMonitoreo oyente;
+    private final Object bloqueoSolicitudes = new Object();
+    private final List<CompletableFuture<Void>> solicitudesEnfoque = new ArrayList<>();
 
     private volatile boolean detencionSolicitada;
+    private boolean finalizado;
 
     public MonitorCliente(Cliente cliente, PortalDriver portal, CicloMonitoreo ciclo, VentanaHoraria ventana,
                           Duration intervalo, Pausa pausa, OyenteMonitoreo oyente) {
@@ -45,6 +52,22 @@ public final class MonitorCliente implements Runnable {
     public void detener() {
         detencionSolicitada = true;
         pausa.despertar();
+    }
+
+    /**
+     * Encola el enfoque para ejecutarlo en este mismo hilo, entre operaciones del portal.
+     *
+     * @return falso si el monitor ya terminó y la operación debe encolarse en su trabajador
+     */
+    public boolean solicitarEnfoque(CompletableFuture<Void> resultado) {
+        synchronized (bloqueoSolicitudes) {
+            if (finalizado) {
+                return false;
+            }
+            solicitudesEnfoque.add(resultado);
+        }
+        pausa.despertar();
+        return true;
     }
 
     @Override
@@ -65,6 +88,7 @@ public final class MonitorCliente implements Runnable {
             }
             throw e;
         } finally {
+            procesarSolicitudesEnfoque(true);
             oyente.alDetenerse(cliente, motivo);
         }
     }
@@ -76,7 +100,7 @@ public final class MonitorCliente implements Runnable {
             if (!ventana.permiteAhora()) {
                 oyente.fueraDeHorario(cliente);
                 fueraDeHorarioNotificado = true;
-                pausa.esperar(ESPERA_FUERA_DE_HORARIO);
+                esperar(ESPERA_FUERA_DE_HORARIO);
                 continue;
             }
             if (fueraDeHorarioNotificado) {
@@ -85,6 +109,7 @@ public final class MonitorCliente implements Runnable {
             }
 
             ResultadoCiclo resultado = ciclo.ejecutar(cliente, portal);
+            procesarSolicitudesEnfoque(false);
             oyente.alTerminarCiclo(cliente, resultado);
 
             if (resultado.detieneMonitoreo()) {
@@ -97,14 +122,63 @@ public final class MonitorCliente implements Runnable {
                     return MotivoDetencion.FALLOS_REPETIDOS;
                 }
                 // Espera creciente para no insistir sobre una plataforma que esta fallando.
-                pausa.esperar(intervalo.multipliedBy(fallosSeguidos + 1L));
+                esperar(intervalo.multipliedBy(fallosSeguidos + 1L));
                 continue;
             }
 
             fallosSeguidos = 0;
-            pausa.esperar(intervalo);
+            esperar(intervalo);
         }
         return MotivoDetencion.SOLICITADO_POR_USUARIO;
+    }
+
+    private void esperar(Duration duracion) throws InterruptedException {
+        long limite = System.nanoTime() + duracion.toNanos();
+        boolean reanudarEspera = false;
+        while (!detencionSolicitada) {
+            long restante = limite - System.nanoTime();
+            if (restante <= 0) {
+                return;
+            }
+            pausa.esperar(reanudarEspera ? Duration.ofNanos(restante) : duracion);
+            if (detencionSolicitada) {
+                return;
+            }
+            if (!haySolicitudesEnfoque()) {
+                return;
+            }
+            procesarSolicitudesEnfoque(false);
+            reanudarEspera = true;
+        }
+    }
+
+    private boolean haySolicitudesEnfoque() {
+        synchronized (bloqueoSolicitudes) {
+            return !solicitudesEnfoque.isEmpty();
+        }
+    }
+
+    private void procesarSolicitudesEnfoque(boolean finalizar) {
+        List<CompletableFuture<Void>> solicitudes;
+        synchronized (bloqueoSolicitudes) {
+            if (finalizar) {
+                finalizado = true;
+            }
+            solicitudes = new ArrayList<>(solicitudesEnfoque);
+            solicitudesEnfoque.clear();
+        }
+        for (CompletableFuture<Void> solicitud : solicitudes) {
+            try {
+                if (!portal.estaAbierto()) {
+                    throw new SesionPortalCerradaException(
+                            "La sesión del navegador ya se cerró. Abre una nueva sesión para este cliente.");
+                }
+                portal.enfocarVentana();
+                solicitud.complete(null);
+            } catch (RuntimeException e) {
+                solicitud.completeExceptionally(e);
+            }
+        }
     }
 
     private static MotivoDetencion motivoDe(ResultadoCiclo resultado) {

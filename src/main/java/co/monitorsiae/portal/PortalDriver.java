@@ -57,6 +57,11 @@ public interface PortalDriver extends AutoCloseable {
     default void alCerrar(Runnable accion) {
     }
 
+    /** Lleva al frente la ventana asociada a esta sesión; debe invocarse desde su hilo propietario. */
+    default void enfocarVentana() {
+        throw new UnsupportedOperationException("Este navegador no permite enfocar la ventana desde la aplicación.");
+    }
+
     @Override
     default void close() {
     }

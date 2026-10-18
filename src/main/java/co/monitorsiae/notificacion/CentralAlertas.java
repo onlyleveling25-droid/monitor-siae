@@ -44,6 +44,10 @@ public final class CentralAlertas {
         return List.copyOf(activas.values());
     }
 
+    public synchronized void actualizarPreferencias() {
+        difundir();
+    }
+
     private void difundir() {
         List<Alerta> copia = List.copyOf(new ArrayList<>(activas.values()));
         for (CanalAlerta canal : canales) {

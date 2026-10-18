@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
@@ -33,6 +34,7 @@ import co.monitorsiae.notificacion.TraductorAlertas;
 import co.monitorsiae.persistencia.RepositorioSnapshots;
 import co.monitorsiae.persistencia.RepositorioSnapshotsMemoria;
 import co.monitorsiae.portal.PortalDriver;
+import co.monitorsiae.portal.SesionPortalCerradaException;
 
 /**
  * Mantiene un hilo propietario por cliente y ejecuta en el todos los accesos a
@@ -97,6 +99,50 @@ public final class CoordinadorMonitores implements AutoCloseable {
     public boolean sesionAbierta(String clienteId) {
         SesionCliente sesion = sesiones.get(clienteId);
         return sesion != null && sesion.portal != null;
+    }
+
+    public CompletableFuture<Void> enfocarVentana(String clienteId) {
+        CompletableFuture<Void> resultado = new CompletableFuture<>();
+        SesionCliente sesion = sesiones.get(clienteId);
+        if (sesion == null) {
+            resultado.completeExceptionally(new SesionPortalCerradaException(
+                    "Este cliente no tiene una sesión de navegador abierta. Abre una nueva sesión para continuar."));
+            return resultado;
+        }
+        synchronized (sesion) {
+            if (sesion.portal == null) {
+                resultado.completeExceptionally(new SesionPortalCerradaException(
+                        "La sesión del navegador ya se cerró. Abre una nueva sesión para este cliente."));
+                return resultado;
+            }
+            if (sesion.monitor != null && sesion.monitor.solicitarEnfoque(resultado)) {
+                return resultado;
+            }
+            try {
+                sesion.trabajador.execute(() -> {
+                    PortalDriver portal = sesion.portal;
+                    if (portal == null) {
+                        resultado.completeExceptionally(new SesionPortalCerradaException(
+                                "La sesión del navegador ya se cerró. Abre una nueva sesión para este cliente."));
+                        return;
+                    }
+                    try {
+                    if (!portal.estaAbierto()) {
+                        throw new SesionPortalCerradaException(
+                                "La sesión del navegador ya se cerró. Abre una nueva sesión para este cliente.");
+                    }
+                    portal.enfocarVentana();
+                    resultado.complete(null);
+                    } catch (RuntimeException e) {
+                        resultado.completeExceptionally(e);
+                    }
+                });
+            } catch (RejectedExecutionException e) {
+                resultado.completeExceptionally(new IllegalStateException(
+                        "No se pudo enfocar el navegador porque el cliente se está cerrando.", e));
+            }
+        }
+        return resultado;
     }
 
     public Optional<SnapshotInventario> ultimoSnapshot(String clienteId) {

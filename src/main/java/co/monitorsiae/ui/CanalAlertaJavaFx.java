@@ -2,6 +2,7 @@ package co.monitorsiae.ui;
 
 import co.monitorsiae.notificacion.Alerta;
 import co.monitorsiae.notificacion.CanalAlerta;
+import co.monitorsiae.portal.SesionPortalCerradaException;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.scene.Scene;
@@ -14,7 +15,9 @@ import javafx.stage.Window;
 
 import java.awt.Taskbar;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * Presenta las alertas activas en una ventana visible y permite reconocerlas.
@@ -23,12 +26,15 @@ public final class CanalAlertaJavaFx implements CanalAlerta {
 
     private final Window propietario;
     private final Consumer<String> alReconocer;
+    private final Function<String, CompletableFuture<Void>> alEnfocar;
     private final Stage ventana = new Stage();
     private final VBox lista = new VBox(12);
 
-    public CanalAlertaJavaFx(Window propietario, Consumer<String> alReconocer) {
+    public CanalAlertaJavaFx(Window propietario, Consumer<String> alReconocer,
+                             Function<String, CompletableFuture<Void>> alEnfocar) {
         this.propietario = propietario;
         this.alReconocer = alReconocer;
+        this.alEnfocar = alEnfocar;
         ventana.initOwner(propietario);
         ventana.initModality(Modality.NONE);
         ventana.setTitle("Monitor SIAE · Alertas");
@@ -63,9 +69,40 @@ public final class CanalAlertaJavaFx implements CanalAlerta {
             titulo.getStyleClass().add("alert-title");
             Label detalle = new Label(alerta.detalle());
             detalle.setWrapText(true);
+            Label resultadoEnfoque = new Label();
+            resultadoEnfoque.getStyleClass().add("field-help");
+            resultadoEnfoque.setWrapText(true);
+            Button irAlNavegador = new Button("Ir al navegador");
+            irAlNavegador.getStyleClass().add("secondary-button");
+            irAlNavegador.setOnAction(event -> {
+                irAlNavegador.setDisable(true);
+                resultadoEnfoque.setText("Conectando con la sesión del cliente…");
+                ventana.setAlwaysOnTop(false);
+                ventana.toBack();
+                try {
+                    alEnfocar.apply(alerta.clienteId()).whenComplete((ignorado, error) ->
+                            Platform.runLater(() -> {
+                                irAlNavegador.setDisable(false);
+                                if (error == null) {
+                                    resultadoEnfoque.setText(mensajeEnfoqueSolicitado());
+                                } else {
+                                    resultadoEnfoque.setText(mensajeErrorEnfoque(error));
+                                    if (esSesionCerrada(error)) {
+                                        alReconocer.accept(alerta.clienteId());
+                                    }
+                                }
+                            }));
+                } catch (RuntimeException error) {
+                    irAlNavegador.setDisable(false);
+                    resultadoEnfoque.setText(mensajeErrorEnfoque(error));
+                    if (esSesionCerrada(error)) {
+                        alReconocer.accept(alerta.clienteId());
+                    }
+                }
+            });
             Button reconocer = new Button("Entendido");
             reconocer.setOnAction(event -> alReconocer.accept(alerta.clienteId()));
-            tarjeta.getChildren().addAll(titulo, detalle, reconocer);
+            tarjeta.getChildren().addAll(titulo, detalle, irAlNavegador, resultadoEnfoque, reconocer);
             lista.getChildren().add(tarjeta);
         }
         ventana.sizeToScene();
@@ -75,6 +112,31 @@ public final class CanalAlertaJavaFx implements CanalAlerta {
         ventana.setAlwaysOnTop(true);
         ventana.toFront();
         ventana.requestFocus();
+    }
+
+    private static String mensajeErrorEnfoque(Throwable error) {
+        Throwable causa = error;
+        while (causa.getCause() != null
+                && (causa instanceof java.util.concurrent.CompletionException
+                || causa instanceof java.util.concurrent.ExecutionException)) {
+            causa = causa.getCause();
+        }
+        return causa.getMessage() == null || causa.getMessage().isBlank()
+                ? "No se pudo enfocar la ventana del navegador."
+                : causa.getMessage();
+    }
+
+    private static boolean esSesionCerrada(Throwable error) {
+        for (Throwable causa = error; causa != null; causa = causa.getCause()) {
+            if (causa instanceof SesionPortalCerradaException) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static String mensajeEnfoqueSolicitado() {
+        return "Solicitud enviada. Si Windows no la trae al frente, selecciónala en la barra de tareas.";
     }
 
     private static void solicitarAtencion(boolean activa) {

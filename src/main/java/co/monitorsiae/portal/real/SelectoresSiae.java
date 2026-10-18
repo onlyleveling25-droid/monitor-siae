@@ -20,6 +20,7 @@ final class SelectoresSiae {
     static final String BOTON_GUARDAR = "button:has-text('GUARDAR')";
     static final String AVISO_NO_DISPONIBLE = "div[role='alert']:has-text('no esta disponible')";
     static final String LOGIN_PASSWORD = "input[type='password']";
+    static final String INGRESAR_PORTAL = "text=INGRESAR PORTAL";
 
     // --- Paso 2 (CONFIRMAR con el DOM real) -----------------------------------
     static final String PASO_2 = "text=FG-1";

@@ -398,9 +398,11 @@ public final class PlaywrightPortalDriver implements PortalDriver {
     // --- Comunes --------------------------------------------------------------
     private void detectarSesionVencida() {
         Locator contrasena = pagina.locator(SelectoresSiae.LOGIN_PASSWORD).first();
-        if (contrasena.count() > 0 && contrasena.isVisible()) {
-            throw new SesionVencidaException("La plataforma pidió iniciar sesión de nuevo. "
-                    + "Resuelve el captcha en la ventana del cliente.");
+        Locator ingresarPortal = pagina.locator(SelectoresSiae.INGRESAR_PORTAL).first();
+        if ((contrasena.count() > 0 && contrasena.isVisible())
+                || (ingresarPortal.count() > 0 && ingresarPortal.isVisible())) {
+            throw new SesionVencidaException(
+                    "La plataforma pidió iniciar sesión de nuevo en la ventana del cliente.");
         }
     }
 
@@ -448,6 +450,12 @@ public final class PlaywrightPortalDriver implements PortalDriver {
             throw new SesionPortalCerradaException(
                     "El navegador del cliente se cerró. Abre una nueva sesión para continuar.");
         }
+    }
+
+    @Override
+    public void enfocarVentana() {
+        verificarDisponible();
+        pagina.bringToFront();
     }
 
     private PortalInesperadoException inesperado(String mensaje, Throwable causa) {

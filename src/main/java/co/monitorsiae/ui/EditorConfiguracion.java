@@ -13,16 +13,18 @@ import co.monitorsiae.dominio.NavegadorPreferido;
 import co.monitorsiae.dominio.ParametrosTramite;
 import co.monitorsiae.dominio.PoliticaSinObjetivo;
 import co.monitorsiae.dominio.ReglasSeleccion;
+import co.monitorsiae.dominio.PreferenciaSonidoCliente;
+import co.monitorsiae.dominio.PreferenciasAlertas;
+import co.monitorsiae.dominio.TonoAlarma;
+import co.monitorsiae.notificacion.CanalSonido;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.scene.Node;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
-import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
-import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
@@ -32,7 +34,6 @@ import javafx.scene.control.TabPane;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TextFormatter;
-import javafx.event.ActionEvent;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.ColumnConstraints;
 import javafx.scene.layout.GridPane;
@@ -42,6 +43,7 @@ import javafx.scene.layout.VBox;
 import javafx.stage.Window;
 
 import java.time.DayOfWeek;
+import java.time.DateTimeException;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.EnumMap;
@@ -53,7 +55,7 @@ import java.util.function.Consumer;
 /**
  * Editor de configuracion general y de los perfiles de clientes.
  */
-final class EditorConfiguracion {
+final class EditorConfiguracion extends BorderPane {
 
     private static final Map<DayOfWeek, String> DIAS = Map.of(
             DayOfWeek.MONDAY, "Lun", DayOfWeek.TUESDAY, "Mar", DayOfWeek.WEDNESDAY, "Mié",
@@ -63,7 +65,7 @@ final class EditorConfiguracion {
     private final Window propietario;
     private final ServicioAplicacion servicio;
     private final Consumer<Configuracion> alGuardar;
-    private final Dialog<Configuracion> dialogo = new Dialog<>();
+    private final Runnable alCancelar;
     private final ComboBox<NavegadorPreferido> navegador = new ComboBox<>();
     private final ComboBox<EntornoPortal> entornoPortal = new ComboBox<>();
     private final Spinner<Integer> intervalo = new Spinner<>(2, 3600, 5);
@@ -72,10 +74,19 @@ final class EditorConfiguracion {
     private final TextField desde = new TextField();
     private final TextField hasta = new TextField();
     private final CheckBox proteger = new CheckBox("Solicitar contraseña para editar la configuración");
+    private final CheckBox sonidoHabilitado = new CheckBox("Sonido para clientes que heredan el ajuste general");
+    private final CheckBox vozHabilitada = new CheckBox("Leer las alertas en voz alta");
+    private final Label detallePreferenciaSonido = new Label();
+    private final ComboBox<TonoAlarma> tonoAlarma = new ComboBox<>();
     private final ListView<Cliente> listaClientes = new ListView<>();
+    private final TabPane tabsConfiguracion = new TabPane();
+    private Tab tabClientes;
+    private final HBox avisoGuardado = new HBox(10);
+    private final Label textoAvisoGuardado = new Label();
     private final Map<String, Cliente> borradores = new LinkedHashMap<>();
     private final TextField nombre = new TextField();
     private final CheckBox activo = new CheckBox("Cliente incluido en el monitoreo");
+    private final ComboBox<PreferenciaSonidoCliente> preferenciaSonido = new ComboBox<>();
     private final TextField permiso = new TextField();
     private final TextField tipoTramite = new TextField();
     private final ListaEditable seccionales = new ListaEditable(
@@ -98,38 +109,57 @@ final class EditorConfiguracion {
     private final Spinner<Integer> reintentos = new Spinner<>(1, 5, 2);
     private String clienteActualId;
 
-    EditorConfiguracion(Window propietario, ServicioAplicacion servicio, Consumer<Configuracion> alGuardar) {
+    EditorConfiguracion(Window propietario, ServicioAplicacion servicio, Consumer<Configuracion> alGuardar,
+                        Runnable alCancelar) {
         this.propietario = propietario;
         this.servicio = servicio;
         this.alGuardar = alGuardar;
-        crearDialogo();
+        this.alCancelar = alCancelar;
+        crearPagina();
         cargarConfiguracion(servicio.configuracion());
     }
 
-    boolean showAndWait() {
-        return dialogo.showAndWait().isPresent();
+    boolean hayCambiosPendientes() {
+        try {
+            Configuracion actual = servicio.configuracion();
+            Configuracion propuesta = construirConfiguracion();
+            return !actual.equals(propuesta)
+                    || proteger.isSelected() != actual.acceso().requerirContrasena();
+        } catch (IllegalArgumentException | DateTimeException e) {
+            return true;
+        }
     }
 
-    private void crearDialogo() {
-        dialogo.initOwner(propietario);
-        dialogo.setTitle("Configuración");
-        dialogo.setHeaderText("Personaliza el entorno y los perfiles de monitoreo.");
-        dialogo.getDialogPane().getStyleClass().add("config-dialog");
-        EstilosJavaFx.aplicar(dialogo.getDialogPane());
-        dialogo.getDialogPane().setPrefSize(1000, 740);
-        ButtonType guardar = new ButtonType("Guardar cambios", ButtonBar.ButtonData.OK_DONE);
-        dialogo.getDialogPane().getButtonTypes().addAll(guardar,
-                new ButtonType("Cancelar", ButtonBar.ButtonData.CANCEL_CLOSE));
-        TabPane tabs = new TabPane();
+    private void crearPagina() {
+        getStyleClass().add("configuration-page");
+        VBox encabezado = new VBox(10, encabezadoPanel("Configuración",
+                "Administra los ajustes generales y los perfiles de cada cliente."), avisoGuardado);
+        setTop(encabezado);
         Tab general = new Tab("General", crearGeneral());
         general.setClosable(false);
-        Tab clientes = new Tab("Clientes", crearClientes());
-        clientes.setClosable(false);
-        tabs.getTabs().addAll(general, clientes);
-        dialogo.getDialogPane().setContent(tabs);
-        Button botonGuardar = (Button) dialogo.getDialogPane().lookupButton(guardar);
+        tabClientes = new Tab("Clientes", crearClientes());
+        tabClientes.setClosable(false);
+        Tab alarmas = new Tab("Alarmas", crearAlarmas());
+        alarmas.setClosable(false);
+        tabsConfiguracion.getTabs().addAll(general, tabClientes, alarmas);
+        setCenter(tabsConfiguracion);
+        avisoGuardado.getStyleClass().addAll("visual-notice", "visual-notice-success");
+        avisoGuardado.setPadding(new Insets(9, 12, 9, 12));
+        avisoGuardado.getChildren().addAll(IconoSvg.crear("check", 14, "#15803D"), textoAvisoGuardado);
+        avisoGuardado.setVisible(false);
+        avisoGuardado.setManaged(false);
+        HBox acciones = new HBox(10);
+        acciones.setAlignment(javafx.geometry.Pos.CENTER_RIGHT);
+        acciones.setPadding(new Insets(14, 22, 14, 22));
+        acciones.getStyleClass().add("configuration-actions");
+        Button cancelar = new Button("Cancelar");
+        cancelar.getStyleClass().add("secondary-button");
+        cancelar.setOnAction(evento -> alCancelar.run());
+        Button botonGuardar = new Button("Guardar cambios");
         botonGuardar.getStyleClass().add("primary-button");
-        botonGuardar.addEventFilter(ActionEvent.ACTION, evento -> {
+        botonGuardar.setOnAction(evento -> {
+            avisoGuardado.setVisible(false);
+            avisoGuardado.setManaged(false);
             try {
                 Configuracion propuesta = construirConfiguracion();
                 servicio.validar(propuesta);
@@ -137,12 +167,14 @@ final class EditorConfiguracion {
                 Configuracion configuracionFinal = propuesta.conAcceso(servicio.configuracion().acceso());
                 servicio.guardar(configuracionFinal);
                 alGuardar.accept(servicio.configuracion());
+                mostrarGuardadoCorrecto();
             } catch (RuntimeException e) {
                 mostrarError("No se pudo guardar la configuración", e.getMessage());
-                evento.consume();
             }
+
         });
-        dialogo.setResultConverter(boton -> boton == guardar ? servicio.configuracion() : null);
+        acciones.getChildren().addAll(cancelar, botonGuardar);
+        setBottom(acciones);
         descripcion.setTextFormatter(new TextFormatter<String>(cambio ->
                 cambio.getControlNewText().length() <= ParametrosTramite.DESCRIPCION_MAXIMA ? cambio : null));
         descripcion.textProperty().addListener((observable, antes, ahora) ->
@@ -153,6 +185,21 @@ final class EditorConfiguracion {
             desde.setDisable(!habilitado);
             hasta.setDisable(!habilitado);
         });
+    }
+
+    void seleccionarCliente(String clienteId) {
+        tabsConfiguracion.getSelectionModel().select(tabClientes);
+        listaClientes.getItems().stream()
+                .filter(cliente -> cliente.id().equals(clienteId))
+                .findFirst()
+                .ifPresent(cliente -> listaClientes.getSelectionModel().select(cliente));
+    }
+
+    private void mostrarGuardadoCorrecto() {
+        textoAvisoGuardado.setText(
+                "Cambios guardados correctamente. Puedes seguir en Ajustes o volver al Panel.");
+        avisoGuardado.setVisible(true);
+        avisoGuardado.setManaged(true);
     }
 
     private Node crearGeneral() {
@@ -186,8 +233,8 @@ final class EditorConfiguracion {
             }
         });
         addRow(formulario, 2, "Entorno del portal", entornoPortal);
-        Label notaEntorno = new Label("El portal real solo abre la sesión del navegador por ahora; "
-                + "la automatización se habilitará tras validar sus selectores.");
+        Label notaEntorno = new Label("Abre e inicia sesión manualmente en el navegador de cada cliente "
+                + "antes de iniciar o reanudar su monitoreo.");
         notaEntorno.setWrapText(true);
         notaEntorno.getStyleClass().add("field-help");
         formulario.add(notaEntorno, 1, 3);
@@ -226,6 +273,74 @@ final class EditorConfiguracion {
         VBox.setVgrow(desplazamiento, Priority.ALWAYS);
         contenedor.getStyleClass().add("settings-page");
         return contenedor;
+    }
+
+    private Node crearAlarmas() {
+        VBox contenido = new VBox(16);
+        contenido.setPadding(new Insets(22));
+        contenido.getStyleClass().add("settings-page");
+        VBox encabezado = encabezadoPanel("Preferencias de alarmas",
+                "Configura por separado los canales de aviso. Silenciar el audio no detiene el monitoreo ni oculta "
+                        + "las alertas visuales.");
+        GridPane formulario = new GridPane();
+        formulario.setHgap(14);
+        formulario.setVgap(13);
+        formulario.setPadding(new Insets(20, 24, 24, 24));
+        formulario.getStyleClass().add("settings-form");
+        tonoAlarma.setItems(FXCollections.observableArrayList(TonoAlarma.values()));
+        tonoAlarma.setCellFactory(ignorado -> new ListCell<>() {
+            @Override
+            protected void updateItem(TonoAlarma tono, boolean vacio) {
+                super.updateItem(tono, vacio);
+                setText(vacio || tono == null ? null : tono.etiqueta());
+            }
+        });
+        tonoAlarma.setButtonCell(new ListCell<>() {
+            @Override
+            protected void updateItem(TonoAlarma tono, boolean vacio) {
+                super.updateItem(tono, vacio);
+                setText(vacio || tono == null ? null : tono.etiqueta());
+            }
+        });
+        Button previsualizar = new Button("Escuchar 3 segundos");
+        previsualizar.getStyleClass().add("secondary-button");
+        previsualizar.setOnAction(event -> CanalSonido.probar(
+                tonoAlarma.getValue() == null ? TonoAlarma.SIRENA : tonoAlarma.getValue()));
+        sonidoHabilitado.setSelected(true);
+        vozHabilitada.setSelected(true);
+
+        agregarSeccion(formulario, 0, "Canales de aviso");
+        formulario.add(tarjetaCanal(sonidoHabilitado,
+                "Es el valor predeterminado. En Clientes puedes hacer que un perfil lo herede, lo fuerce activado "
+                        + "o lo silencie individualmente."), 0, 1, 2, 1);
+        formulario.add(tarjetaCanal(vozHabilitada,
+                "Lee en voz alta las alertas activas. Este ajuste se aplica a todos los clientes."), 0, 2, 2, 1);
+        agregarSeccion(formulario, 3, "Patrón de sonido");
+        formulario.add(tonoAlarma, 0, 4, 2, 1);
+        formulario.add(previsualizar, 0, 5);
+        Label ayuda = new Label("Cada patrón alterna un tono agudo y uno grave. La alarma real repite el patrón "
+                + "mientras la alerta siga activa; la previsualización reproduce tres ciclos para que puedas "
+                + "compararlos.");
+        ayuda.setWrapText(true);
+        ayuda.getStyleClass().add("field-help");
+        formulario.add(ayuda, 0, 6, 2, 1);
+        sonidoHabilitado.selectedProperty().addListener((observable, anterior, nuevo) ->
+                actualizarAyudaPreferenciaSonido());
+        contenido.getChildren().addAll(encabezado, formulario);
+        ScrollPaneFormulario desplazamiento = new ScrollPaneFormulario(contenido);
+        VBox contenedor = new VBox(desplazamiento);
+        VBox.setVgrow(desplazamiento, Priority.ALWAYS);
+        contenedor.getStyleClass().add("settings-page");
+        return contenedor;
+    }
+
+    private static VBox tarjetaCanal(CheckBox canal, String detalle) {
+        Label explicacion = new Label(detalle);
+        explicacion.getStyleClass().add("field-help");
+        explicacion.setWrapText(true);
+        VBox tarjeta = new VBox(7, canal, explicacion);
+        tarjeta.getStyleClass().add("alarm-channel-card");
+        return tarjeta;
     }
 
     private Node crearClientes() {
@@ -272,7 +387,27 @@ final class EditorConfiguracion {
         editor.getStyleClass().add("profile-form");
         VBox encabezado = encabezadoPanel("Perfil del cliente",
                 "Ajusta sus datos de trámite y las preferencias de selección.");
+        preferenciaSonido.setItems(FXCollections.observableArrayList(PreferenciaSonidoCliente.values()));
+        preferenciaSonido.setCellFactory(ignorado -> new ListCell<>() {
+            @Override
+            protected void updateItem(PreferenciaSonidoCliente preferencia, boolean vacio) {
+                super.updateItem(preferencia, vacio);
+                setText(vacio || preferencia == null ? null : textoPreferenciaSonido(preferencia));
+            }
+        });
+        preferenciaSonido.setButtonCell(new ListCell<>() {
+            @Override
+            protected void updateItem(PreferenciaSonidoCliente preferencia, boolean vacio) {
+                super.updateItem(preferencia, vacio);
+                setText(vacio || preferencia == null ? null : textoPreferenciaSonido(preferencia));
+            }
+        });
+        detallePreferenciaSonido.getStyleClass().add("field-help");
+        detallePreferenciaSonido.setWrapText(true);
+        preferenciaSonido.valueProperty().addListener((observable, anterior, nuevo) ->
+                actualizarAyudaPreferenciaSonido());
         editor.getChildren().addAll(encabezado, campo("Nombre para mostrar", nombre), activo,
+                campo("Sonido de alertas", new VBox(5, preferenciaSonido, detallePreferenciaSonido)),
                 seccion("Paso 1 · Datos del trámite"),
                 campo("Cómo obtener el permiso (texto del portal)", permiso),
                 campo("Tipo de trámite (texto del portal)", tipoTramite),
@@ -292,6 +427,19 @@ final class EditorConfiguracion {
         return cuerpo;
     }
 
+    private void actualizarAyudaPreferenciaSonido() {
+        PreferenciaSonidoCliente preferencia = preferenciaSonido.getValue();
+        if (preferencia == null) {
+            preferencia = PreferenciaSonidoCliente.HEREDAR;
+        }
+        detallePreferenciaSonido.setText(switch (preferencia) {
+            case HEREDAR -> "Sigue el ajuste general: "
+                    + (sonidoHabilitado.isSelected() ? "sonido activado." : "sonido desactivado.");
+            case ACTIVADO -> "Fuerza el sonido para este cliente, aunque el ajuste general esté desactivado.";
+            case DESACTIVADO -> "Silencia solo a este cliente; los avisos visuales y los demás clientes no cambian.";
+        });
+    }
+
     private void cargarConfiguracion(Configuracion configuracion) {
         navegador.setValue(configuracion.navegador());
         entornoPortal.setValue(configuracion.entornoPortal());
@@ -302,6 +450,9 @@ final class EditorConfiguracion {
         desde.setText(horario.desde().toString());
         hasta.setText(horario.hasta().toString());
         proteger.setSelected(configuracion.acceso().requerirContrasena());
+        sonidoHabilitado.setSelected(configuracion.preferenciasAlertas().sonidoHabilitado());
+        vozHabilitada.setSelected(configuracion.preferenciasAlertas().vozHabilitada());
+        tonoAlarma.setValue(configuracion.preferenciasAlertas().tono());
         borradores.clear();
         configuracion.clientes().forEach(cliente -> borradores.put(cliente.id(), cliente));
         listaClientes.setItems(FXCollections.observableArrayList(configuracion.clientes()));
@@ -330,7 +481,9 @@ final class EditorConfiguracion {
                 LocalTime.parse(desde.getText().strip()), LocalTime.parse(hasta.getText().strip()),
                 HorarioOperacion.ZONA_COLOMBIA);
         return new Configuracion(base.version(), base.acceso(), navegador.getValue(), entornoPortal.getValue(),
-                segundos, horario, new ArrayList<>(borradores.values()));
+                segundos, horario, new ArrayList<>(borradores.values()),
+                new PreferenciasAlertas(sonidoHabilitado.isSelected(), vozHabilitada.isSelected(),
+                        tonoAlarma.getValue()));
     }
 
     private static String textoEntorno(EntornoPortal entorno) {
@@ -457,6 +610,7 @@ final class EditorConfiguracion {
     private void cargarCliente(Cliente cliente) {
         nombre.setText(cliente.nombre());
         activo.setSelected(cliente.activo());
+        preferenciaSonido.setValue(cliente.preferenciaSonido());
         permiso.setText(cliente.tramite().obtenerPermiso());
         tipoTramite.setText(cliente.tramite().tipoTramite());
         seccionales.setValues(cliente.tramite().seccionales());
@@ -496,7 +650,18 @@ final class EditorConfiguracion {
                 criterios(objetivos.values()), valor(politica.getValue()), criterios(alternativas.values()),
                 tipoComodin.getText(), excluir.values(), reintentos.getValue());
         return new Cliente(anterior.id(), nombre.getText(), activo.isSelected(), tramite,
-                valor(modo.getValue()), reglas);
+                valor(modo.getValue()), reglas,
+                preferenciaSonido.getValue() == null
+                        ? PreferenciaSonidoCliente.HEREDAR
+                        : preferenciaSonido.getValue());
+    }
+
+    private static String textoPreferenciaSonido(PreferenciaSonidoCliente preferencia) {
+        return switch (preferencia) {
+            case HEREDAR -> "Seguir el ajuste general";
+            case ACTIVADO -> "Forzar sonido para este cliente";
+            case DESACTIVADO -> "Silenciar solo este cliente";
+        };
     }
 
     private static Modalidad valor(Modalidad valor) {

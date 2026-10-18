@@ -19,7 +19,8 @@ public record Cliente(
         boolean activo,
         ParametrosTramite tramite,
         ModoReaccion modo,
-        ReglasSeleccion seleccion) {
+        ReglasSeleccion seleccion,
+        PreferenciaSonidoCliente preferenciaSonido) {
 
     public Cliente {
         id = id == null || id.isBlank() ? UUID.randomUUID().toString() : id.strip();
@@ -27,10 +28,16 @@ public record Cliente(
         tramite = Objects.requireNonNullElseGet(tramite, ParametrosTramite::porDefecto);
         modo = Objects.requireNonNullElse(modo, ModoReaccion.APARTAR);
         seleccion = Objects.requireNonNullElseGet(seleccion, ReglasSeleccion::porDefecto);
+        preferenciaSonido = Objects.requireNonNullElse(preferenciaSonido, PreferenciaSonidoCliente.HEREDAR);
+    }
+
+    public Cliente(String id, String nombre, boolean activo, ParametrosTramite tramite,
+                   ModoReaccion modo, ReglasSeleccion seleccion) {
+        this(id, nombre, activo, tramite, modo, seleccion, PreferenciaSonidoCliente.HEREDAR);
     }
 
     public static Cliente nuevo(String nombre) {
         return new Cliente(null, nombre, true, ParametrosTramite.porDefecto(),
-                ModoReaccion.APARTAR, ReglasSeleccion.porDefecto());
+                ModoReaccion.APARTAR, ReglasSeleccion.porDefecto(), PreferenciaSonidoCliente.HEREDAR);
     }
 }

@@ -2,8 +2,10 @@ package co.monitorsiae.notificacion;
 
 import co.monitorsiae.monitoreo.Pausa;
 
+import co.monitorsiae.dominio.Configuracion;
 import java.time.Duration;
 import java.util.List;
+import java.util.function.Supplier;
 
 /**
  * Repite en voz alta cada alerta activa, una tras otra, hasta que todas se reconozcan.
@@ -14,18 +16,26 @@ public final class CanalVoz implements CanalAlerta {
 
     private final Locutor locutor;
     private final Pausa pausa;
+    private final Supplier<Configuracion> configuracion;
 
     private volatile List<Alerta> activas = List.of();
     private Thread hilo;
 
     public CanalVoz(Locutor locutor, Pausa pausa) {
+        this(locutor, pausa, Configuracion::porDefecto);
+    }
+
+    public CanalVoz(Locutor locutor, Pausa pausa, Supplier<Configuracion> configuracion) {
         this.locutor = locutor;
         this.pausa = pausa;
+        this.configuracion = configuracion;
     }
 
     @Override
     public synchronized void mostrar(List<Alerta> nuevas) {
-        activas = List.copyOf(nuevas);
+        activas = configuracion.get().preferenciasAlertas().vozHabilitada()
+                ? List.copyOf(nuevas)
+                : List.of();
         if (!activas.isEmpty() && hilo == null) {
             hilo = Thread.ofPlatform().daemon().name("alarma-voz").start(this::repetir);
         }

@@ -21,9 +21,10 @@ public record Configuracion(
         EntornoPortal entornoPortal,
         int intervaloConsultaSegundos,
         HorarioOperacion horario,
-        List<Cliente> clientes) {
+        List<Cliente> clientes,
+        PreferenciasAlertas preferenciasAlertas) {
 
-    public static final int VERSION_ACTUAL = 1;
+    public static final int VERSION_ACTUAL = 2;
     public static final int INTERVALO_MINIMO_SEGUNDOS = 2;
     public static final int INTERVALO_POR_DEFECTO_SEGUNDOS = 5;
 
@@ -37,30 +38,50 @@ public record Configuracion(
                 : intervaloConsultaSegundos;
         horario = Objects.requireNonNullElseGet(horario, HorarioOperacion::porDefecto);
         clientes = Listas.inmutable(clientes);
+        preferenciasAlertas = Objects.requireNonNullElseGet(preferenciasAlertas, PreferenciasAlertas::porDefecto);
+    }
+
+    public Configuracion(int version, AccesoAplicacion acceso, NavegadorPreferido navegador,
+                         EntornoPortal entornoPortal, int intervaloConsultaSegundos, HorarioOperacion horario,
+                         List<Cliente> clientes) {
+        this(version, acceso, navegador, entornoPortal, intervaloConsultaSegundos, horario, clientes,
+                PreferenciasAlertas.porDefecto());
     }
 
     public Configuracion(int version, AccesoAplicacion acceso, NavegadorPreferido navegador,
                          int intervaloConsultaSegundos, HorarioOperacion horario, List<Cliente> clientes) {
-        this(version, acceso, navegador, EntornoPortal.SIMULADOR, intervaloConsultaSegundos, horario, clientes);
+        this(version, acceso, navegador, EntornoPortal.SIMULADOR, intervaloConsultaSegundos, horario, clientes,
+                PreferenciasAlertas.porDefecto());
     }
 
     public static Configuracion porDefecto() {
         return new Configuracion(VERSION_ACTUAL, AccesoAplicacion.porDefecto(), NavegadorPreferido.CHROME,
-                EntornoPortal.SIMULADOR, INTERVALO_POR_DEFECTO_SEGUNDOS, HorarioOperacion.porDefecto(), List.of());
+                EntornoPortal.SIMULADOR, INTERVALO_POR_DEFECTO_SEGUNDOS, HorarioOperacion.porDefecto(), List.of(),
+                PreferenciasAlertas.porDefecto());
     }
 
     public Configuracion conAcceso(AccesoAplicacion nuevoAcceso) {
         return new Configuracion(version, nuevoAcceso, navegador, entornoPortal,
-                intervaloConsultaSegundos, horario, clientes);
+                intervaloConsultaSegundos, horario, clientes, preferenciasAlertas);
     }
 
     public Configuracion conClientes(List<Cliente> nuevosClientes) {
         return new Configuracion(version, acceso, navegador, entornoPortal,
-                intervaloConsultaSegundos, horario, nuevosClientes);
+                intervaloConsultaSegundos, horario, nuevosClientes, preferenciasAlertas);
     }
 
     public Configuracion conEntornoPortal(EntornoPortal nuevoEntorno) {
         return new Configuracion(version, acceso, navegador, nuevoEntorno,
-                intervaloConsultaSegundos, horario, clientes);
+                intervaloConsultaSegundos, horario, clientes, preferenciasAlertas);
+    }
+
+    public Configuracion conPreferenciasAlertas(PreferenciasAlertas nuevasPreferencias) {
+        return new Configuracion(version, acceso, navegador, entornoPortal,
+                intervaloConsultaSegundos, horario, clientes, nuevasPreferencias);
+    }
+
+    public Configuracion conVersionActual() {
+        return new Configuracion(VERSION_ACTUAL, acceso, navegador, entornoPortal,
+                intervaloConsultaSegundos, horario, clientes, preferenciasAlertas);
     }
 }

@@ -1,8 +1,10 @@
 package co.monitorsiae.notificacion;
 
+import co.monitorsiae.dominio.TonoAlarma;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class GeneradorSirenaTest {
@@ -25,5 +27,20 @@ class GeneradorSirenaTest {
 
         assertTrue(maximo > Short.MAX_VALUE / 2, "La alarma debe sonar fuerte");
         assertTrue(maximo < Short.MAX_VALUE, "La alarma no debe saturar");
+    }
+
+    @Test
+    void generaUnaFormaDeOndaDistintaParaCadaTono() {
+        byte[] sirena = GeneradorSirena.ciclo(Gravedad.OPORTUNIDAD, TonoAlarma.SIRENA);
+        byte[] doble = GeneradorSirena.ciclo(Gravedad.OPORTUNIDAD, TonoAlarma.DOBLE);
+
+        assertFalse(java.util.Arrays.equals(sirena, doble));
+    }
+
+    @Test
+    void previsualizacionRepiteTresCiclosCompletos() {
+        byte[] audio = GeneradorSirena.previsualizacion(TonoAlarma.SIRENA, 3);
+
+        assertEquals((int) GeneradorSirena.FRECUENCIA_MUESTREO * 2 * 3, audio.length);
     }
 }

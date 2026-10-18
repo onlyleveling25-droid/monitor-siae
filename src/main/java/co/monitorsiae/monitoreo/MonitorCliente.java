@@ -55,6 +55,15 @@ public final class MonitorCliente implements Runnable {
             motivo = vigilar();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+        } catch (RuntimeException e) {
+            try {
+                motivo = portal.estaAbierto()
+                        ? MotivoDetencion.ERROR_INESPERADO : MotivoDetencion.NAVEGADOR_CERRADO;
+            } catch (RuntimeException errorEstado) {
+                e.addSuppressed(errorEstado);
+                motivo = MotivoDetencion.ERROR_INESPERADO;
+            }
+            throw e;
         } finally {
             oyente.alDetenerse(cliente, motivo);
         }
@@ -63,15 +72,13 @@ public final class MonitorCliente implements Runnable {
     private MotivoDetencion vigilar() throws InterruptedException {
         int fallosSeguidos = 0;
         boolean fueraDeHorarioNotificado = false;
-        boolean primeraVuelta = true;
         while (!detencionSolicitada) {
-            if (!primeraVuelta && !ventana.permiteAhora()) {
+            if (!ventana.permiteAhora()) {
                 oyente.fueraDeHorario(cliente);
                 fueraDeHorarioNotificado = true;
                 pausa.esperar(ESPERA_FUERA_DE_HORARIO);
                 continue;
             }
-            primeraVuelta = false;
             if (fueraDeHorarioNotificado) {
                 oyente.dentroDeHorario(cliente);
                 fueraDeHorarioNotificado = false;

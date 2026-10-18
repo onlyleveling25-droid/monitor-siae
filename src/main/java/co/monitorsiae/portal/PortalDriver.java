@@ -44,6 +44,11 @@ public interface PortalDriver extends AutoCloseable {
      */
     boolean apartar(ArmaInventario arma, Modalidad modalidad);
 
+    /** Indica si la sesión del portal y su página siguen disponibles. */
+    default boolean estaAbierto() {
+        return true;
+    }
+
     @Override
     default void close() {
     }

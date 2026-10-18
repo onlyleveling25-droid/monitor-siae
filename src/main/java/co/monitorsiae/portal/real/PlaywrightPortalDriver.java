@@ -10,12 +10,15 @@ import co.monitorsiae.portal.PortalDriver;
 import co.monitorsiae.portal.PortalException;
 import co.monitorsiae.portal.PortalInesperadoException;
 import co.monitorsiae.portal.ResultadoGuardar;
+import co.monitorsiae.portal.SesionPortalCerradaException;
 import co.monitorsiae.portal.SesionVencidaException;
+import com.microsoft.playwright.options.AriaRole;
 import com.microsoft.playwright.BrowserContext;
 import com.microsoft.playwright.BrowserType;
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
+import com.microsoft.playwright.PlaywrightException;
 import com.microsoft.playwright.options.ViewportSize;
 import com.microsoft.playwright.options.WaitForSelectorState;
 import com.microsoft.playwright.options.WaitUntilState;
@@ -36,11 +39,14 @@ public final class PlaywrightPortalDriver implements PortalDriver {
     private static final Duration ESPERA_CORTA = Duration.ofSeconds(6);
     private static final Duration ESPERA_MEDIA = Duration.ofSeconds(20);
     private static final Duration ESPERA_LARGA = Duration.ofSeconds(30);
+    private static final org.slf4j.Logger LOG =
+            org.slf4j.LoggerFactory.getLogger(PlaywrightPortalDriver.class);
 
     private final Playwright playwright;
     private final BrowserContext contexto;
     private final Page pagina;
     private final Path capturas;
+    private volatile boolean cerrado;
 
     public PlaywrightPortalDriver(Path perfil, NavegadorPreferido navegador, Path capturas) {
         this.capturas = capturas;
@@ -73,6 +79,8 @@ public final class PlaywrightPortalDriver implements PortalDriver {
         playwright = runtime;
         contexto = contextoCreado;
         pagina = paginaCreada;
+        contexto.onClose(ignorado -> cerrado = true);
+        pagina.onClose(ignorado -> cerrado = true);
     }
 
     private static String canal(NavegadorPreferido navegador) {
@@ -87,6 +95,7 @@ public final class PlaywrightPortalDriver implements PortalDriver {
     // --- Paso 1 ---------------------------------------------------------------
     @Override
     public List<String> abrirFormulario(ParametrosTramite tramite) {
+        verificarDisponible();
         asegurarPaso1();
         seleccionarSiHaceFalta(SelectoresSiae.PLACEHOLDER_PERMISO, tramite.obtenerPermiso(),
                 "como desea obtener el permiso");
@@ -119,6 +128,7 @@ public final class PlaywrightPortalDriver implements PortalDriver {
 
     @Override
     public ResultadoGuardar enviarPaso1(String seccional, String descripcion) {
+        verificarDisponible();
         elegirCombo(SelectoresSiae.PLACEHOLDER_SECCIONAL, seccional, "seccional");
 
         Locator campo = pagina.locator(SelectoresSiae.CAMPO_DESCRIPCION).first();
@@ -214,16 +224,12 @@ public final class PlaywrightPortalDriver implements PortalDriver {
     }
 
     private Locator combo(String placeholder) {
-        return pagina.locator("input[role='combobox'][placeholder='" + placeholder + "']").first();
+        return pagina.getByPlaceholder(placeholder).first();
     }
 
     private static String textoDe(Locator elemento) {
-        try {
-            String texto = elemento.innerText();
-            return texto == null ? "" : texto.replaceAll("\\s+", " ").strip();
-        } catch (RuntimeException e) {
-            return "";
-        }
+        String texto = elemento.innerText();
+        return texto == null ? "" : texto.replaceAll("\\s+", " ").strip();
     }
 
     private static boolean esRuido(String texto) {
@@ -294,6 +300,7 @@ public final class PlaywrightPortalDriver implements PortalDriver {
     // --- Paso 2 ---------------------------------------------------------------
     @Override
     public List<ArmaInventario> leerInventario() {
+        verificarDisponible();
         detectarSesionVencida();
         esperarFilasInventario();
 
@@ -317,6 +324,7 @@ public final class PlaywrightPortalDriver implements PortalDriver {
 
     @Override
     public boolean apartar(ArmaInventario arma, Modalidad modalidad) {
+        verificarDisponible();
         detectarSesionVencida();
 
         Locator fila = buscarFila(arma);
@@ -325,12 +333,14 @@ public final class PlaywrightPortalDriver implements PortalDriver {
         }
         fila.click();
 
-        Locator botonModalidad = pagina.locator("button:has-text('" + etiqueta(modalidad) + "')").first();
+        Locator botonModalidad = pagina.getByRole(AriaRole.BUTTON,
+                new Page.GetByRoleOptions().setName(etiqueta(modalidad)).setExact(true)).first();
         botonModalidad.waitFor(new Locator.WaitForOptions().setState(WaitForSelectorState.VISIBLE)
                 .setTimeout(ESPERA_CORTA.toMillis()));
         botonModalidad.click();
 
-        Locator confirmar = pagina.locator("button:has-text('Confirmar')").first();
+        Locator confirmar = pagina.getByRole(AriaRole.BUTTON,
+                new Page.GetByRoleOptions().setName("Confirmar").setExact(true)).first();
         confirmar.waitFor(new Locator.WaitForOptions().setState(WaitForSelectorState.VISIBLE)
                 .setTimeout(ESPERA_CORTA.toMillis()));
         confirmar.click();
@@ -356,7 +366,7 @@ public final class PlaywrightPortalDriver implements PortalDriver {
                 return fila;
             }
         }
-        return arma.posicion() < filas.size() ? filas.get(arma.posicion()) : null;
+        return null;
     }
 
     private void esperarFilasInventario() {
@@ -391,6 +401,32 @@ public final class PlaywrightPortalDriver implements PortalDriver {
         }
     }
 
+    @Override
+    public boolean estaAbierto() {
+        if (cerrado || pagina.isClosed()) {
+            return false;
+        }
+        try {
+            pagina.waitForTimeout(1);
+            return !cerrado && !pagina.isClosed();
+        } catch (PlaywrightException e) {
+            if (cerrado || pagina.isClosed()
+                    || (e.getMessage() != null
+                    && e.getMessage().toLowerCase(java.util.Locale.ROOT).contains("has been closed"))) {
+                cerrado = true;
+                return false;
+            }
+            throw e;
+        }
+    }
+
+    private void verificarDisponible() {
+        if (!estaAbierto()) {
+            throw new SesionPortalCerradaException(
+                    "El navegador del cliente se cerró. Abre una nueva sesión para continuar.");
+        }
+    }
+
     private PortalInesperadoException inesperado(String mensaje, Throwable causa) {
         Path captura = capturar(mensaje);
         String sufijo = captura == null ? "" : " (captura: " + captura.getFileName() + ")";
@@ -405,12 +441,14 @@ public final class PlaywrightPortalDriver implements PortalDriver {
             pagina.screenshot(new Page.ScreenshotOptions().setPath(destino));
             return destino;
         } catch (RuntimeException | IOException e) {
+            LOG.warn("No se pudo guardar una captura del portal en {}", capturas, e);
             return null;
         }
     }
 
     @Override
     public void close() {
+        cerrado = true;
         try {
             contexto.close();
         } finally {

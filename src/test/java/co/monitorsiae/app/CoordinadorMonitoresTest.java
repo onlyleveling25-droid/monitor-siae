@@ -4,11 +4,17 @@ import co.monitorsiae.dominio.Cliente;
 import co.monitorsiae.dominio.ClientesDePrueba;
 import co.monitorsiae.dominio.Configuracion;
 import co.monitorsiae.dominio.EntornoPortal;
+import co.monitorsiae.dominio.ArmaInventario;
 import co.monitorsiae.dominio.ModoReaccion;
+import co.monitorsiae.dominio.Modalidad;
+import co.monitorsiae.dominio.ParametrosTramite;
 import co.monitorsiae.dominio.PoliticaSinObjetivo;
 import co.monitorsiae.dominio.ReglasSeleccion;
 import co.monitorsiae.notificacion.CentralAlertas;
 import co.monitorsiae.notificacion.Alerta;
+import co.monitorsiae.portal.PortalDriver;
+import co.monitorsiae.portal.ResultadoGuardar;
+import co.monitorsiae.portal.SesionPortalCerradaException;
 import co.monitorsiae.portal.simulado.Escena;
 import co.monitorsiae.portal.simulado.FabricaPortalSimulada;
 import co.monitorsiae.portal.simulado.PortalSimulado;
@@ -20,6 +26,8 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -121,6 +129,116 @@ class CoordinadorMonitoresTest {
     }
 
     @Test
+    void detenerConservaLaSesionAbiertaYReanudarReutilizaElMismoPortal() throws InterruptedException {
+        Cliente cliente = ClientesDePrueba.valido("Ana");
+        Configuracion configuracion = Configuracion.porDefecto()
+                .conEntornoPortal(EntornoPortal.PORTAL_REAL)
+                .conClientes(List.of(cliente));
+        BlockingQueue<Actualizacion> cambios = new LinkedBlockingQueue<>();
+        AtomicInteger portalesCreados = new AtomicInteger();
+        CoordinadorMonitores coordinador = new CoordinadorMonitores(configuracion,
+                new CentralAlertas(List.of()),
+                perfil -> {
+                    portalesCreados.incrementAndGet();
+                    return PortalSimulado.con(Escena.abiertasSinInventario(
+                            perfil.tramite().seccionales().getFirst()));
+                },
+                (id, estado) -> cambios.add(new Actualizacion(id, estado)));
+        try {
+            coordinador.abrirSesion(cliente);
+            esperar(cambios, CoordinadorMonitores.Estado.SESION_ABIERTA);
+            assertTrue(coordinador.sesionAbierta(cliente.id()));
+
+            coordinador.detener(cliente.id());
+            esperar(cambios, CoordinadorMonitores.Estado.DETENIDO);
+            assertTrue(coordinador.sesionAbierta(cliente.id()),
+                    "Detener el monitoreo no debe cerrar la sesión del portal.");
+
+            coordinador.iniciar(cliente);
+            esperar(cambios, CoordinadorMonitores.Estado.MONITOREANDO);
+            coordinador.detener(cliente.id());
+            esperar(cambios, CoordinadorMonitores.Estado.DETENIDO);
+
+            coordinador.iniciar(cliente);
+            esperar(cambios, CoordinadorMonitores.Estado.MONITOREANDO);
+            assertEquals(1, portalesCreados.get(),
+                    "Reanudar debe continuar con el mismo PortalDriver.");
+            coordinador.detener(cliente.id());
+            esperar(cambios, CoordinadorMonitores.Estado.DETENIDO);
+        } finally {
+            coordinador.close();
+        }
+    }
+
+    @Test
+    void reconoceCuandoSeCierraElNavegadorYPermiteAbrirUnaNuevaSesion() throws InterruptedException {
+        Cliente cliente = ClientesDePrueba.valido("Ana");
+        Configuracion configuracion = Configuracion.porDefecto()
+                .conEntornoPortal(EntornoPortal.PORTAL_REAL)
+                .conClientes(List.of(cliente));
+        BlockingQueue<Actualizacion> cambios = new LinkedBlockingQueue<>();
+        AtomicInteger portalesCreados = new AtomicInteger();
+        AtomicReference<AtomicBoolean> navegadorActual = new AtomicReference<>();
+        CoordinadorMonitores coordinador = new CoordinadorMonitores(configuracion,
+                new CentralAlertas(List.of()),
+                perfil -> {
+                    portalesCreados.incrementAndGet();
+                    AtomicBoolean abierto = new AtomicBoolean(true);
+                    navegadorActual.set(abierto);
+                    return new PortalDePrueba(abierto);
+                },
+                (id, estado) -> cambios.add(new Actualizacion(id, estado)));
+        try {
+            coordinador.abrirSesion(cliente);
+            esperar(cambios, CoordinadorMonitores.Estado.SESION_ABIERTA);
+            navegadorActual.get().set(false);
+
+            esperar(cambios, CoordinadorMonitores.Estado.SESION_CERRADA);
+            assertTrue(!coordinador.sesionAbierta(cliente.id()),
+                    "La referencia a una sesión cerrada debe liberarse.");
+
+            coordinador.abrirSesion(cliente);
+            esperar(cambios, CoordinadorMonitores.Estado.SESION_ABIERTA);
+            assertEquals(2, portalesCreados.get(),
+                    "Abrir sesión debe crear un nuevo portal después del cierre manual.");
+        } finally {
+            coordinador.close();
+        }
+    }
+
+    @Test
+    void cerrarElNavegadorDuranteElMonitoreoTerminaSinErrorGenerico() throws InterruptedException {
+        Cliente cliente = ClientesDePrueba.valido("Ana");
+        Configuracion configuracion = Configuracion.porDefecto()
+                .conEntornoPortal(EntornoPortal.PORTAL_REAL)
+                .conClientes(List.of(cliente));
+        BlockingQueue<Actualizacion> cambios = new LinkedBlockingQueue<>();
+        AtomicReference<AtomicBoolean> navegadorActual = new AtomicReference<>();
+        CoordinadorMonitores coordinador = new CoordinadorMonitores(configuracion,
+                new CentralAlertas(List.of()),
+                perfil -> {
+                    AtomicBoolean abierto = new AtomicBoolean(true);
+                    navegadorActual.set(abierto);
+                    return new PortalDePrueba(abierto);
+                },
+                (id, estado) -> cambios.add(new Actualizacion(id, estado)));
+        try {
+            coordinador.abrirSesion(cliente);
+            esperar(cambios, CoordinadorMonitores.Estado.SESION_ABIERTA);
+            coordinador.iniciar(cliente);
+            esperar(cambios, CoordinadorMonitores.Estado.MONITOREANDO);
+            navegadorActual.get().set(false);
+
+            esperar(cambios, CoordinadorMonitores.Estado.SESION_CERRADA);
+            assertEquals("El navegador se cerró. Abre una nueva sesión para volver a conectar este cliente.",
+                    coordinador.ultimoResultado(cliente.id()));
+            assertTrue(!coordinador.sesionAbierta(cliente.id()));
+        } finally {
+            coordinador.close();
+        }
+    }
+
+    @Test
     void unaDetencionDuranteElArranqueNoPierdeLaSolicitud() throws InterruptedException {
         Cliente cliente = ClientesDePrueba.valido("Ana");
         BlockingQueue<Actualizacion> cambios = new LinkedBlockingQueue<>();
@@ -193,5 +311,52 @@ class CoordinadorMonitoresTest {
     }
 
     private record Actualizacion(String clienteId, CoordinadorMonitores.Estado estado) {
+    }
+
+    private static final class PortalDePrueba implements PortalDriver {
+
+        private final AtomicBoolean abierto;
+
+        private PortalDePrueba(AtomicBoolean abierto) {
+            this.abierto = abierto;
+        }
+
+        @Override
+        public List<String> abrirFormulario(ParametrosTramite tramite) {
+            while (estaAbierto()) {
+                try {
+                    Thread.sleep(10);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException("Se interrumpió la consulta de prueba.", e);
+                }
+            }
+            throw new SesionPortalCerradaException("El navegador se cerró.");
+        }
+
+        @Override
+        public ResultadoGuardar enviarPaso1(String seccional, String descripcion) {
+            return ResultadoGuardar.SIN_INVENTARIO;
+        }
+
+        @Override
+        public List<ArmaInventario> leerInventario() {
+            return List.of();
+        }
+
+        @Override
+        public boolean apartar(ArmaInventario arma, Modalidad modalidad) {
+            return false;
+        }
+
+        @Override
+        public boolean estaAbierto() {
+            return abierto.get();
+        }
+
+        @Override
+        public void close() {
+            abierto.set(false);
+        }
     }
 }

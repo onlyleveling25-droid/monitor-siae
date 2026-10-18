@@ -1,6 +1,7 @@
 package co.monitorsiae.ui;
 
 import java.time.ZoneId;
+import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
@@ -54,9 +55,12 @@ public final class VistaPrincipal extends BorderPane {
     private final Label confirmacionReconocimiento = new Label();
     private final Map<String, Label> estados = new HashMap<>();
     private final Map<String, Label> resultados = new HashMap<>();
+    private final Map<String, Label> actividades = new HashMap<>();
+    private final Map<String, Label> horasActividad = new HashMap<>();
     private final Map<String, Button> botonesInventario = new HashMap<>();
     private final Map<String, Button> botonesIniciar = new HashMap<>();
     private final Map<String, Button> botonesSesion = new HashMap<>();
+    private final Map<String, Button> botonesDetener = new HashMap<>();
     private final Map<String, Cliente> clientesPorId = new HashMap<>();
     private boolean menuVisible = true;
     private List<String> problemas = List.of();
@@ -188,9 +192,12 @@ public final class VistaPrincipal extends BorderPane {
         tarjetas.getChildren().clear();
         estados.clear();
         resultados.clear();
+        actividades.clear();
+        horasActividad.clear();
         botonesInventario.clear();
         botonesIniciar.clear();
         botonesSesion.clear();
+        botonesDetener.clear();
         clientesPorId.clear();
         resumen.setText("Clientes configurados  ·  " + configuracion.clientes().size());
         problemas = servicio.problemasConfiguracion();
@@ -214,6 +221,7 @@ public final class VistaPrincipal extends BorderPane {
     }
 
     public void actualizarEstado(String clienteId, CoordinadorMonitores.Estado estado) {
+        Cliente cliente = clientesPorId.get(clienteId);
         Label etiqueta = estados.get(clienteId);
         if (etiqueta == null) {
             return;
@@ -227,27 +235,40 @@ public final class VistaPrincipal extends BorderPane {
             String ultimo = monitores.ultimoResultado(clienteId);
             resultado.setText(ultimo.isBlank() ? "Todavía no hay resultados." : ultimo);
         }
+        Label actividad = actividades.get(clienteId);
+        if (actividad != null) {
+            actividad.setText(textoActividad(estado));
+        }
+        Label hora = horasActividad.get(clienteId);
+        if (hora != null) {
+            hora.setText("Actualizado a las " + LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")));
+        }
         Button inventario = botonesInventario.get(clienteId);
         if (inventario != null) {
             inventario.setDisable(monitores.ultimoSnapshot(clienteId).isEmpty());
         }
-        if (servicio.configuracion().entornoPortal() == EntornoPortal.PORTAL_REAL) {
+        if (cliente != null && servicio.configuracion().entornoPortal() == EntornoPortal.PORTAL_REAL) {
             switch (estado) {
-                case ABRIENDO_SESION -> mostrarAvisoVisual("Abriendo el navegador para este perfil.",
+                case ABRIENDO_SESION -> mostrarAvisoVisual(
+                        cliente.nombre() + ": abriendo el navegador del perfil.",
                         TipoAviso.INFO);
                 case SESION_ABIERTA -> mostrarAvisoVisual(
-                        "Navegador abierto. Completa el inicio de sesión manualmente en Edge o Chrome.",
+                        cliente.nombre() + ": navegador abierto. Completa el inicio de sesión manualmente.",
                         TipoAviso.SUCCESS);
-                case DETENIDO -> mostrarAvisoVisual("La sesión del navegador se cerró.", TipoAviso.INFO);
+                case SESION_CERRADA -> mostrarAvisoVisual(
+                        cliente.nombre() + ": navegador cerrado. Puedes abrir una nueva sesión.",
+                        TipoAviso.INFO);
+                case DETENIDO -> mostrarAvisoVisual(monitores.sesionAbierta(clienteId)
+                        ? cliente.nombre() + ": monitoreo detenido; la sesión del navegador permanece abierta."
+                        : cliente.nombre() + ": monitoreo detenido.", TipoAviso.INFO);
                 case ERROR -> mostrarAvisoVisual(
-                        "No se pudo abrir el navegador. Revisa el resultado en la tarjeta del perfil.",
+                        cliente.nombre() + ": " + monitores.ultimoResultado(clienteId),
                         TipoAviso.ERROR);
                 default -> {
                 }
             }
         }
 
-        Cliente cliente = clientesPorId.get(clienteId);
         Button botonIniciar = botonesIniciar.get(clienteId);
         if (botonIniciar != null && cliente != null) {
             botonIniciar.setDisable(!puedeIniciar(cliente));
@@ -255,9 +276,12 @@ public final class VistaPrincipal extends BorderPane {
         }
 
         Button botonSesion = botonesSesion.get(clienteId);
-        if (botonSesion != null) {
-            botonSesion.setDisable(!esPortalReal() || ocupado(estado)
-                    || monitores.sesionAbierta(clienteId));
+        if (botonSesion != null && cliente != null) {
+            actualizarBotonSesion(cliente, botonSesion, estado);
+        }
+        Button botonDetener = botonesDetener.get(clienteId);
+        if (botonDetener != null) {
+            botonDetener.setDisable(!puedeDetener(estado));
         }
     }
 
@@ -274,30 +298,45 @@ public final class VistaPrincipal extends BorderPane {
         detalle.getStyleClass().add("muted");
         identidad.getChildren().addAll(nombre, detalle);
         HBox.setHgrow(identidad, Priority.ALWAYS);
-        Label estado = new Label(textoEstado(monitores.estado(cliente.id())));
-        estado.getStyleClass().addAll("status-pill", claseEstado(monitores.estado(cliente.id())));
+        CoordinadorMonitores.Estado estadoActual = monitores.estado(cliente.id());
+        Label estado = new Label(textoEstado(estadoActual));
+        estado.getStyleClass().addAll("status-pill", claseEstado(estadoActual));
         estados.put(cliente.id(), estado);
         fila.getChildren().addAll(identidad, estado);
 
-        Label seccional = new Label("Preferencias: "
-                + (cliente.tramite().seccionales().isEmpty()
-                ? "sin configurar" : String.join(" · ", cliente.tramite().seccionales())));
-        seccional.getStyleClass().add("muted");
+        Label tituloPreferencias = new Label("PREFERENCIAS DE TRÁMITE");
+        tituloPreferencias.getStyleClass().add("activity-title");
+        Label seccional = new Label(cliente.tramite().seccionales().isEmpty()
+                ? "Seccionales: sin configurar"
+                : "Seccionales: " + String.join(" · ", cliente.tramite().seccionales()));
+        seccional.getStyleClass().add("activity-detail");
+        seccional.setWrapText(true);
+        VBox panelPreferencias = new VBox(5, tituloPreferencias, seccional);
+        panelPreferencias.getStyleClass().add("activity-panel");
         String mensaje = monitores.ultimoResultado(cliente.id());
         Label resultado = new Label(mensaje.isBlank() ? "Todavía no hay resultados." : mensaje);
-        resultado.getStyleClass().add("muted");
+        resultado.getStyleClass().add("activity-detail");
         resultado.setWrapText(true);
         resultados.put(cliente.id(), resultado);
+        Label tituloActividad = new Label("ACTIVIDAD RECIENTE");
+        tituloActividad.getStyleClass().add("activity-title");
+        Label actividad = new Label(textoActividad(estadoActual));
+        actividad.getStyleClass().add("activity-event");
+        actividad.setWrapText(true);
+        actividades.put(cliente.id(), actividad);
+        Label hora = new Label("Actualizado a las "
+                + LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")));
+        hora.getStyleClass().add("activity-time");
+        horasActividad.put(cliente.id(), hora);
+        VBox panelActividad = new VBox(5, tituloActividad, actividad, resultado, hora);
+        panelActividad.getStyleClass().add("activity-panel");
 
         HBox acciones = new HBox(9);
         Button sesion = new Button("Abrir sesión");
         sesion.getStyleClass().add("secondary-button");
-        sesion.setDisable(!esPortalReal() || monitores.sesionAbierta(cliente.id()));
-        sesion.setTooltip(new Tooltip(esPortalReal()
-                ? "Abre el navegador de este cliente; inicia sesión y resuelve el captcha manualmente."
-                : "Selecciona Portal real en Configuración para abrir una sesión."));
         sesion.setOnAction(event -> abrirSesion(cliente));
         botonesSesion.put(cliente.id(), sesion);
+        actualizarBotonSesion(cliente, sesion, monitores.estado(cliente.id()));
 
         Button iniciar = new Button("Iniciar / reanudar");
         iniciar.getStyleClass().add("primary-button");
@@ -308,6 +347,8 @@ public final class VistaPrincipal extends BorderPane {
         Button detener = new Button("Detener");
         detener.getStyleClass().add("secondary-button");
         detener.setOnAction(event -> monitores.detener(cliente.id()));
+        detener.setDisable(!puedeDetener(monitores.estado(cliente.id())));
+        botonesDetener.put(cliente.id(), detener);
         Button verInventario = new Button("Historial");
         verInventario.getStyleClass().add("secondary-button");
         verInventario.setTooltip(new Tooltip("Consultar los snapshots locales del inventario analizado."));
@@ -315,7 +356,7 @@ public final class VistaPrincipal extends BorderPane {
         verInventario.setOnAction(event -> mostrarHistorial(cliente.id()));
         botonesInventario.put(cliente.id(), verInventario);
         acciones.getChildren().addAll(sesion, iniciar, detener, verInventario);
-        tarjeta.getChildren().addAll(fila, seccional, resultado, acciones);
+        tarjeta.getChildren().addAll(fila, panelPreferencias, panelActividad, acciones);
         return tarjeta;
     }
 
@@ -328,6 +369,40 @@ public final class VistaPrincipal extends BorderPane {
             return false;
         }
         return !esPortalReal() || monitores.sesionAbierta(cliente.id());
+    }
+
+    private void actualizarBotonSesion(Cliente cliente, Button boton, CoordinadorMonitores.Estado estado) {
+        boolean abierta = monitores.sesionAbierta(cliente.id());
+        boton.setText(abierta ? "Sesión abierta" : "Abrir sesión");
+        boton.setDisable(!esPortalReal() || ocupado(estado) || abierta);
+        boton.setTooltip(new Tooltip(!esPortalReal()
+                ? "Selecciona Portal real en Configuración para abrir una sesión."
+                : abierta
+                        ? "La sesión del navegador sigue abierta. Iniciar / reanudar continuará usando este navegador."
+                        : "Abre el navegador de este cliente; inicia sesión y resuelve el captcha manualmente."));
+    }
+
+    private static boolean puedeDetener(CoordinadorMonitores.Estado estado) {
+        return estado == CoordinadorMonitores.Estado.INICIANDO
+                || estado == CoordinadorMonitores.Estado.MONITOREANDO
+                || estado == CoordinadorMonitores.Estado.FUERA_DE_HORARIO;
+    }
+
+    private static String textoActividad(CoordinadorMonitores.Estado estado) {
+        return switch (estado) {
+            case LISTO -> "Cliente preparado";
+            case ABRIENDO_SESION -> "Abriendo sesión del portal";
+            case SESION_ABIERTA -> "Sesión del portal abierta";
+            case SESION_CERRADA -> "Sesión del portal cerrada";
+            case INICIANDO -> "Iniciando monitoreo";
+            case MONITOREANDO -> "Consultando inventario";
+            case FUERA_DE_HORARIO -> "En espera del horario configurado";
+            case ALERTA_ENCONTRADA -> "Inventario disponible; alerta generada";
+            case ARMA_APARTADA -> "Arma apartada; monitoreo finalizado";
+            case DETENIENDO -> "Deteniendo monitoreo";
+            case DETENIDO -> "Monitoreo detenido";
+            case ERROR -> "Se produjo un error";
+        };
     }
 
     private String motivoDeInicio(Cliente cliente) {
@@ -542,6 +617,7 @@ public final class VistaPrincipal extends BorderPane {
             case LISTO -> "Listo";
             case ABRIENDO_SESION -> "Abriendo navegador";
             case SESION_ABIERTA -> "Sesión abierta";
+            case SESION_CERRADA -> "Sesión cerrada";
             case INICIANDO -> "Iniciando";
             case MONITOREANDO -> "Monitoreando";
             case FUERA_DE_HORARIO -> "Fuera del horario";
@@ -556,6 +632,7 @@ public final class VistaPrincipal extends BorderPane {
     private static String claseEstado(CoordinadorMonitores.Estado estado) {
         return switch (estado) {
             case SESION_ABIERTA -> "status-running";
+            case SESION_CERRADA -> "status-stopped";
             case MONITOREANDO -> "status-running";
             case ALERTA_ENCONTRADA -> "status-alert";
             case ARMA_APARTADA -> "status-running";

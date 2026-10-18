@@ -35,6 +35,15 @@ public final class OyenteRegistro implements OyenteMonitoreo {
 
     @Override
     public void alDetenerse(Cliente cliente, MotivoDetencion motivo) {
-        REGISTRO.info("[{}] Monitoreo detenido: {}", cliente.nombre(), motivo);
+        String detalle = switch (motivo) {
+            case SOLICITADO_POR_USUARIO -> "por solicitud del usuario";
+            case ARMA_APARTADA -> "porque se apartó un arma";
+            case ARMA_ENCONTRADA -> "porque se encontró un arma";
+            case SESION_VENCIDA -> "porque venció la sesión del portal";
+            case FALLOS_REPETIDOS -> "por fallos repetidos del portal";
+            case NAVEGADOR_CERRADO -> "porque se cerró el navegador";
+            case ERROR_INESPERADO -> "por un error inesperado";
+        };
+        REGISTRO.info("[{}] Monitoreo detenido: {}", cliente.nombre(), detalle);
     }
 }

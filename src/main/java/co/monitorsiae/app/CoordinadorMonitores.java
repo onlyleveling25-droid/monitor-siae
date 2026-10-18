@@ -8,8 +8,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
@@ -43,6 +44,7 @@ public final class CoordinadorMonitores implements AutoCloseable {
         LISTO,
         ABRIENDO_SESION,
         SESION_ABIERTA,
+        SESION_CERRADA,
         INICIANDO,
         MONITOREANDO,
         FUERA_DE_HORARIO,
@@ -115,7 +117,7 @@ public final class CoordinadorMonitores implements AutoCloseable {
                     + " e inicia sesión en la plataforma antes de monitorear.");
         }
 
-        SesionCliente sesion = sesiones.computeIfAbsent(cliente.id(), id -> new SesionCliente(id));
+        SesionCliente sesion = sesionCliente(cliente.id());
         synchronized (sesion) {
             if (sesion.estado == Estado.MONITOREANDO || sesion.estado == Estado.INICIANDO
                     || sesion.estado == Estado.DETENIENDO) {
@@ -135,7 +137,7 @@ public final class CoordinadorMonitores implements AutoCloseable {
         if (configuracion.entornoPortal() != EntornoPortal.PORTAL_REAL) {
             throw new IllegalStateException("Selecciona Portal real en Configuración para abrir la sesión.");
         }
-        SesionCliente sesion = sesiones.computeIfAbsent(cliente.id(), id -> new SesionCliente(cliente.id()));
+        SesionCliente sesion = sesionCliente(cliente.id());
         synchronized (sesion) {
             if (sesion.portal != null) {
                 sesion.ultimoResultado = "La sesión de este cliente ya está abierta.";
@@ -152,15 +154,27 @@ public final class CoordinadorMonitores implements AutoCloseable {
             sesion.trabajador.submit(() -> {
                 try {
                     obtenerPortal(cliente, sesion);
+                    if (!sesion.portal.estaAbierto()) {
+                        throw new IllegalStateException("El navegador se cerró durante la apertura.");
+                    }
                     sesion.estado = Estado.SESION_ABIERTA;
                     sesion.ultimoResultado = "Navegador abierto. Inicia sesión y resuelve el captcha manualmente.";
                     notificar(sesion.id, Estado.SESION_ABIERTA);
                 } catch (RuntimeException e) {
-                    org.slf4j.LoggerFactory.getLogger(CoordinadorMonitores.class)
-                            .error("No se pudo abrir el navegador del cliente {}", cliente.nombre(), e);
-                    sesion.estado = Estado.ERROR;
-                    sesion.ultimoResultado = e.getMessage() == null ? "No se pudo abrir el navegador." : e.getMessage();
-                    notificar(sesion.id, Estado.ERROR);
+                    boolean navegadorCerrado = sesion.portal != null && !portalSigueAbierto(sesion.portal);
+                    if (navegadorCerrado) {
+                        LOG.info("El navegador del cliente {} se cerró durante la apertura.", cliente.nombre());
+                        cerrarPortal(sesion.portal, sesion.id);
+                        sesion.portal = null;
+                        sesion.entornoPortal = null;
+                        sesion.estado = Estado.SESION_CERRADA;
+                        sesion.ultimoResultado = mensajeSesionCerrada();
+                    } else {
+                        LOG.error("No se pudo abrir la sesión del cliente {}", cliente.nombre(), e);
+                        sesion.estado = Estado.ERROR;
+                        sesion.ultimoResultado = mensajeError(e, "No se pudo abrir el navegador.");
+                    }
+                    notificar(sesion.id, sesion.estado);
                 }
             });
         }
@@ -185,25 +199,9 @@ public final class CoordinadorMonitores implements AutoCloseable {
                 notificar(sesion.id, Estado.DETENIENDO);
                 sesion.monitor.detener();
             } else if (sesion.monitor == null && sesion.portal != null) {
-                sesion.estado = Estado.DETENIENDO;
-                notificar(sesion.id, Estado.DETENIENDO);
-                sesion.trabajador.submit(() -> {
-                    try {
-                        if (sesion.portal != null) {
-                            sesion.portal.close();
-                            sesion.portal = null;
-                            sesion.entornoPortal = null;
-                        }
-                        sesion.estado = Estado.DETENIDO;
-                        sesion.ultimoResultado = "Sesión del navegador cerrada.";
-                    } catch (RuntimeException e) {
-                        org.slf4j.LoggerFactory.getLogger(CoordinadorMonitores.class)
-                                .error("No se pudo cerrar el navegador del cliente {}", sesion.id, e);
-                        sesion.estado = Estado.ERROR;
-                        sesion.ultimoResultado = "No se pudo cerrar el navegador: " + e.getMessage();
-                    }
-                    notificar(sesion.id, sesion.estado);
-                });
+                sesion.estado = Estado.DETENIDO;
+                sesion.ultimoResultado = "Monitoreo detenido. La sesión del navegador permanece abierta.";
+                notificar(sesion.id, Estado.DETENIDO);
             }
         }
     }
@@ -215,6 +213,8 @@ public final class CoordinadorMonitores implements AutoCloseable {
                 synchronized (sesion) {
                     sesion.detencionSolicitada = false;
                     sesion.estado = Estado.DETENIDO;
+                    sesion.ultimoResultado =
+                            "Monitoreo detenido. La sesión del navegador permanece abierta.";
                 }
                 notificar(sesion.id, Estado.DETENIDO);
                 return;
@@ -287,22 +287,42 @@ public final class CoordinadorMonitores implements AutoCloseable {
             }
             sesion.monitor.run();
         } catch (RuntimeException e) {
-            org.slf4j.LoggerFactory.getLogger(CoordinadorMonitores.class)
-                    .error("No se pudo ejecutar el monitor del cliente {}", cliente.nombre(), e);
+            boolean navegadorCerrado = sesion.portal == null || !portalSigueAbierto(sesion.portal);
+            if (navegadorCerrado) {
+                LOG.info("La sesión del navegador del cliente {} se cerró.", cliente.nombre());
+                if (sesion.portal != null) {
+                    cerrarPortal(sesion.portal, sesion.id);
+                }
+            } else {
+                LOG.error("No se pudo ejecutar el monitor del cliente {}", cliente.nombre(), e);
+            }
             synchronized (sesion) {
-                sesion.estado = Estado.ERROR;
                 sesion.monitor = null;
                 sesion.detencionSolicitada = false;
+                if (navegadorCerrado) {
+                    sesion.portal = null;
+                    sesion.entornoPortal = null;
+                    sesion.estado = Estado.SESION_CERRADA;
+                    sesion.ultimoResultado = mensajeSesionCerrada();
+                } else {
+                    sesion.estado = Estado.ERROR;
+                    sesion.ultimoResultado = mensajeError(e, "Error durante el monitoreo.");
+                }
             }
-            notificar(sesion.id, Estado.ERROR);
+            notificar(sesion.id, sesion.estado);
             return;
         }
         synchronized (sesion) {
             sesion.monitor = null;
+            boolean detenidoPorUsuario = sesion.detencionSolicitada;
             sesion.detencionSolicitada = false;
             if (sesion.estado != Estado.ERROR && sesion.estado != Estado.ALERTA_ENCONTRADA
                     && sesion.estado != Estado.ARMA_APARTADA) {
                 sesion.estado = Estado.DETENIDO;
+                if (detenidoPorUsuario) {
+                    sesion.ultimoResultado =
+                            "Monitoreo detenido. La sesión del navegador permanece abierta.";
+                }
             }
         }
         if (sesion.estado != Estado.ERROR) {
@@ -324,9 +344,84 @@ public final class CoordinadorMonitores implements AutoCloseable {
         return sesion.portal;
     }
 
+    private SesionCliente sesionCliente(String id) {
+        SesionCliente sesion = sesiones.computeIfAbsent(id, SesionCliente::new);
+        synchronized (sesion) {
+            if (sesion.vigilancia == null && !cerrado) {
+                sesion.vigilancia = sesion.trabajador.scheduleWithFixedDelay(
+                        () -> revisarSesion(sesion), 1, 1, TimeUnit.SECONDS);
+            }
+        }
+        return sesion;
+    }
+
+    private void revisarSesion(SesionCliente sesion) {
+        PortalDriver portal = sesion.portal;
+        if (cerrado || portal == null || sesion.monitor != null) {
+            return;
+        }
+        try {
+            if (portal.estaAbierto()) {
+                return;
+            }
+        } catch (RuntimeException e) {
+            LOG.error("No se pudo comprobar la sesión del cliente {}", sesion.id, e);
+            cerrarPortal(portal, sesion.id);
+            synchronized (sesion) {
+                sesion.portal = null;
+                sesion.entornoPortal = null;
+                sesion.estado = Estado.ERROR;
+                sesion.ultimoResultado = mensajeError(e, "No se pudo comprobar el estado del navegador.");
+            }
+            notificar(sesion.id, Estado.ERROR);
+            return;
+        }
+        cerrarPortal(portal, sesion.id);
+        synchronized (sesion) {
+            if (sesion.portal != portal || sesion.monitor != null) {
+                return;
+            }
+            sesion.portal = null;
+            sesion.entornoPortal = null;
+            sesion.estado = Estado.SESION_CERRADA;
+            sesion.ultimoResultado = mensajeSesionCerrada();
+        }
+        LOG.info("El navegador del cliente {} se cerró; se puede abrir una nueva sesión.", sesion.id);
+        notificar(sesion.id, Estado.SESION_CERRADA);
+    }
+
+    private static boolean portalSigueAbierto(PortalDriver portal) {
+        try {
+            return portal.estaAbierto();
+        } catch (RuntimeException e) {
+            LOG.error("No se pudo determinar si el navegador sigue abierto.", e);
+            return true;
+        }
+    }
+
+    private static String mensajeSesionCerrada() {
+        return "El navegador se cerró. Abre una nueva sesión para volver a conectar este cliente.";
+    }
+
+    private static String mensajeError(RuntimeException error, String respaldo) {
+        return error.getMessage() == null || error.getMessage().isBlank()
+                ? respaldo : respaldo + " " + error.getMessage();
+    }
+
+    private static void cerrarPortal(PortalDriver portal, String clienteId) {
+        try {
+            portal.close();
+        } catch (RuntimeException e) {
+            LOG.warn("No se pudo liberar el navegador cerrado del cliente {}", clienteId, e);
+        }
+    }
+
     private void notificar(String id, Estado estado) {
         alCambiarEstado.accept(id, estado);
     }
+
+    private static final org.slf4j.Logger LOG =
+            org.slf4j.LoggerFactory.getLogger(CoordinadorMonitores.class);
 
     @Override
     public void close() {
@@ -351,7 +446,8 @@ public final class CoordinadorMonitores implements AutoCloseable {
     private static final class SesionCliente {
 
         private final String id;
-        private final ExecutorService trabajador;
+        private final ScheduledExecutorService trabajador;
+        private java.util.concurrent.ScheduledFuture<?> vigilancia;
         private volatile Estado estado = Estado.LISTO;
         private volatile PortalDriver portal;
         private volatile EntornoPortal entornoPortal;
@@ -361,7 +457,7 @@ public final class CoordinadorMonitores implements AutoCloseable {
 
         private SesionCliente(String id) {
             this.id = id;
-            this.trabajador = Executors.newSingleThreadExecutor(runnable -> {
+            this.trabajador = Executors.newSingleThreadScheduledExecutor(runnable -> {
                 Thread hilo = new Thread(runnable, "monitor-cliente-" + id);
                 hilo.setDaemon(true);
                 return hilo;

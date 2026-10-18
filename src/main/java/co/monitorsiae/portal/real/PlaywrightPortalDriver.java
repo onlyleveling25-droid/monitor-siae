@@ -31,6 +31,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 public final class PlaywrightPortalDriver implements PortalDriver {
 
@@ -47,6 +48,8 @@ public final class PlaywrightPortalDriver implements PortalDriver {
     private final Page pagina;
     private final Path capturas;
     private volatile boolean cerrado;
+    private volatile boolean cerrando;
+    private volatile Runnable accionAlCerrar = () -> { };
 
     public PlaywrightPortalDriver(Path perfil, NavegadorPreferido navegador, Path capturas) {
         this.capturas = capturas;
@@ -79,8 +82,8 @@ public final class PlaywrightPortalDriver implements PortalDriver {
         playwright = runtime;
         contexto = contextoCreado;
         pagina = paginaCreada;
-        contexto.onClose(ignorado -> cerrado = true);
-        pagina.onClose(ignorado -> cerrado = true);
+        contexto.onClose(ignorado -> registrarCierre());
+        pagina.onClose(ignorado -> registrarCierre());
     }
 
     private static String canal(NavegadorPreferido navegador) {
@@ -403,7 +406,11 @@ public final class PlaywrightPortalDriver implements PortalDriver {
 
     @Override
     public boolean estaAbierto() {
-        if (cerrado || pagina.isClosed()) {
+        if (cerrado) {
+            return false;
+        }
+        if (pagina.isClosed()) {
+            registrarCierre();
             return false;
         }
         try {
@@ -413,11 +420,27 @@ public final class PlaywrightPortalDriver implements PortalDriver {
             if (cerrado || pagina.isClosed()
                     || (e.getMessage() != null
                     && e.getMessage().toLowerCase(java.util.Locale.ROOT).contains("has been closed"))) {
-                cerrado = true;
+                registrarCierre();
                 return false;
             }
             throw e;
         }
+    }
+
+    @Override
+    public void alCerrar(Runnable accion) {
+        accionAlCerrar = Objects.requireNonNull(accion);
+        if (cerrado && !cerrando) {
+            accionAlCerrar.run();
+        }
+    }
+
+    private void registrarCierre() {
+        if (cerrando || cerrado) {
+            return;
+        }
+        cerrado = true;
+        accionAlCerrar.run();
     }
 
     private void verificarDisponible() {
@@ -448,9 +471,12 @@ public final class PlaywrightPortalDriver implements PortalDriver {
 
     @Override
     public void close() {
+        cerrando = true;
         cerrado = true;
         try {
-            contexto.close();
+            if (!pagina.isClosed()) {
+                contexto.close();
+            }
         } finally {
             playwright.close();
         }

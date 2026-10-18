@@ -49,6 +49,14 @@ public interface PortalDriver extends AutoCloseable {
         return true;
     }
 
+    /**
+     * Registra una acción que se ejecuta cuando la sesión del portal se cierra. La acción puede
+     * ejecutarse desde un hilo distinto al propietario del driver y no debe invocar métodos del
+     * driver.
+     */
+    default void alCerrar(Runnable accion) {
+    }
+
     @Override
     default void close() {
     }

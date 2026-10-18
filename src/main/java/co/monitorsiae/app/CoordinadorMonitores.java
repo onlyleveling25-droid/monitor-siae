@@ -8,9 +8,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
@@ -164,7 +164,7 @@ public final class CoordinadorMonitores implements AutoCloseable {
                     boolean navegadorCerrado = sesion.portal != null && !portalSigueAbierto(sesion.portal);
                     if (navegadorCerrado) {
                         LOG.info("El navegador del cliente {} se cerró durante la apertura.", cliente.nombre());
-                        cerrarPortal(sesion.portal, sesion.id);
+                        liberarSesionCerrada(sesion, sesion.portal);
                         sesion.portal = null;
                         sesion.entornoPortal = null;
                         sesion.estado = Estado.SESION_CERRADA;
@@ -290,9 +290,7 @@ public final class CoordinadorMonitores implements AutoCloseable {
             boolean navegadorCerrado = sesion.portal == null || !portalSigueAbierto(sesion.portal);
             if (navegadorCerrado) {
                 LOG.info("La sesión del navegador del cliente {} se cerró.", cliente.nombre());
-                if (sesion.portal != null) {
-                    cerrarPortal(sesion.portal, sesion.id);
-                }
+                liberarSesionCerrada(sesion, sesion.portal);
             } else {
                 LOG.error("No se pudo ejecutar el monitor del cliente {}", cliente.nombre(), e);
             }
@@ -337,48 +335,38 @@ public final class CoordinadorMonitores implements AutoCloseable {
             sesion.portal = null;
         }
         if (sesion.portal == null) {
-            sesion.portal = Objects.requireNonNull(fabricaPortal.apply(cliente),
+            PortalDriver portal = Objects.requireNonNull(fabricaPortal.apply(cliente),
                     "La fábrica no puede devolver un PortalDriver nulo.");
+            sesion.portal = portal;
             sesion.entornoPortal = solicitado;
+            portal.alCerrar(() -> notificarCierreSesion(sesion, portal));
         }
         return sesion.portal;
     }
 
     private SesionCliente sesionCliente(String id) {
-        SesionCliente sesion = sesiones.computeIfAbsent(id, SesionCliente::new);
-        synchronized (sesion) {
-            if (sesion.vigilancia == null && !cerrado) {
-                sesion.vigilancia = sesion.trabajador.scheduleWithFixedDelay(
-                        () -> revisarSesion(sesion), 1, 1, TimeUnit.SECONDS);
-            }
-        }
-        return sesion;
+        return sesiones.computeIfAbsent(id, SesionCliente::new);
     }
 
-    private void revisarSesion(SesionCliente sesion) {
-        PortalDriver portal = sesion.portal;
-        if (cerrado || portal == null || sesion.monitor != null) {
+    private void notificarCierreSesion(SesionCliente sesion, PortalDriver portal) {
+        if (cerrado) {
             return;
         }
         try {
-            if (portal.estaAbierto()) {
-                return;
+            sesion.trabajador.execute(() -> registrarSesionCerrada(sesion, portal));
+        } catch (RejectedExecutionException e) {
+            if (!cerrado) {
+                LOG.error("No se pudo procesar el cierre de sesión del cliente {}.", sesion.id, e);
             }
-        } catch (RuntimeException e) {
-            LOG.error("No se pudo comprobar la sesión del cliente {}", sesion.id, e);
-            cerrarPortal(portal, sesion.id);
-            synchronized (sesion) {
-                sesion.portal = null;
-                sesion.entornoPortal = null;
-                sesion.estado = Estado.ERROR;
-                sesion.ultimoResultado = mensajeError(e, "No se pudo comprobar el estado del navegador.");
-            }
-            notificar(sesion.id, Estado.ERROR);
+        }
+    }
+
+    private void registrarSesionCerrada(SesionCliente sesion, PortalDriver portal) {
+        if (cerrado) {
             return;
         }
-        cerrarPortal(portal, sesion.id);
         synchronized (sesion) {
-            if (sesion.portal != portal || sesion.monitor != null) {
+            if (sesion.portal != portal) {
                 return;
             }
             sesion.portal = null;
@@ -386,8 +374,15 @@ public final class CoordinadorMonitores implements AutoCloseable {
             sesion.estado = Estado.SESION_CERRADA;
             sesion.ultimoResultado = mensajeSesionCerrada();
         }
+        liberarSesionCerrada(sesion, portal);
         LOG.info("El navegador del cliente {} se cerró; se puede abrir una nueva sesión.", sesion.id);
         notificar(sesion.id, Estado.SESION_CERRADA);
+    }
+
+    private static void liberarSesionCerrada(SesionCliente sesion, PortalDriver portal) {
+        if (portal != null) {
+            cerrarPortal(portal, sesion.id);
+        }
     }
 
     private static boolean portalSigueAbierto(PortalDriver portal) {
@@ -446,8 +441,7 @@ public final class CoordinadorMonitores implements AutoCloseable {
     private static final class SesionCliente {
 
         private final String id;
-        private final ScheduledExecutorService trabajador;
-        private java.util.concurrent.ScheduledFuture<?> vigilancia;
+        private final ExecutorService trabajador;
         private volatile Estado estado = Estado.LISTO;
         private volatile PortalDriver portal;
         private volatile EntornoPortal entornoPortal;
@@ -457,7 +451,7 @@ public final class CoordinadorMonitores implements AutoCloseable {
 
         private SesionCliente(String id) {
             this.id = id;
-            this.trabajador = Executors.newSingleThreadScheduledExecutor(runnable -> {
+            this.trabajador = Executors.newSingleThreadExecutor(runnable -> {
                 Thread hilo = new Thread(runnable, "monitor-cliente-" + id);
                 hilo.setDaemon(true);
                 return hilo;

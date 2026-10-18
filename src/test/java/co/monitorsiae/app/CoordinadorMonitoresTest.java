@@ -178,20 +178,20 @@ class CoordinadorMonitoresTest {
                 .conClientes(List.of(cliente));
         BlockingQueue<Actualizacion> cambios = new LinkedBlockingQueue<>();
         AtomicInteger portalesCreados = new AtomicInteger();
-        AtomicReference<AtomicBoolean> navegadorActual = new AtomicReference<>();
+        AtomicReference<PortalDePrueba> portalActual = new AtomicReference<>();
         CoordinadorMonitores coordinador = new CoordinadorMonitores(configuracion,
                 new CentralAlertas(List.of()),
                 perfil -> {
                     portalesCreados.incrementAndGet();
-                    AtomicBoolean abierto = new AtomicBoolean(true);
-                    navegadorActual.set(abierto);
-                    return new PortalDePrueba(abierto);
+                    PortalDePrueba portal = new PortalDePrueba();
+                    portalActual.set(portal);
+                    return portal;
                 },
                 (id, estado) -> cambios.add(new Actualizacion(id, estado)));
         try {
             coordinador.abrirSesion(cliente);
             esperar(cambios, CoordinadorMonitores.Estado.SESION_ABIERTA);
-            navegadorActual.get().set(false);
+            portalActual.get().cerrarManualmente();
 
             esperar(cambios, CoordinadorMonitores.Estado.SESION_CERRADA);
             assertTrue(!coordinador.sesionAbierta(cliente.id()),
@@ -213,13 +213,13 @@ class CoordinadorMonitoresTest {
                 .conEntornoPortal(EntornoPortal.PORTAL_REAL)
                 .conClientes(List.of(cliente));
         BlockingQueue<Actualizacion> cambios = new LinkedBlockingQueue<>();
-        AtomicReference<AtomicBoolean> navegadorActual = new AtomicReference<>();
+        AtomicReference<PortalDePrueba> portalActual = new AtomicReference<>();
         CoordinadorMonitores coordinador = new CoordinadorMonitores(configuracion,
                 new CentralAlertas(List.of()),
                 perfil -> {
-                    AtomicBoolean abierto = new AtomicBoolean(true);
-                    navegadorActual.set(abierto);
-                    return new PortalDePrueba(abierto);
+                    PortalDePrueba portal = new PortalDePrueba();
+                    portalActual.set(portal);
+                    return portal;
                 },
                 (id, estado) -> cambios.add(new Actualizacion(id, estado)));
         try {
@@ -227,7 +227,7 @@ class CoordinadorMonitoresTest {
             esperar(cambios, CoordinadorMonitores.Estado.SESION_ABIERTA);
             coordinador.iniciar(cliente);
             esperar(cambios, CoordinadorMonitores.Estado.MONITOREANDO);
-            navegadorActual.get().set(false);
+            portalActual.get().cerrarManualmente();
 
             esperar(cambios, CoordinadorMonitores.Estado.SESION_CERRADA);
             assertEquals("El navegador se cerró. Abre una nueva sesión para volver a conectar este cliente.",
@@ -315,11 +315,8 @@ class CoordinadorMonitoresTest {
 
     private static final class PortalDePrueba implements PortalDriver {
 
-        private final AtomicBoolean abierto;
-
-        private PortalDePrueba(AtomicBoolean abierto) {
-            this.abierto = abierto;
-        }
+        private final AtomicBoolean abierto = new AtomicBoolean(true);
+        private volatile Runnable accionAlCerrar = () -> { };
 
         @Override
         public List<String> abrirFormulario(ParametrosTramite tramite) {
@@ -355,8 +352,22 @@ class CoordinadorMonitoresTest {
         }
 
         @Override
+        public void alCerrar(Runnable accion) {
+            accionAlCerrar = accion;
+            if (!abierto.get()) {
+                accion.run();
+            }
+        }
+
+        private void cerrarManualmente() {
+            if (abierto.compareAndSet(true, false)) {
+                accionAlCerrar.run();
+            }
+        }
+
+        @Override
         public void close() {
-            abierto.set(false);
+            cerrarManualmente();
         }
     }
 }

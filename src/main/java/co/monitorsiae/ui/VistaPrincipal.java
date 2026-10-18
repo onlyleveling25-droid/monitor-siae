@@ -59,6 +59,8 @@ public final class VistaPrincipal extends BorderPane {
     private final Map<String, Button> botonesSesion = new HashMap<>();
     private final Map<String, Cliente> clientesPorId = new HashMap<>();
     private boolean menuVisible = true;
+    private List<String> problemas = List.of();
+
 
     VistaPrincipal(Window propietario, ServicioAplicacion servicio, CoordinadorMonitores monitores,
                    CentralAlertas alertas, Consumer<Configuracion> alGuardar) {
@@ -191,7 +193,7 @@ public final class VistaPrincipal extends BorderPane {
         botonesSesion.clear();
         clientesPorId.clear();
         resumen.setText("Clientes configurados  ·  " + configuracion.clientes().size());
-        var problemas = servicio.problemasConfiguracion();
+        problemas = servicio.problemasConfiguracion();
         avisos.getChildren().clear();
         if (!problemas.isEmpty()) {
             Label aviso = new Label("Completa la configuración antes de iniciar el monitoreo.");
@@ -251,9 +253,11 @@ public final class VistaPrincipal extends BorderPane {
             botonIniciar.setDisable(!puedeIniciar(cliente));
             botonIniciar.setTooltip(new Tooltip(motivoDeInicio(cliente)));
         }
+
         Button botonSesion = botonesSesion.get(clienteId);
         if (botonSesion != null) {
-            botonSesion.setDisable(!esPortalReal() || ocupado(estado));
+            botonSesion.setDisable(!esPortalReal() || ocupado(estado)
+                    || monitores.sesionAbierta(clienteId));
         }
     }
 
@@ -279,8 +283,8 @@ public final class VistaPrincipal extends BorderPane {
                 + (cliente.tramite().seccionales().isEmpty()
                 ? "sin configurar" : String.join(" · ", cliente.tramite().seccionales())));
         seccional.getStyleClass().add("muted");
-        Label resultado = new Label(monitores.ultimoResultado(cliente.id()).isBlank()
-                ? "Todavía no hay resultados." : "Último ciclo · " + monitores.ultimoResultado(cliente.id()));
+        String mensaje = monitores.ultimoResultado(cliente.id());
+        Label resultado = new Label(mensaje.isBlank() ? "Todavía no hay resultados." : mensaje);
         resultado.getStyleClass().add("muted");
         resultado.setWrapText(true);
         resultados.put(cliente.id(), resultado);
@@ -288,7 +292,7 @@ public final class VistaPrincipal extends BorderPane {
         HBox acciones = new HBox(9);
         Button sesion = new Button("Abrir sesión");
         sesion.getStyleClass().add("secondary-button");
-        sesion.setDisable(!esPortalReal());
+        sesion.setDisable(!esPortalReal() || monitores.sesionAbierta(cliente.id()));
         sesion.setTooltip(new Tooltip(esPortalReal()
                 ? "Abre el navegador de este cliente; inicia sesión y resuelve el captcha manualmente."
                 : "Selecciona Portal real en Configuración para abrir una sesión."));
@@ -320,7 +324,7 @@ public final class VistaPrincipal extends BorderPane {
     }
 
     private boolean puedeIniciar(Cliente cliente) {
-        if (!cliente.activo() || !servicio.problemasConfiguracion().isEmpty()) {
+        if (!cliente.activo() || !problemas.isEmpty()) {
             return false;
         }
         return !esPortalReal() || monitores.sesionAbierta(cliente.id());
@@ -330,7 +334,7 @@ public final class VistaPrincipal extends BorderPane {
         if (!cliente.activo()) {
             return "El cliente está inactivo; habilítalo desde configuración.";
         }
-        if (!servicio.problemasConfiguracion().isEmpty()) {
+        if (!problemas.isEmpty()) {
             return "Completa la configuración antes de iniciar.";
         }
         if (esPortalReal() && !monitores.sesionAbierta(cliente.id())) {
@@ -348,7 +352,7 @@ public final class VistaPrincipal extends BorderPane {
     }
 
     private void iniciar(Cliente cliente) {
-        if (!servicio.problemasConfiguracion().isEmpty()) {
+        if (!problemas.isEmpty()) {
             mostrar(Alert.AlertType.WARNING, "Configuración incompleta",
                     String.join(System.lineSeparator(), servicio.problemasConfiguracion()));
             return;

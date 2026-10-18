@@ -137,6 +137,11 @@ public final class CoordinadorMonitores implements AutoCloseable {
         }
         SesionCliente sesion = sesiones.computeIfAbsent(cliente.id(), id -> new SesionCliente(cliente.id()));
         synchronized (sesion) {
+            if (sesion.portal != null) {
+                sesion.ultimoResultado = "La sesión de este cliente ya está abierta.";
+                notificar(sesion.id, sesion.estado);
+                return;
+            }
             if (sesion.estado == Estado.ABRIENDO_SESION || sesion.estado == Estado.INICIANDO
                     || sesion.estado == Estado.MONITOREANDO || sesion.estado == Estado.DETENIENDO) {
                 return;
@@ -215,6 +220,7 @@ public final class CoordinadorMonitores implements AutoCloseable {
                 return;
             }
             Configuracion actual = configuracion;
+            VentanaHoraria ventana = new VentanaHoraria(actual.horario(), Clock.systemUTC());
             OyenteMonitoreo oyente = new OyenteMonitoreo() {
                 private final OyenteRegistro registro = new OyenteRegistro();
                 private final OyenteAlertas oyenteAlertas = new OyenteAlertas(new TraductorAlertas(), alertas);
@@ -233,7 +239,7 @@ public final class CoordinadorMonitores implements AutoCloseable {
                 @Override
                 public void fueraDeHorario(Cliente iniciado) {
                     sesion.estado = Estado.FUERA_DE_HORARIO;
-                    sesion.ultimoResultado = "Fuera del horario configurado; reintentaré en 30 segundos.";
+                    sesion.ultimoResultado = ventana.motivoFueraDeHorario();
                     notificar(sesion.id, Estado.FUERA_DE_HORARIO);
                     registro.fueraDeHorario(iniciado);
                     oyenteAlertas.fueraDeHorario(iniciado);
@@ -274,7 +280,7 @@ public final class CoordinadorMonitores implements AutoCloseable {
             };
             sesion.monitor = new MonitorCliente(cliente, sesion.portal,
                     new CicloMonitoreo(new SelectorSeccional(), new SelectorArma()),
-                    new VentanaHoraria(actual.horario(), Clock.systemUTC()),
+                    ventana,
                     Duration.ofSeconds(actual.intervaloConsultaSegundos()), Pausa.real(), oyente);
             if (sesion.detencionSolicitada) {
                 sesion.monitor.detener();

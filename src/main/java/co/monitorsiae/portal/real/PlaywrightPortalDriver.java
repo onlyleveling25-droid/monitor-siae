@@ -16,6 +16,7 @@ import com.microsoft.playwright.BrowserType;
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
+import com.microsoft.playwright.options.ViewportSize;
 import com.microsoft.playwright.options.WaitForSelectorState;
 import com.microsoft.playwright.options.WaitUntilState;
 
@@ -47,11 +48,13 @@ public final class PlaywrightPortalDriver implements PortalDriver {
         BrowserContext contextoCreado;
         Page paginaCreada;
         try {
-            BrowserType.LaunchPersistentContextOptions opciones =
-                    new BrowserType.LaunchPersistentContextOptions()
+            BrowserType.LaunchPersistentContextOptions opciones
+                    = new BrowserType.LaunchPersistentContextOptions()
                             .setChannel(canal(navegador))
                             .setHeadless(false)
-                            .setViewportSize(false, false);
+                            .setViewportSize((ViewportSize) null)
+                            .setArgs(List.of("--start-maximized", "--no-first-run",
+                                    "--no-default-browser-check", "--disable-background-networking"));
             contextoCreado = runtime.chromium().launchPersistentContext(perfil, opciones);
             paginaCreada = contextoCreado.pages().isEmpty()
                     ? contextoCreado.newPage()
@@ -74,22 +77,45 @@ public final class PlaywrightPortalDriver implements PortalDriver {
 
     private static String canal(NavegadorPreferido navegador) {
         return switch (navegador) {
-            case CHROME -> "chrome";
-            case EDGE -> "msedge";
+            case CHROME ->
+                "chrome";
+            case EDGE ->
+                "msedge";
         };
     }
 
     // --- Paso 1 ---------------------------------------------------------------
-
     @Override
     public List<String> abrirFormulario(ParametrosTramite tramite) {
-        recargarPaso1();
-        elegirCombo(SelectoresSiae.PLACEHOLDER_PERMISO, tramite.obtenerPermiso(),
+        asegurarPaso1();
+        seleccionarSiHaceFalta(SelectoresSiae.PLACEHOLDER_PERMISO, tramite.obtenerPermiso(),
                 "como desea obtener el permiso");
-        elegirCombo(SelectoresSiae.PLACEHOLDER_TIPO_TRAMITE, tramite.tipoTramite(),
+        seleccionarSiHaceFalta(SelectoresSiae.PLACEHOLDER_TIPO_TRAMITE, tramite.tipoTramite(),
                 "tipo de trámite");
-        return leerOpciones(SelectoresSiae.PLACEHOLDER_SECCIONAL, null);
+        return leerOpciones(SelectoresSiae.PLACEHOLDER_SECCIONAL);
     }
+    
+    private void asegurarPaso1() {
+        detectarSesionVencida();
+        if (pagina.locator(SelectoresSiae.CAMPO_DESCRIPCION).count() > 0) {
+            return;
+        }
+        pagina.navigate(URL_TRAMITE,
+                new Page.NavigateOptions().setWaitUntil(WaitUntilState.DOMCONTENTLOADED));
+        esperarPaso1();
+    }
+
+    private void seleccionarSiHaceFalta(String placeholder, String valor, String nombre) {
+        Locator combo = combo(placeholder);
+        combo.waitFor(new Locator.WaitForOptions().setState(WaitForSelectorState.VISIBLE)
+                .setTimeout(ESPERA_CORTA.toMillis()));
+        if (Texto.equivalentes(combo.inputValue(), valor)) {
+            return;
+        }
+        elegirCombo(placeholder, valor, nombre);
+    }
+
+
 
     @Override
     public ResultadoGuardar enviarPaso1(String seccional, String descripcion) {
@@ -162,7 +188,7 @@ public final class PlaywrightPortalDriver implements PortalDriver {
         pagina.waitForTimeout(400);
     }
 
-    private List<String> leerOpciones(String placeholder, String valorAElegir) {
+    private List<String> leerOpciones(String placeholder) {
         Locator combo = combo(placeholder);
         combo.waitFor(new Locator.WaitForOptions().setState(WaitForSelectorState.VISIBLE)
                 .setTimeout(ESPERA_CORTA.toMillis()));
@@ -266,7 +292,6 @@ public final class PlaywrightPortalDriver implements PortalDriver {
     }
 
     // --- Paso 2 ---------------------------------------------------------------
-
     @Override
     public List<ArmaInventario> leerInventario() {
         detectarSesionVencida();
@@ -315,8 +340,10 @@ public final class PlaywrightPortalDriver implements PortalDriver {
 
     private static String etiqueta(Modalidad modalidad) {
         return switch (modalidad) {
-            case PORTE -> "Porte";
-            case TENENCIA -> "Tenencia";
+            case PORTE ->
+                "Porte";
+            case TENENCIA ->
+                "Tenencia";
         };
     }
 
@@ -356,7 +383,6 @@ public final class PlaywrightPortalDriver implements PortalDriver {
     }
 
     // --- Comunes --------------------------------------------------------------
-
     private void detectarSesionVencida() {
         Locator contrasena = pagina.locator(SelectoresSiae.LOGIN_PASSWORD).first();
         if (contrasena.count() > 0 && contrasena.isVisible()) {

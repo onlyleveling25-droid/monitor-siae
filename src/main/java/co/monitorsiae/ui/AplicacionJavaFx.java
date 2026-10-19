@@ -77,7 +77,13 @@ public final class AplicacionJavaFx extends Application {
             stage.setMinWidth(900);
             stage.setMinHeight(620);
             stage.setScene(escena);
-            stage.setOnCloseRequest(event -> cerrar());
+            stage.setOnCloseRequest(event -> {
+                if (!vista.confirmarDescarteCambios()) {
+                    event.consume();
+                    return;
+                }
+                cerrar();
+            });
             stage.show();
         } catch (RuntimeException e) {
             mostrarErrorFatal(e);
@@ -119,6 +125,9 @@ public final class AplicacionJavaFx extends Application {
     }
 
     private void cerrar() {
+        if (cerrando) {
+            return;
+        }
         cerrando = true;
         if (monitores != null) {
             monitores.close();

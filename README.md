@@ -9,8 +9,9 @@ periódica mientras no haya inventario y, cuando el listado del paso 2 trae las 
 aparta el arma según las reglas del cliente y lanza una alarma imposible de ignorar para que la
 persona termine el proceso.
 
-> Estado: **fase 6 de 8** (interfaz JavaFX conectada al monitor simulado). La integración con el
-> portal real y el instalador todavía están pendientes.
+> Estado: rediseño de interfaz en `feature/redisenio-ui`, con las fases 1 a 5 implementadas y
+> validaciones manuales pendientes. El estado detallado está en
+> [el plan de rediseño](docs/PLAN-REDISENO-UI.md). El instalador sigue pendiente.
 
 ## Qué hace y qué no hace
 
@@ -92,10 +93,8 @@ sesión** inicia Chrome o Edge con un perfil local aislado por cliente y abre el
 debe iniciar sesión y resolver el captcha. Las credenciales del portal no se solicitan ni se guardan
 en Monitor SIAE.
 
-La integración real está en etapa de validación: por seguridad, **Iniciar / reanudar** se deshabilita
-en modo real hasta confirmar los selectores y el comportamiento del portal. Por tanto, en esta etapa
-no se monitorea ni se aparta automáticamente en el sitio real, incluso si el cliente tiene modo
-**APARTAR**. Al cambiar el entorno global, detén primero los monitores en ejecución.
+La integración real está en etapa de validación; las comprobaciones pendientes se documentan en
+`docs/PORTAL.md`. Al cambiar el entorno global, detén primero los monitores en ejecución.
 Los perfiles persistentes y sus cookies viven en `%APPDATA%\MonitorSIAE\perfiles`; son datos
 sensibles locales y no deben compartirse.
 
@@ -200,10 +199,10 @@ de `acceso` y volver a abrir la aplicación, que pedirá crear una nueva.
 2. Modelo y configuración JSON.
 3. Contraseña de la aplicación.
 4. Núcleo: filtro de armas, `PortalDriver`, simulador y monitor.
-5. Alarmas: voz y sirena. **(actual)**
-6. Interfaz JavaFX. **(actual: conectada al simulador)**
-7. Integración con el portal real. **(en progreso: apertura de perfil Playwright; automatización
-   pendiente de validación de selectores y respuestas)**
+5. Alarmas: voz y sirena. **(implementadas; validación de audio local pendiente)**
+6. Interfaz JavaFX. **(rediseño en progreso; ver `docs/PLAN-REDISENO-UI.md`)**
+7. Integración con el portal real. **(implementada parcialmente; validación pendiente según
+   `docs/PORTAL.md`)**
 8. Instalador con `jpackage`.
 
 ## Límites conocidos y responsabilidad

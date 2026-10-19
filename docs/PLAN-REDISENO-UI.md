@@ -124,6 +124,26 @@ El objetivo es mejorar claridad, eficiencia y consistencia visual sin alterar re
 
 ## Estado actual
 
+### Correcciones de estabilidad — 2026-10-19
+
+- La contraseña preparada en Ajustes se aplica únicamente con Guardar cambios, junto con el resto
+  del formulario y en una sola escritura. Cancelar o descartar conserva el acceso anterior; un error
+  de escritura mantiene el borrador para reintentar.
+- Cerrar la ventana principal solicita confirmación si hay cambios pendientes, usando la misma
+  comprobación que volver al Panel.
+- El cierre de la aplicación y del coordinador tolera llamadas repetidas sin enviar tareas a un
+  trabajador que ya se cerró.
+- Un historial ilegible muestra un aviso en el panel sin impedir el arranque ni modificar el archivo.
+- Panel y ventana de alertas comparten el reconocimiento individual ante una sesión confirmada como
+  cerrada. Otros errores de enfoque conservan las alertas.
+- Verificación automatizada: compilación limpia y 111 pruebas aprobadas con JDK 21. Nueve pruebas
+  nuevas cubren persistencia conjunta, descarte de acceso, fallo y reintento de guardado, cierre
+  repetido, historial ilegible y reconocimiento individual.
+- El usuario confirmó que puede abrir, navegar, guardar y actualizar. Los escenarios excepcionales
+  anteriores siguen pendientes de validación visual local.
+
+### Avance de las fases
+
 - Fundamentos visuales e iconografía: completados.
 - Panel operativo: implementado y probado por el usuario; revisar en local los últimos ajustes de contraste.
 - Configuración como página: navegación revisada por el usuario; siguen pendientes los demás escenarios manuales de guardado y descarte.

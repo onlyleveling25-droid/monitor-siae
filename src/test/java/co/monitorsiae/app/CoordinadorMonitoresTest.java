@@ -38,7 +38,28 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class CoordinadorMonitoresTest {
 
     @Test
-    void elModoRealAbreSesionPeroBloqueaElMonitoreoHastaValidarElPortal() throws InterruptedException {
+    void cerrarDosVecesLiberaLaSesionSinReenviarTareasAlTrabajadorCerrado() throws Exception {
+        Cliente cliente = Cliente.nuevo("Prueba de cierre");
+        var portal = new PortalDePrueba();
+        BlockingQueue<Actualizacion> cambios = new LinkedBlockingQueue<>();
+        var coordinador = new CoordinadorMonitores(
+                Configuracion.porDefecto().conEntornoPortal(EntornoPortal.PORTAL_REAL),
+                new CentralAlertas(List.of()), perfil -> portal,
+                (id, estado) -> cambios.add(new Actualizacion(id, estado)));
+        try {
+            coordinador.abrirSesion(cliente);
+            esperar(cambios, CoordinadorMonitores.Estado.SESION_ABIERTA);
+            coordinador.close();
+            coordinador.close();
+            assertTrue(portal.liberado.await(2, TimeUnit.SECONDS));
+            assertEquals(1, portal.cierres.get());
+        } finally {
+            coordinador.close();
+        }
+    }
+
+    @Test
+    void elModoRealExigeAbrirSesionAntesDelMonitoreo() throws InterruptedException {
         Cliente cliente = ClientesDePrueba.valido("Ana");
         Configuracion configuracion = Configuracion.porDefecto()
                 .conEntornoPortal(EntornoPortal.PORTAL_REAL)
@@ -391,6 +412,8 @@ class CoordinadorMonitoresTest {
 
     private static final class PortalDePrueba implements PortalDriver {
 
+        private final CountDownLatch liberado = new CountDownLatch(1);
+        private final AtomicInteger cierres = new AtomicInteger();
         private final AtomicBoolean abierto = new AtomicBoolean(true);
         private final AtomicInteger enfoques = new AtomicInteger();
         private final AtomicReference<String> hiloEnfoque = new AtomicReference<>();
@@ -451,7 +474,9 @@ class CoordinadorMonitoresTest {
 
         @Override
         public void close() {
+            cierres.incrementAndGet();
             cerrarManualmente();
+            liberado.countDown();
         }
     }
 

@@ -87,17 +87,13 @@ public final class CanalAlertaJavaFx implements CanalAlerta {
                                     resultadoEnfoque.setText(mensajeEnfoqueSolicitado());
                                 } else {
                                     resultadoEnfoque.setText(mensajeErrorEnfoque(error));
-                                    if (esSesionCerrada(error)) {
-                                        alReconocer.accept(alerta.clienteId());
-                                    }
+                                    reconocerSiSesionCerrada(alerta.clienteId(), error, alReconocer);
                                 }
                             }));
                 } catch (RuntimeException error) {
                     irAlNavegador.setDisable(false);
                     resultadoEnfoque.setText(mensajeErrorEnfoque(error));
-                    if (esSesionCerrada(error)) {
-                        alReconocer.accept(alerta.clienteId());
-                    }
+                    reconocerSiSesionCerrada(alerta.clienteId(), error, alReconocer);
                 }
             });
             Button reconocer = new Button("Entendido");
@@ -126,13 +122,13 @@ public final class CanalAlertaJavaFx implements CanalAlerta {
                 : causa.getMessage();
     }
 
-    private static boolean esSesionCerrada(Throwable error) {
+    static void reconocerSiSesionCerrada(String clienteId, Throwable error, Consumer<String> alReconocer) {
         for (Throwable causa = error; causa != null; causa = causa.getCause()) {
             if (causa instanceof SesionPortalCerradaException) {
-                return true;
+                alReconocer.accept(clienteId);
+                return;
             }
         }
-        return false;
     }
 
     private static String mensajeEnfoqueSolicitado() {

@@ -62,6 +62,9 @@ public final class VistaPrincipal extends BorderPane {
     private Button navPanel;
     private Button navAjustes;
     private final VBox avisos = new VBox(8);
+    private final Label avisoHistorial = new Label(
+            "No se pudo leer el historial de inventarios. El archivo se conserva sin cambios; "
+                    + "revisa los registros de la aplicación para recuperarlo.");
     private final HBox avisoVisual = new HBox(10);
     private final Label iconoAviso = new Label();
     private final Label textoAviso = new Label();
@@ -95,6 +98,8 @@ public final class VistaPrincipal extends BorderPane {
         this.alertas = alertas;
         this.alGuardar = alGuardar;
         getStyleClass().add("app-root");
+        avisoHistorial.getStyleClass().add("validation-banner");
+        avisoHistorial.setWrapText(true);
         crearBarraLateral();
         crearContenido();
         refrescarConfiguracion();
@@ -242,6 +247,7 @@ public final class VistaPrincipal extends BorderPane {
         accionesPrincipales.clear();
         detenerDesdeMenu.clear();
         historialDesdeMenu.clear();
+        enfocarDesdeMenu.clear();
         acentosFila.clear();
         filasClientes.clear();
         tiemposActividad.clear();
@@ -338,7 +344,7 @@ public final class VistaPrincipal extends BorderPane {
         }
         MenuItem historial = historialDesdeMenu.get(clienteId);
         if (historial != null) {
-            historial.setDisable(monitores.historialSnapshots(clienteId).isEmpty());
+            historial.setDisable(consultarHistorial(clienteId).isEmpty());
         }
         MenuItem enfocar = enfocarDesdeMenu.get(clienteId);
         if (enfocar != null) {
@@ -423,7 +429,7 @@ public final class VistaPrincipal extends BorderPane {
         detener.setOnAction(event -> monitores.detener(cliente.id()));
         detener.setDisable(!puedeDetener(estadoActual));
         MenuItem historial = new MenuItem("Ver historial de inventario");
-        historial.setDisable(monitores.historialSnapshots(cliente.id()).isEmpty());
+        historial.setDisable(consultarHistorial(cliente.id()).isEmpty());
         historial.setOnAction(event -> mostrarHistorial(cliente.id()));
         MenuItem irAlNavegador = new MenuItem("Ir al navegador");
         irAlNavegador.setDisable(!esPortalReal() || !monitores.sesionAbierta(cliente.id()));
@@ -623,6 +629,7 @@ public final class VistaPrincipal extends BorderPane {
                         + "selecciona su icono en la barra de tareas.", TipoAviso.SUCCESS);
             } else {
                 mostrarAvisoVisual(cliente.nombre() + ": " + mensajeErrorEnfoque(error), TipoAviso.ERROR);
+                CanalAlertaJavaFx.reconocerSiSesionCerrada(cliente.id(), error, alertas::reconocer);
             }
         }));
     }
@@ -676,6 +683,14 @@ public final class VistaPrincipal extends BorderPane {
     }
 
     private void solicitarVolverAlPanel() {
+        if (!confirmarDescarteCambios()) {
+            return;
+        }
+        editorConfiguracion = null;
+        mostrarPanel();
+    }
+
+    boolean confirmarDescarteCambios() {
         if (editorConfiguracion != null && editorConfiguracion.hayCambiosPendientes()) {
             Alert confirmacion = new Alert(Alert.AlertType.CONFIRMATION,
                     "Los cambios que no guardaste se perderán.");
@@ -686,11 +701,10 @@ public final class VistaPrincipal extends BorderPane {
             ButtonType descartar = new ButtonType("Descartar cambios", ButtonBar.ButtonData.OK_DONE);
             confirmacion.getButtonTypes().setAll(descartar, ButtonType.CANCEL);
             if (confirmacion.showAndWait().orElse(ButtonType.CANCEL) != descartar) {
-                return;
+                return false;
             }
         }
-        editorConfiguracion = null;
-        mostrarPanel();
+        return true;
     }
 
     private void mostrarPanel() {
@@ -784,7 +798,7 @@ public final class VistaPrincipal extends BorderPane {
     }
 
     private void mostrarHistorial(String clienteId) {
-        List<SnapshotInventario> snapshots = monitores.historialSnapshots(clienteId);
+        List<SnapshotInventario> snapshots = consultarHistorial(clienteId);
         if (snapshots.isEmpty()) {
             return;
         }
@@ -822,6 +836,20 @@ public final class VistaPrincipal extends BorderPane {
         dialogo.getDialogPane().setContent(contenido);
         dialogo.getDialogPane().setPrefWidth(620);
         dialogo.showAndWait().ifPresent(this::mostrarSnapshot);
+    }
+
+    private List<SnapshotInventario> consultarHistorial(String clienteId) {
+        ConsultaHistorial consulta = ConsultaHistorial.leer(() -> monitores.historialSnapshots(clienteId));
+        if (consulta.error() != null) {
+            if (!avisos.getChildren().contains(avisoHistorial)) {
+                org.slf4j.LoggerFactory.getLogger(VistaPrincipal.class)
+                        .warn("No se pudo consultar el historial de inventarios.", consulta.error());
+                avisos.getChildren().add(avisoHistorial);
+            }
+        } else {
+            avisos.getChildren().remove(avisoHistorial);
+        }
+        return consulta.snapshots();
     }
 
     private static Button botonSnapshot(SnapshotInventario snapshot, Dialog<SnapshotInventario> dialogo) {

@@ -3,6 +3,7 @@ package co.monitorsiae.ui;
 import co.monitorsiae.acceso.ContrasenaRechazadaException;
 import co.monitorsiae.app.ServicioAplicacion;
 import co.monitorsiae.dominio.Cliente;
+import co.monitorsiae.dominio.AccesoAplicacion;
 import co.monitorsiae.dominio.Configuracion;
 import co.monitorsiae.dominio.CriterioArma;
 import co.monitorsiae.dominio.EntornoPortal;
@@ -108,6 +109,7 @@ final class EditorConfiguracion extends BorderPane {
             "Ej. 22 lr");
     private final Spinner<Integer> reintentos = new Spinner<>(1, 5, 2);
     private String clienteActualId;
+    private AccesoAplicacion accesoPendiente;
 
     EditorConfiguracion(Window propietario, ServicioAplicacion servicio, Consumer<Configuracion> alGuardar,
                         Runnable alCancelar) {
@@ -115,6 +117,7 @@ final class EditorConfiguracion extends BorderPane {
         this.servicio = servicio;
         this.alGuardar = alGuardar;
         this.alCancelar = alCancelar;
+        accesoPendiente = servicio.configuracion().acceso();
         crearPagina();
         cargarConfiguracion(servicio.configuracion());
     }
@@ -164,7 +167,7 @@ final class EditorConfiguracion extends BorderPane {
                 Configuracion propuesta = construirConfiguracion();
                 servicio.validar(propuesta);
                 manejarCambioProteccion();
-                Configuracion configuracionFinal = propuesta.conAcceso(servicio.configuracion().acceso());
+                Configuracion configuracionFinal = propuesta.conAcceso(accesoPendiente);
                 servicio.guardar(configuracionFinal);
                 alGuardar.accept(servicio.configuracion());
                 mostrarGuardadoCorrecto();
@@ -480,7 +483,7 @@ final class EditorConfiguracion extends BorderPane {
                 dias.entrySet().stream().filter(e -> e.getValue().isSelected()).map(Map.Entry::getKey).toList(),
                 LocalTime.parse(desde.getText().strip()), LocalTime.parse(hasta.getText().strip()),
                 HorarioOperacion.ZONA_COLOMBIA);
-        return new Configuracion(base.version(), base.acceso(), navegador.getValue(), entornoPortal.getValue(),
+        return new Configuracion(base.version(), accesoPendiente, navegador.getValue(), entornoPortal.getValue(),
                 segundos, horario, new ArrayList<>(borradores.values()),
                 new PreferenciasAlertas(sonidoHabilitado.isSelected(), vozHabilitada.isSelected(),
                         tonoAlarma.getValue()));
@@ -494,7 +497,7 @@ final class EditorConfiguracion extends BorderPane {
     }
 
     private void manejarCambioProteccion() {
-        boolean estabaActiva = servicio.configuracion().acceso().requerirContrasena();
+        boolean estabaActiva = accesoPendiente.requerirContrasena();
         if (proteger.isSelected() == estabaActiva) {
             return;
         }
@@ -505,18 +508,22 @@ final class EditorConfiguracion extends BorderPane {
             }
             char[][] valores = nuevas.get();
             try {
-                servicio.crearContrasena(valores[0], valores[1]);
+                accesoPendiente = servicio.prepararCreacionContrasena(valores[0], valores[1]);
             } finally {
                 DialogosContrasena.borrar(valores[0]);
                 DialogosContrasena.borrar(valores[1]);
             }
         } else {
+            if (!servicio.pideContrasena()) {
+                accesoPendiente = servicio.prepararDesactivacionProteccion(null);
+                return;
+            }
             var actual = DialogosContrasena.pedirActual(propietario, "Desactivar protección");
             if (actual.isEmpty()) {
                 throw new IllegalArgumentException("Se canceló la desactivación de la protección.");
             }
             try {
-                servicio.desactivarProteccion(actual.get());
+                accesoPendiente = servicio.prepararDesactivacionProteccion(actual.get());
             } catch (ContrasenaRechazadaException e) {
                 throw new IllegalArgumentException(e.getMessage(), e);
             }
@@ -536,9 +543,9 @@ final class EditorConfiguracion extends BorderPane {
             }
             char[][] valores = nuevas.get();
             try {
-                servicio.cambiarContrasena(actual.get(), valores[0], valores[1]);
+                accesoPendiente = servicio.prepararCambioContrasena(actual.get(), valores[0], valores[1]);
                 proteger.setSelected(true);
-                mostrarInfo("Contraseña actualizada", "La contraseña de la aplicación se cambió.");
+                mostrarInfo("Contraseña preparada", "Pulsa Guardar cambios para aplicar la nueva contraseña.");
             } catch (RuntimeException e) {
                 mostrarError("No se pudo cambiar la contraseña", e.getMessage());
             } finally {
@@ -553,9 +560,9 @@ final class EditorConfiguracion extends BorderPane {
             }
             char[][] valores = nuevas.get();
             try {
-                servicio.crearContrasena(valores[0], valores[1]);
+                accesoPendiente = servicio.prepararCreacionContrasena(valores[0], valores[1]);
                 proteger.setSelected(true);
-                mostrarInfo("Protección activada", "La configuración ahora requiere contraseña.");
+                mostrarInfo("Protección preparada", "Pulsa Guardar cambios para activar la contraseña.");
             } catch (RuntimeException e) {
                 mostrarError("No se pudo crear la contraseña", e.getMessage());
             } finally {

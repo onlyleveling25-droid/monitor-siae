@@ -466,7 +466,12 @@ public final class CoordinadorMonitores implements AutoCloseable {
 
     @Override
     public void close() {
-        cerrado = true;
+        synchronized (this) {
+            if (cerrado) {
+                return;
+            }
+            cerrado = true;
+        }
         sesiones.values().forEach(sesion -> detener(sesion.id));
         sesiones.values().forEach(sesion -> {
             sesion.trabajador.submit(() -> {

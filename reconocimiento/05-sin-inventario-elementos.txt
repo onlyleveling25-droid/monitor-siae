@@ -9,27 +9,27 @@ Elementos: 42
 
 1. button  caja=12,16,48,48
    selector: button[aria-label="open drawer"]
-   attrs:    {"class":"MuiButtonBase-root MuiIconButton-root MuiIconButton-colorInherit MuiIconButton-edgeStart MuiIconButton-sizeLarge jss276 css-1x52uzk","tabindex":"0","type":"button","aria-label":"open drawer"}
+   attrs:    {"class":"MuiButtonBase-root MuiIconButton-root MuiIconButton-colorInherit MuiIconButton-edgeStart MuiIconButton-sizeLarge jss99 css-1x52uzk","tabindex":"0","type":"button","aria-label":"open drawer"}
    texto:    
 
 2. button  caja=1328,12,56,56
    selector: button[aria-label="usuarios encontrados"]
-   attrs:    {"class":"MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textInherit MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorInherit MuiButton-root MuiButton-text MuiButton-textInherit MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorInherit jss327 css-b7766g","tabindex":"0","type":"button","aria-label":"usuarios encontrados"}
+   attrs:    {"class":"MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textInherit MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorInherit MuiButton-root MuiButton-text MuiButton-textInherit MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorInherit jss150 css-b7766g","tabindex":"0","type":"button","aria-label":"usuarios encontrados"}
    texto:    
 
 3. button  caja=1392,12,56,56
    selector: button[aria-label="usuarios encontrados"]
-   attrs:    {"class":"MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textInherit MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorInherit MuiButton-root MuiButton-text MuiButton-textInherit MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorInherit jss327 css-b7766g","tabindex":"0","type":"button","aria-label":"usuarios encontrados"}
+   attrs:    {"class":"MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textInherit MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorInherit MuiButton-root MuiButton-text MuiButton-textInherit MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorInherit jss150 css-b7766g","tabindex":"0","type":"button","aria-label":"usuarios encontrados"}
    texto:    
 
 4. button  caja=1456,12,56,56
    selector: button[aria-label="usuarios encontrados"]
-   attrs:    {"class":"MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textInherit MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorInherit MuiButton-root MuiButton-text MuiButton-textInherit MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorInherit jss327 css-b7766g","tabindex":"0","type":"button","aria-label":"usuarios encontrados"}
+   attrs:    {"class":"MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textInherit MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorInherit MuiButton-root MuiButton-text MuiButton-textInherit MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorInherit jss150 css-b7766g","tabindex":"0","type":"button","aria-label":"usuarios encontrados"}
    texto:    0
 
 5. button  caja=1520,12,56,56
    selector: button[aria-label="usuarios encontrados"]
-   attrs:    {"class":"MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textInherit MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorInherit MuiButton-root MuiButton-text MuiButton-textInherit MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorInherit jss327 css-b7766g","tabindex":"0","type":"button","aria-label":"usuarios encontrados"}
+   attrs:    {"class":"MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textInherit MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorInherit MuiButton-root MuiButton-text MuiButton-textInherit MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorInherit jss150 css-b7766g","tabindex":"0","type":"button","aria-label":"usuarios encontrados"}
    texto:    
 
 6. button  caja=0,8,48,48
@@ -44,67 +44,67 @@ Elementos: 42
 
 8. div  caja=0,74,71,60
    selector: div[role="button"]
-   attrs:    {"class":"MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button jss333 css-j5ar9c","tabindex":"0","role":"button"}
+   attrs:    {"class":"MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button jss156 css-j5ar9c","tabindex":"0","role":"button"}
    texto:    Estado de trámite
 
 9. div  caja=0,134,71,60
    selector: div[role="button"]
-   attrs:    {"class":"MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button jss333 css-j5ar9c","tabindex":"0","role":"button"}
+   attrs:    {"class":"MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button jss156 css-j5ar9c","tabindex":"0","role":"button"}
    texto:    Solicitud del trámite
 
 10. div  caja=0,194,71,60
    selector: div[role="button"]
-   attrs:    {"class":"MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button jss333 css-j5ar9c","tabindex":"0","role":"button"}
+   attrs:    {"class":"MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button jss156 css-j5ar9c","tabindex":"0","role":"button"}
    texto:    Mis citas
 
 11. div  caja=0,254,71,60
    selector: div[role="button"]
-   attrs:    {"class":"MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button jss333 css-j5ar9c","tabindex":"0","role":"button"}
+   attrs:    {"class":"MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button jss156 css-j5ar9c","tabindex":"0","role":"button"}
    texto:    Armas registradas
 
 12. div  caja=0,314,71,60
    selector: div[role="button"]
-   attrs:    {"class":"MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button jss333 css-j5ar9c","tabindex":"0","role":"button"}
+   attrs:    {"class":"MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button jss156 css-j5ar9c","tabindex":"0","role":"button"}
    texto:    Actas transporte
 
 13. div  caja=0,374,71,60
    selector: div[role="button"]
-   attrs:    {"class":"MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button jss333 css-j5ar9c","tabindex":"0","role":"button"}
+   attrs:    {"class":"MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button jss156 css-j5ar9c","tabindex":"0","role":"button"}
    texto:    Formularios
 
 14. div  caja=0,434,71,60
    selector: div[role="button"]
-   attrs:    {"class":"MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button jss333 css-j5ar9c","tabindex":"0","role":"button"}
+   attrs:    {"class":"MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button jss156 css-j5ar9c","tabindex":"0","role":"button"}
    texto:    Documentos aprobados
 
 15. div  caja=0,494,71,60
    selector: div[role="button"]
-   attrs:    {"class":"MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button jss333 css-j5ar9c","tabindex":"0","role":"button"}
+   attrs:    {"class":"MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button jss156 css-j5ar9c","tabindex":"0","role":"button"}
    texto:    Descargos SQC
 
 16. div  caja=0,554,71,60
    selector: div[role="button"]
-   attrs:    {"class":"MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button jss333 css-j5ar9c","tabindex":"0","role":"button"}
+   attrs:    {"class":"MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button jss156 css-j5ar9c","tabindex":"0","role":"button"}
    texto:    Descargo Explosivos
 
 17. div  caja=0,614,71,60
    selector: div[role="button"]
-   attrs:    {"class":"MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button jss333 css-j5ar9c","tabindex":"0","role":"button"}
+   attrs:    {"class":"MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button jss156 css-j5ar9c","tabindex":"0","role":"button"}
    texto:    Evento municiones
 
 18. input  caja=116,299,692,56
-   selector: #:rm:
-   attrs:    {"aria-invalid":"false","id":":rm:","type":"text","class":"MuiInputBase-input MuiOutlinedInput-input css-1x5jdmq","value":"PERSONA NATURAL"}
+   selector: #:r3:
+   attrs:    {"aria-invalid":"false","id":":r3:","type":"text","class":"MuiInputBase-input MuiOutlinedInput-input css-1x5jdmq","value":"PERSONA NATURAL"}
    texto:    
 
 19. input  caja=824,299,692,56
-   selector: #:rn:
-   attrs:    {"aria-invalid":"false","id":":rn:","type":"text","class":"MuiInputBase-input MuiOutlinedInput-input css-1x5jdmq","value":"1007652942"}
+   selector: #:r4:
+   attrs:    {"aria-invalid":"false","id":":r4:","type":"text","class":"MuiInputBase-input MuiOutlinedInput-input css-1x5jdmq","value":"1007652942"}
    texto:    
 
 20. input  caja=116,371,692,56
-   selector: #:ro:
-   attrs:    {"aria-invalid":"false","id":":ro:","type":"text","class":"MuiInputBase-input MuiOutlinedInput-input css-1x5jdmq","value":"YEFERSON ALEJANDRO GARCIA MARIN"}
+   selector: #:r5:
+   attrs:    {"aria-invalid":"false","id":":r5:","type":"text","class":"MuiInputBase-input MuiOutlinedInput-input css-1x5jdmq","value":"YEFERSON ALEJANDRO GARCIA MARIN"}
    texto:    
 
 21. input  caja=833,380,618,38
@@ -139,7 +139,7 @@ Elementos: 42
 
 27. input  caja=833,452,618,38
    selector: #asynchronous-demo
-   attrs:    {"aria-invalid":"false","autocomplete":"off","id":"asynchronous-demo","placeholder":"Indique la seccional donde va a tramitar el permiso para porte o tenencia","type":"text","class":"MuiInputBase-input MuiOutlinedInput-input jss330 MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused css-1uvydh2","aria-autocomplete":"list","aria-expanded":"false","autocapitalize":"none","spellcheck":"false","role":"combobox","value":"77 - Pasto, Nariño"}
+   attrs:    {"aria-invalid":"false","autocomplete":"off","id":"asynchronous-demo","placeholder":"Indique la seccional donde va a tramitar el permiso para porte o tenencia","type":"text","class":"MuiInputBase-input MuiOutlinedInput-input jss153 MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused css-1uvydh2","aria-autocomplete":"list","aria-expanded":"false","autocapitalize":"none","spellcheck":"false","role":"combobox","value":"16 - Usaquén, Bogotá D.C."}
    texto:    
 
 28. button  caja=1455,457,28,28
@@ -153,8 +153,8 @@ Elementos: 42
    texto:    
 
 30. textarea  caja=130,532,1372,92
-   selector: #:rv:
-   attrs:    {"rows":"4","aria-invalid":"false","id":":rv:","name":"descripcion","placeholder":"Escriba la solicitud correspondiente al trámite que desea iniciar, indicando toda la información correspondiente relacionada (datos personales, datos del arma), argumente de manera clara la necesidad especifica que buscar ser atendida con el trámite a realizar","maxlength":"500","class":"MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputMultiline css-u36398","style":"height: 92px;"}
+   selector: #:rc:
+   attrs:    {"rows":"4","aria-invalid":"false","id":":rc:","name":"descripcion","placeholder":"Escriba la solicitud correspondiente al trámite que desea iniciar, indicando toda la información correspondiente relacionada (datos personales, datos del arma), argumente de manera clara la necesidad especifica que buscar ser atendida con el trámite a realizar","maxlength":"500","class":"MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputMultiline css-u36398","style":"height: 92px;"}
    texto:    
 
 31. textarea  caja=116,515,1372,0
@@ -175,7 +175,7 @@ Elementos: 42
 34. p  caja=-1,-1,1,1
    selector: #__next-route-announcer__
    attrs:    {"aria-live":"assertive","id":"__next-route-announcer__","role":"alert","style":"border: 0px; clip: rect(0px, 0px, 0px, 0px); height: 1px; margin: -1px; overflow: hidden; padding: 0px; position: absolute; top: 0px; width: 1px; white-space: nowrap; overflow-wrap: normal;"}
-   texto:    DCCAE :: DEPARTAMENTO CONTROL COMERCIO DE ARMAS
+   texto:    
 
 35. div  caja=0,15,1600,885
    selector: #customized-menu

@@ -1,0 +1,3 @@
+URL: https://backdcc.cgfm.mil.co/service/v1/api/tramiteusuarioclasif/caract/select-by-idusuario?idUsuarios=774648
+
+{"msg":[{"idUsuarios":774648,"idTipoPersona":1,"tipoPersona":"Persona Natural","idClaseTramite":6,"claseTramite":"General","idCaracterizacion":437,"caracterizacion":"Procesos generales persona natural","estado":"S"},{"idUsuarios":774648,"idTipoPersona":1,"tipoPersona":"Persona Natural","idClaseTramite":1,"claseTramite":"Armas y Municiones","idCaracterizacion":3,"caracterizacion":"Defensa Personal","estado":"S"}],"code":"0","message":"se ha encontrado informacion"}

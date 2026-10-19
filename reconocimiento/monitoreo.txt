@@ -1,2 +1,1 @@
-Consulta 1  seccional=16 - Usaquén, Bogotá D.C.  filas=0
-Consulta 2  seccional=45 - Medellín, Antioquia  filas=0
+15:12:20  Consulta 1  seccional=16 - Usaquén, Bogotá D.C.  url=https://dccae.cgfm.mil.co/dccae/main/SolicitudTramite  filas=0  avisoNoInventario=0

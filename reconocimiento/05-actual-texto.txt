@@ -1,0 +1,50 @@
+URL: https://dccae.cgfm.mil.co/dccae/main/SolicitudTramite
+
+DCCAE | DEPARTAMENTO CONTROL COMERCIO DE ARMAS, MUNICIONES Y EXPLOSIVOS
+0
+
+Estado de trámite
+
+Solicitud del trámite
+
+Mis citas
+
+Armas registradas
+
+Actas transporte
+
+Formularios
+
+Documentos aprobados
+
+Descargos SQC
+
+Descargo Explosivos
+
+Evento municiones
+
+Inicio de Tramite
+Formulario de Solicitud
+Cargue de Documentos
+
+
+
+
+
+DCCAE
+
+Tipo de Usuario
+Tipo de Usuario
+Identificación
+Identificación
+Nombre Usuario
+Nombre Usuario
+Seleccione como desea obtener el permiso
+Seleccione como desea obtener el permiso
+Tipo de Tramite / Clase de Tramite
+Tipo de Tramite / Clase de Tramite
+Seccional
+Seccional
+Descripción (Máx 500 Caracteres, mínimo 150 Caracteres, restantes 271)
+Descripción (Máx 500 Caracteres, mínimo 150 Caracteres, restantes 271)
+GUARDANDO...

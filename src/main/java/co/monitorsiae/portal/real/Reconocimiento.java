@@ -7,9 +7,12 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.text.Normalizer;
+import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 import com.microsoft.playwright.BrowserContext;
 import com.microsoft.playwright.BrowserType;
@@ -23,8 +26,8 @@ import com.microsoft.playwright.options.WaitUntilState;
  * el DOM del portal y poder escribir los selectores de PlaywrightPortalDriver.
  *
  * <p>Inicia sesion a mano, llena el paso 1 una vez, y luego solo cambia la seccional (de la lista
- * configurada) y pulsa GUARDAR con un intervalo aleatorio (base + jitter) hasta que alguna de esas
- * seccionales tenga inventario. Cuando aparece, vuelca la estructura del paso 2 sin apartar nada.
+ * configurada) y pulsa GUARDAR con un intervalo aleatorio (base + jitter). Registra red, DOM y
+ * navegacion de cada ciclo para poder reconstruir el paso 2 incluso sin inventario.
  */
 public final class Reconocimiento {
 
@@ -40,10 +43,7 @@ public final class Reconocimiento {
     /**
      * Seccionales a monitorear, en orden de prioridad. Basta una parte reconocible (no importan
      * tildes ni mayusculas): "Bogota" encuentra "16 - Usaquén, Bogotá D.C.".
-     *
-     * <p>Lista vacia = se monitorean TODAS las seccionales que ofrezca el portal.
-     * Tambien se puede pasar por consola como segundo argumento, separadas por coma:
-     * {@code -Dexec.args="chrome Bogota,Medellin"}.
+     * Lista vacia = todas. Tambien por consola: {@code -Dexec.args="chrome Bogota,Medellin"}.
      */
     private static String[] seccionalesAMonitorear = {"Bogota", "Medellin"};
 
@@ -53,9 +53,7 @@ public final class Reconocimiento {
     private static final String[] PISTA_SECCIONAL = {"seccional"};
 
     // ==================== MONITOREO ====================
-    // Intervalo base entre consultas (3 minutos) mas un jitter aleatorio para no ser predecible.
     private static final int SEGUNDOS_BASE = 180;
-    // Variacion aleatoria maxima adicional (0 a 45 segundos).
     private static final int JITTER_MAXIMO_SEGUNDOS = 45;
     private static final int MAX_CONSULTAS = 120;
 
@@ -66,12 +64,13 @@ public final class Reconocimiento {
     private static final String SELECTOR_COMBO = "mat-select, [role='combobox'], select";
     private static final String SELECTOR_OPCION =
             "mat-option, [role='option'], .mat-mdc-option, li[role='option']";
-    /** Mensaje real del portal (mayusculas): se compara sin distinguir mayusculas. */
     private static final String SIN_INVENTARIO = "text=no hay inventario";
     private static final String FILAS_INVENTARIO = "table tbody tr";
     private static final BufferedReader TECLADO =
             new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8));
     private static final List<String> RED = new ArrayList<>();
+    private static final List<String> NAVEGACIONES = new ArrayList<>();
+    private static final Set<String> URLS_VISTAS = new HashSet<>();
     private static final StringBuilder MONITOREO = new StringBuilder();
     private static boolean seccionalesAnunciadas;
     private static int cuerposGuardados;
@@ -104,6 +103,7 @@ public final class Reconocimiento {
                             .setViewportSize(1600, 900));
             Page pagina = contexto.pages().isEmpty() ? contexto.newPage() : contexto.pages().getFirst();
             registrarRed(pagina);
+            registrarNavegacion(pagina);
             pagina.navigate(URL, new Page.NavigateOptions().setWaitUntil(WaitUntilState.DOMCONTENTLOADED));
 
             try {
@@ -119,7 +119,6 @@ public final class Reconocimiento {
                 for (int intento = 1; intento <= MAX_CONSULTAS && !encontrado; intento++) {
                     System.out.println("\n=== Consulta " + intento + " de " + MAX_CONSULTAS + " ===");
                     try {
-                        // Solo re-llenamos el paso 1 cuando hace falta; lo demas es cambiar la seccional.
                         if (!formularioListo || !formularioVivo(pagina)) {
                             prepararPaso1(pagina);
                             formularioListo = true;
@@ -148,9 +147,11 @@ public final class Reconocimiento {
                                 capturarSinInventario(pagina);
                                 sinInvCapturado = true;
                             }
+                            capturarEstadoActual(pagina, intento);
                             registrarIntento(intento, seccional, pagina);
+                            volcarInformes();
+                            System.out.println("  ultimas peticiones: " + ultimasUrls(4));
 
-                            // Espera dinamica y aleatoria para no ser predecible con el portal.
                             int jitter = RANDOM.nextInt(JITTER_MAXIMO_SEGUNDOS + 1);
                             int tiempoEsperaTotal = SEGUNDOS_BASE + jitter;
                             System.out.println("Sin inventario. Esperando " + tiempoEsperaTotal
@@ -179,11 +180,7 @@ public final class Reconocimiento {
                 System.out.println("\nFALLO: " + e);
                 pausa("El navegador queda abierto. Pulsa ENTER para cerrar.");
             }
-            try {
-                escribir("red.txt", String.join(System.lineSeparator(), RED));
-            } catch (RuntimeException ignorado) {
-                // el navegador pudo cerrarse con Ctrl+C
-            }
+            volcarInformes();
         }
     }
 
@@ -333,7 +330,6 @@ public final class Reconocimiento {
                 + " ni por posicion " + indice + " (candidatos: " + total + ").");
     }
 
-    /** Devuelve la seccional que toca en este intento, rotando SOLO por las de la lista. */
     private static String seccionalDeTurno(List<String> seccionales, int intento) {
         if (seccionales.isEmpty()) {
             throw new RuntimeException("La lista de seccionales esta vacia. Revisa permiso y tipo de tramite.");
@@ -342,7 +338,6 @@ public final class Reconocimiento {
         return orden.get((intento - 1) % orden.size());
     }
 
-    /** Filtra las seccionales disponibles a las pedidas, en su orden. Lista vacia = todas. */
     private static List<String> seccionalesAUsar(List<String> disponibles) {
         List<String> elegidas = new ArrayList<>();
         List<String> sinMatch = new ArrayList<>();
@@ -466,6 +461,13 @@ public final class Reconocimiento {
         captura(pagina, "05-sin-inventario");
     }
 
+    /** Captura rodante del estado actual, para ver como cambia la pagina ciclo a ciclo. */
+    private static void capturarEstadoActual(Page pagina, int intento) throws IOException {
+        escribir("05-actual.html", pagina.content());
+        escribir("05-actual-texto.txt", "URL: " + pagina.url() + "\n\n" + pagina.locator("body").innerText());
+        captura(pagina, String.format("05-actual-%03d", intento));
+    }
+
     private static void capturarPaso2(Page pagina, boolean pausar) throws IOException {
         volcar(pagina, "10-paso2-inventario");
         explorarControlesPaso2(pagina);
@@ -530,13 +532,33 @@ public final class Reconocimiento {
         return base.resolve("MonitorSIAE").resolve("perfiles").resolve("_reconocimiento");
     }
 
+    private static String hora() {
+        return LocalTime.now().withNano(0).toString();
+    }
+
+    private static List<String> ultimasUrls(int cuantas) {
+        int desde = Math.max(0, RED.size() - cuantas);
+        return new ArrayList<>(RED.subList(desde, RED.size()));
+    }
+
     private static void registrarIntento(int intento, String seccional, Page pagina) {
-        MONITOREO.append("Consulta ").append(intento)
+        MONITOREO.append(hora()).append("  Consulta ").append(intento)
                 .append("  seccional=").append(seccional)
+                .append("  url=").append(pagina.url())
                 .append("  filas=").append(pagina.locator(FILAS_INVENTARIO).count())
+                .append("  avisoNoInventario=").append(pagina.locator(SIN_INVENTARIO).count())
                 .append('\n');
         try {
             escribir("monitoreo.txt", MONITOREO.toString());
+        } catch (IOException ignorado) {
+            // best-effort
+        }
+    }
+
+    private static void volcarInformes() {
+        try {
+            escribir("red.txt", String.join(System.lineSeparator(), RED));
+            escribir("navegacion.txt", String.join(System.lineSeparator(), NAVEGACIONES));
         } catch (IOException ignorado) {
             // best-effort
         }
@@ -626,20 +648,30 @@ public final class Reconocimiento {
             if (!tipo.equals("xhr") && !tipo.equals("fetch")) {
                 return;
             }
-            RED.add(respuesta.request().method() + " " + respuesta.status() + " "
+            RED.add(hora() + "  " + respuesta.request().method() + " " + respuesta.status() + " "
                     + respuesta.headerValue("content-type") + " " + respuesta.url());
             try {
-                String contentType = respuesta.headerValue("content-type");
-                if (contentType != null && contentType.contains("json") && cuerposGuardados < 40) {
+                if (cuerposGuardados < 200) {
                     String cuerpo = respuesta.text();
-                    if (cuerpo.length() > 400_000) {
-                        cuerpo = cuerpo.substring(0, 400_000);
+                    if (cuerpo.length() > 600_000) {
+                        cuerpo = cuerpo.substring(0, 600_000);
                     }
-                    Files.writeString(SALIDA.resolve(String.format("red-%02d.json", cuerposGuardados++)),
-                            cuerpo, StandardCharsets.UTF_8);
+                    String contentType = String.valueOf(respuesta.headerValue("content-type"));
+                    String ext = contentType.contains("json") ? "json" : "txt";
+                    Files.writeString(SALIDA.resolve(String.format("red-%03d.%s", cuerposGuardados++, ext)),
+                            "URL: " + respuesta.url() + "\n\n" + cuerpo, StandardCharsets.UTF_8);
                 }
             } catch (RuntimeException | IOException ignorado) {
                 // el cuerpo puede no estar disponible
+            }
+        });
+    }
+
+    private static void registrarNavegacion(Page pagina) {
+        pagina.onFrameNavigated(frame -> {
+            String url = frame.url();
+            if (URLS_VISTAS.add(url)) {
+                NAVEGACIONES.add(hora() + "  " + url);
             }
         });
     }

@@ -6,6 +6,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -20,23 +21,80 @@ import com.microsoft.playwright.options.WaitUntilState;
 /**
  * Herramienta de reconocimiento. No forma parte de la aplicacion: se ejecuta a mano para volcar
  * el DOM del portal y poder escribir los selectores de PlaywrightPortalDriver.
+ *
+ * <p>Inicia sesion a mano, llena el paso 1 una vez, y luego solo cambia la seccional (de la lista
+ * configurada) y pulsa GUARDAR con un intervalo aleatorio (base + jitter) hasta que alguna de esas
+ * seccionales tenga inventario. Cuando aparece, vuelca la estructura del paso 2 sin apartar nada.
  */
 public final class Reconocimiento {
 
+    // ==================== PARAMETROS DEL PASO 1 (edita aqui) ====================
+    private static final String OBTENER_PERMISO = "Defensa Personal";
+    private static final String TIPO_TRAMITE = "Armas personas naturales: Adquisición de arma";
+    private static final String DESCRIPCION =
+            "Solicito la adquisición de un arma para defensa personal, conforme a los requisitos y "
+                    + "procedimientos establecidos por la autoridad competente. Me comprometo a "
+                    + "suministrar información veraz y a cumplir las obligaciones aplicables.";
+    private static final String MODALIDAD = "PORTE";
+
+    /**
+     * Seccionales a monitorear, en orden de prioridad. Basta una parte reconocible (no importan
+     * tildes ni mayusculas): "Bogota" encuentra "16 - Usaquén, Bogotá D.C.".
+     *
+     * <p>Lista vacia = se monitorean TODAS las seccionales que ofrezca el portal.
+     * Tambien se puede pasar por consola como segundo argumento, separadas por coma:
+     * {@code -Dexec.args="chrome Bogota,Medellin"}.
+     */
+    private static String[] seccionalesAMonitorear = {"Bogota", "Medellin"};
+
+    // Pistas para localizar cada combo (por placeholder, texto o etiqueta). Se prueban en orden.
+    private static final String[] PISTA_PERMISO = {"obtener el permiso", "como desea obtener", "permiso"};
+    private static final String[] PISTA_TIPO = {"tipo de tramite", "clase de tramite", "tipo tramite"};
+    private static final String[] PISTA_SECCIONAL = {"seccional"};
+
+    // ==================== MONITOREO ====================
+    // Intervalo base entre consultas (3 minutos) mas un jitter aleatorio para no ser predecible.
+    private static final int SEGUNDOS_BASE = 180;
+    // Variacion aleatoria maxima adicional (0 a 45 segundos).
+    private static final int JITTER_MAXIMO_SEGUNDOS = 45;
+    private static final int MAX_CONSULTAS = 120;
+
+    private static final java.util.Random RANDOM = new java.util.Random();
+
     private static final String URL = "https://dccae.cgfm.mil.co/dccae/main/SolicitudTramite";
     private static final Path SALIDA = Path.of("reconocimiento");
+    private static final String SELECTOR_COMBO = "mat-select, [role='combobox'], select";
+    private static final String SELECTOR_OPCION =
+            "mat-option, [role='option'], .mat-mdc-option, li[role='option']";
+    /** Mensaje real del portal (mayusculas): se compara sin distinguir mayusculas. */
+    private static final String SIN_INVENTARIO = "text=no hay inventario";
+    private static final String FILAS_INVENTARIO = "table tbody tr";
     private static final BufferedReader TECLADO =
             new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8));
     private static final List<String> RED = new ArrayList<>();
+    private static final StringBuilder MONITOREO = new StringBuilder();
+    private static boolean seccionalesAnunciadas;
     private static int cuerposGuardados;
 
     public static void main(String[] args) throws Exception {
         Files.createDirectories(SALIDA);
-        String canal = args.length > 0 ? args[0] : "msedge";
-        Path perfil = Path.of(System.getenv("APPDATA"), "MonitorSIAE", "perfiles", "_reconocimiento");
+        String canal = args.length > 0 ? args[0] : "chrome";
+        if (args.length > 1 && !args[1].isBlank()) {
+            String[] pedidas = args[1].split(",");
+            for (int i = 0; i < pedidas.length; i++) {
+                pedidas[i] = pedidas[i].trim();
+            }
+            seccionalesAMonitorear = pedidas;
+        }
+
+        Path perfil = perfilReconocimiento();
         System.out.println("Navegador: " + canal);
         System.out.println("Perfil:    " + perfil);
         System.out.println("Salida:    " + SALIDA.toAbsolutePath());
+        System.out.println("Paso 1 -> permiso='" + OBTENER_PERMISO + "'  tipo='" + TIPO_TRAMITE + "'");
+        System.out.println("Seccionales a monitorear: " + (seccionalesAMonitorear.length == 0
+                ? "(todas las que ofrezca el portal)" : String.join(", ", seccionalesAMonitorear)));
+        System.out.println("Espera: " + SEGUNDOS_BASE + "s base + 0.." + JITTER_MAXIMO_SEGUNDOS + "s jitter");
 
         try (Playwright playwright = Playwright.create()) {
             BrowserContext contexto = playwright.chromium().launchPersistentContext(perfil,
@@ -50,124 +108,438 @@ public final class Reconocimiento {
 
             try {
                 pausa("PASO 1: inicia sesion y resuelve el captcha en la ventana del navegador.");
+                esperarPaso1(pagina);
+                diagnosticarCombos(pagina);
                 volcar(pagina, "01-paso1-inicial");
-                pausa("Revisa '01-paso1-inicial-elementos.txt'. Si algo quedo mal, corrigelo en el navegador.");
 
-                recorrerCombos(pagina);
-                volcar(pagina, "02-paso1-con-combos");
-                pausa("Revisa 'combos.txt'. Si el script eligio mal alguna opcion, corrigelo a mano ahora.");
+                boolean formularioListo = false;
+                boolean sinInvCapturado = false;
+                boolean encontrado = false;
 
-                probarGuardar(pagina);
-                pausa("Ultimo paso hecho. Revisa la carpeta 'reconocimiento'.");
+                for (int intento = 1; intento <= MAX_CONSULTAS && !encontrado; intento++) {
+                    System.out.println("\n=== Consulta " + intento + " de " + MAX_CONSULTAS + " ===");
+                    try {
+                        // Solo re-llenamos el paso 1 cuando hace falta; lo demas es cambiar la seccional.
+                        if (!formularioListo || !formularioVivo(pagina)) {
+                            prepararPaso1(pagina);
+                            formularioListo = true;
+                        } else {
+                            asegurarCombo(pagina, PISTA_PERMISO, 0, OBTENER_PERMISO);
+                            asegurarCombo(pagina, PISTA_TIPO, 1, TIPO_TRAMITE);
+                        }
+
+                        String seccional = cambiarSeccionalYGuardar(pagina, intento);
+                        System.out.println("Seccional usada: " + seccional);
+                        pagina.waitForTimeout(2000);
+
+                        if (sesionVencida(pagina)) {
+                            System.out.println("Sesion vencida; hay que re-loguear.");
+                            formularioListo = false;
+                            pausa("Inicia sesion de nuevo y pulsa ENTER.");
+                            continue;
+                        }
+
+                        if (hayInventario(pagina)) {
+                            encontrado = true;
+                            System.out.println(">>> INVENTARIO DETECTADO en " + seccional);
+                            capturarPaso2(pagina, true);
+                        } else {
+                            if (!sinInvCapturado && hayMensajeSinInventario(pagina)) {
+                                capturarSinInventario(pagina);
+                                sinInvCapturado = true;
+                            }
+                            registrarIntento(intento, seccional, pagina);
+
+                            // Espera dinamica y aleatoria para no ser predecible con el portal.
+                            int jitter = RANDOM.nextInt(JITTER_MAXIMO_SEGUNDOS + 1);
+                            int tiempoEsperaTotal = SEGUNDOS_BASE + jitter;
+                            System.out.println("Sin inventario. Esperando " + tiempoEsperaTotal
+                                    + " segundos (Base: " + SEGUNDOS_BASE + "s + Jitter: " + jitter
+                                    + "s) antes del siguiente intento...");
+                            pagina.waitForTimeout(tiempoEsperaTotal * 1000L);
+                        }
+                    } catch (RuntimeException e) {
+                        System.out.println("FALLO en la consulta " + intento + ": " + e);
+                        formularioListo = false;
+                        try {
+                            volcar(pagina, "90-fallo-" + intento);
+                        } catch (RuntimeException ignorado) {
+                            // el navegador pudo cerrarse
+                        }
+                        pausa("Revisa el navegador. ENTER para seguir.");
+                    }
+                }
+
+                if (!encontrado) {
+                    System.out.println("\nNo aparecio inventario en " + MAX_CONSULTAS + " consultas.");
+                    volcar(pagina, "99-ultimo-estado");
+                    pausa("Pulsa ENTER para cerrar.");
+                }
             } catch (RuntimeException e) {
                 System.out.println("\nFALLO: " + e);
-                e.printStackTrace();
                 pausa("El navegador queda abierto. Pulsa ENTER para cerrar.");
             }
-            escribir("red.txt", String.join(System.lineSeparator(), RED));
+            try {
+                escribir("red.txt", String.join(System.lineSeparator(), RED));
+            } catch (RuntimeException ignorado) {
+                // el navegador pudo cerrarse con Ctrl+C
+            }
         }
     }
 
-    private static void recorrerCombos(Page pagina) throws IOException {
-        List<Locator> combos = pagina.locator("[role='combobox'], mat-select, select").all();
-        StringBuilder informe = new StringBuilder("# Combos detectados: " + combos.size() + "\n\n");
-        String[] objetivos = {"defensa", "adquisicion", "arma"};
+    // ==================== DIAGNOSTICO ====================
 
-        for (int i = 0; i < combos.size(); i++) {
-            Locator combo = combos.get(i);
-            informe.append("## Combo ").append(i).append('\n');
-            informe.append("selector: ").append(seguro(() -> selectorDe(combo))).append('\n');
-            informe.append("attrs:    ").append(seguro(() -> attrsDe(combo))).append('\n');
-            informe.append("texto:    ").append(seguro(() -> limpiar(combo.innerText()))).append('\n');
+    private static void diagnosticarCombos(Page pagina) throws IOException {
+        StringBuilder informe = new StringBuilder("# Combos candidatos en la pagina\n\n");
+        Locator combos = pagina.locator(SELECTOR_COMBO);
+        int total = combos.count();
+        informe.append("Total detectado: ").append(total).append("\n\n");
+        for (int i = 0; i < total; i++) {
+            Locator combo = combos.nth(i);
+            informe.append("## Candidato ").append(i).append('\n');
+            informe.append("tag:        ").append(seguro(() -> String.valueOf(
+                    combo.evaluate("el => el.tagName.toLowerCase()")))).append('\n');
+            informe.append("attrs:      ").append(seguro(() -> attrsDe(combo))).append('\n');
+            informe.append("placeholder: ").append(seguro(() -> String.valueOf(combo.getAttribute("placeholder")))).append('\n');
+            informe.append("value:      ").append(seguro(() -> valorDe(combo))).append('\n');
+            informe.append("texto:      ").append(seguro(() -> limpiar(combo.innerText()))).append('\n');
+            informe.append("etiqueta:   ").append(seguro(() -> etiquetaDe(combo))).append('\n');
+            informe.append("visible:    ").append(seguro(() -> String.valueOf(combo.isVisible()))).append('\n');
+            informe.append("selector:   ").append(seguro(() -> selectorDe(combo))).append("\n\n");
+        }
+        escribir("00-combos.txt", informe.toString());
+        System.out.println("Diagnostico de combos -> '00-combos.txt' (" + total + " candidatos).");
+    }
 
-            try {
-                combo.scrollIntoViewIfNeeded();
-                combo.click();
-            } catch (RuntimeException e) {
-                informe.append("NO SE PUDO ABRIR: ").append(e.getMessage()).append("\n\n");
-                continue;
+    private static String etiquetaDe(Locator elemento) {
+        return String.valueOf(elemento.evaluate("""
+                el => {
+                  const id = el.getAttribute('aria-labelledby');
+                  if (id) { const l = document.getElementById(id); if (l) return l.textContent; }
+                  const ff = el.closest('mat-form-field, .mat-mdc-form-field');
+                  if (ff) { const lab = ff.querySelector('mat-label, label'); if (lab) return lab.textContent; }
+                  return el.getAttribute('aria-label') || '';
+                }
+                """));
+    }
+
+    // ==================== PASO 1 ====================
+
+    private static void prepararPaso1(Page pagina) {
+        pagina.navigate(URL, new Page.NavigateOptions().setWaitUntil(WaitUntilState.DOMCONTENTLOADED));
+        if (sesionVencida(pagina)) {
+            pausa("La sesion no esta activa. Inicia sesion y resuelve el captcha; luego pulsa ENTER.");
+            pagina.navigate(URL, new Page.NavigateOptions().setWaitUntil(WaitUntilState.DOMCONTENTLOADED));
+        }
+        esperarPaso1(pagina);
+        elegirEnCombo(pagina, PISTA_PERMISO, 0, OBTENER_PERMISO);
+        elegirEnCombo(pagina, PISTA_TIPO, 1, TIPO_TRAMITE);
+        escribirDescripcion(pagina);
+    }
+
+    private static void asegurarCombo(Page pagina, String[] pistas, int indice, String valor) {
+        Locator combo = buscarCombo(pagina, pistas, indice);
+        if (valorDe(combo).isBlank()) {
+            elegirEnCombo(pagina, pistas, indice, valor);
+        }
+    }
+
+    private static String cambiarSeccionalYGuardar(Page pagina, int intento) {
+        abrirCombo(pagina, PISTA_SECCIONAL, 2);
+        List<String> seccionales = leerOpciones(pagina);
+        String seccional = seccionalDeTurno(seccionales, intento);
+        clicarOpcion(pagina, seccional, seccionales);
+        escribirDescripcion(pagina);
+        pulsarGuardar(pagina);
+        return seccional;
+    }
+
+    private static void esperarPaso1(Page pagina) {
+        pagina.waitForSelector(SELECTOR_COMBO, new Page.WaitForSelectorOptions().setTimeout(45_000));
+    }
+
+    private static boolean formularioVivo(Page pagina) {
+        Locator combos = pagina.locator(SELECTOR_COMBO);
+        int visibles = 0;
+        for (int i = 0; i < combos.count(); i++) {
+            if (combos.nth(i).isVisible()) {
+                visibles++;
             }
-            pagina.waitForTimeout(900);
+        }
+        return visibles >= 3;
+    }
 
-            List<Locator> opciones = pagina.locator("[role='option'], mat-option").all();
-            List<String> textos = new ArrayList<>();
-            for (Locator opcion : opciones) {
-                textos.add(seguro(() -> limpiar(opcion.innerText())));
+    private static void elegirEnCombo(Page pagina, String[] pistas, int indice, String valor) {
+        abrirCombo(pagina, pistas, indice);
+        List<String> opciones = leerOpciones(pagina);
+        clicarOpcion(pagina, valor, opciones);
+    }
+
+    private static void abrirCombo(Page pagina, String[] pistas, int indice) {
+        Locator combo = buscarCombo(pagina, pistas, indice);
+        for (int intento = 1; intento <= 3; intento++) {
+            combo.scrollIntoViewIfNeeded();
+            combo.click(new Locator.ClickOptions().setForce(intento > 1));
+            long limite = System.currentTimeMillis() + 4000;
+            while (pagina.locator(SELECTOR_OPCION).count() == 0 && System.currentTimeMillis() < limite) {
+                pagina.waitForTimeout(150);
             }
-            informe.append("opciones (").append(textos.size()).append("):\n");
-            textos.forEach(texto -> informe.append("   - ").append(texto).append('\n'));
-            escribir("overlay-" + i + ".html", overlayHtml(pagina));
+            if (pagina.locator(SELECTOR_OPCION).count() > 0) {
+                return;
+            }
+        }
+        throw new RuntimeException("No se pudo abrir el combo [" + indice + "].");
+    }
 
-            int elegido = -1;
-            String objetivo = i < objetivos.length ? objetivos[i] : null;
-            if (objetivo != null) {
-                for (int j = 0; j < textos.size(); j++) {
-                    if (textos.get(j).toLowerCase(Locale.ROOT).contains(objetivo)) {
-                        elegido = j;
+    private static List<String> leerOpciones(Page pagina) {
+        List<String> textos = new ArrayList<>();
+        Locator opciones = pagina.locator(SELECTOR_OPCION);
+        for (int i = 0; i < opciones.count(); i++) {
+            textos.add(limpiar(opciones.nth(i).innerText()));
+        }
+        return textos;
+    }
+
+    private static void clicarOpcion(Page pagina, String valor, List<String> textos) {
+        int idx = buscarOpcion(textos, valor);
+        if (idx < 0) {
+            pagina.keyboard().press("Escape");
+            throw new RuntimeException("Ninguna opcion contiene '" + valor + "'. Opciones: " + textos);
+        }
+        pagina.locator(SELECTOR_OPCION).nth(idx).click();
+        pagina.waitForTimeout(1000);
+        System.out.println("  elegido: " + textos.get(idx));
+    }
+
+    private static Locator buscarCombo(Page pagina, String[] pistas, int indice) {
+        Locator combos = pagina.locator(SELECTOR_COMBO);
+        int total = combos.count();
+        for (String pista : pistas) {
+            String aguja = normalizar(pista);
+            for (int i = 0; i < total; i++) {
+                Locator c = combos.nth(i);
+                String heno = normalizar(seguro(() -> limpiar(c.innerText())) + " "
+                        + seguro(() -> limpiar(etiquetaDe(c))) + " "
+                        + seguro(() -> String.valueOf(c.getAttribute("placeholder"))));
+                if (heno.contains(aguja)) {
+                    return c;
+                }
+            }
+        }
+        if (indice < total) {
+            return combos.nth(indice);
+        }
+        throw new RuntimeException("No se encontro el combo con pistas " + List.of(pistas)
+                + " ni por posicion " + indice + " (candidatos: " + total + ").");
+    }
+
+    /** Devuelve la seccional que toca en este intento, rotando SOLO por las de la lista. */
+    private static String seccionalDeTurno(List<String> seccionales, int intento) {
+        if (seccionales.isEmpty()) {
+            throw new RuntimeException("La lista de seccionales esta vacia. Revisa permiso y tipo de tramite.");
+        }
+        List<String> orden = seccionalesAUsar(seccionales);
+        return orden.get((intento - 1) % orden.size());
+    }
+
+    /** Filtra las seccionales disponibles a las pedidas, en su orden. Lista vacia = todas. */
+    private static List<String> seccionalesAUsar(List<String> disponibles) {
+        List<String> elegidas = new ArrayList<>();
+        List<String> sinMatch = new ArrayList<>();
+
+        if (seccionalesAMonitorear.length == 0) {
+            elegidas.addAll(disponibles);
+        } else {
+            for (String pista : seccionalesAMonitorear) {
+                String aguja = normalizar(pista);
+                boolean hallada = false;
+                for (String opcion : disponibles) {
+                    if (normalizar(opcion).contains(aguja)) {
+                        if (!elegidas.contains(opcion)) {
+                            elegidas.add(opcion);
+                        }
+                        hallada = true;
                         break;
                     }
                 }
+                if (!hallada) {
+                    sinMatch.add(pista);
+                }
             }
-            if (elegido < 0 && !textos.isEmpty()) {
-                elegido = 0;
-            }
-            if (elegido >= 0 && elegido < opciones.size()) {
-                informe.append("ELEGIDO: ").append(textos.get(elegido)).append('\n');
-                opciones.get(elegido).click();
-                pagina.waitForTimeout(1300);
-            } else {
-                informe.append("Sin opciones; se cierra la lista.\n");
-                pagina.keyboard().press("Escape");
-            }
-            captura(pagina, "combo-" + i);
-            informe.append('\n');
         }
-        escribir("combos.txt", informe.toString());
+
+        if (elegidas.isEmpty()) {
+            throw new RuntimeException("Ninguna seccional de la lista existe en el portal. Pedidas: "
+                    + List.of(seccionalesAMonitorear) + ". Disponibles: " + disponibles);
+        }
+        if (!seccionalesAnunciadas) {
+            if (!sinMatch.isEmpty()) {
+                System.out.println("  AVISO: estas seccionales pedidas no aparecen en el portal: " + sinMatch);
+                System.out.println("  Disponibles: " + disponibles);
+            }
+            System.out.println("Seccionales a monitorear (" + elegidas.size() + "): " + elegidas);
+            seccionalesAnunciadas = true;
+        }
+        return elegidas;
     }
 
-    private static void probarGuardar(Page pagina) throws IOException {
-        StringBuilder informe = new StringBuilder();
-        Locator descripcion = buscarDescripcion(pagina);
-        if (descripcion == null) {
-            informe.append("No se encontro el campo de descripcion.\n");
-        } else {
-            informe.append("Descripcion: ").append(attrsDe(descripcion)).append('\n');
-            descripcion.fill("Prueba de reconocimiento de Monitor SIAE para validar el formulario del "
-                    + "paso uno. ".repeat(3));
-            pagina.waitForTimeout(400);
-        }
-        Locator guardar = pagina.locator("button:has-text('GUARDAR'), button:has-text('Guardar')").first();
-        informe.append("GUARDAR visible=").append(guardar.isVisible())
-                .append(" habilitado=").append(guardar.isEnabled()).append('\n');
-        informe.append("GUARDAR attrs: ").append(attrsDe(guardar)).append('\n');
-        volcar(pagina, "03-paso1-antes-de-guardar");
-
-        String respuesta = pedir("Escribe 's' y ENTER para pulsar GUARDAR (crea un borrador), "
-                + "o ENTER solo para no pulsarlo: ");
-        if (!respuesta.trim().equalsIgnoreCase("s")) {
-            escribir("04-guardar.txt", informe.append("No se pulso GUARDAR.\n").toString());
+    private static void escribirDescripcion(Page pagina) {
+        Locator campo = buscarDescripcion(pagina);
+        if (campo == null) {
             return;
         }
-
-        guardar.click();
-        pagina.waitForTimeout(4000);
-        informe.append("URL despues: ").append(pagina.url()).append('\n');
-        escribir("04-guardar.txt", informe.toString());
-        escribir("05-tras-guardar.html", pagina.content());
-        escribir("05-tras-guardar-elementos.txt", informeElementos(pagina, "tras guardar"));
-        captura(pagina, "05-tras-guardar");
-        escribir("red.txt", String.join(System.lineSeparator(), RED));
+        campo.scrollIntoViewIfNeeded();
+        campo.click();
+        campo.fill(DESCRIPCION);
+        pagina.waitForTimeout(200);
     }
 
     private static Locator buscarDescripcion(Page pagina) {
-        for (String candidato : new String[]{"textarea[formcontrolname]", "textarea",
-                "[maxlength='500']", "input[maxlength='500']"}) {
+        for (String candidato : new String[]{SelectoresSiae.CAMPO_DESCRIPCION,
+                "textarea[formcontrolname]", "textarea", "[maxlength='500']", "input[maxlength='500']"}) {
             Locator locator = pagina.locator(candidato);
             if (locator.count() > 0) {
                 return locator.first();
             }
         }
         return null;
+    }
+
+    private static void pulsarGuardar(Page pagina) {
+        Locator guardar = pagina.locator(SelectoresSiae.BOTON_GUARDAR).first();
+        guardar.scrollIntoViewIfNeeded();
+        guardar.waitFor(new Locator.WaitForOptions().setTimeout(10_000));
+        if (!guardar.isEnabled()) {
+            throw new RuntimeException("El boton GUARDAR esta deshabilitado.");
+        }
+        guardar.click();
+    }
+
+    // ==================== DETECCION DEL PASO 2 ====================
+
+    private static boolean sesionVencida(Page pagina) {
+        return pagina.locator(SelectoresSiae.LOGIN_PASSWORD).count() > 0;
+    }
+
+    private static boolean hayMensajeSinInventario(Page pagina) {
+        return pagina.locator(SIN_INVENTARIO).count() > 0;
+    }
+
+    private static boolean hayInventario(Page pagina) {
+        if (hayMensajeSinInventario(pagina)) {
+            return false;
+        }
+        return pagina.locator(FILAS_INVENTARIO).count() > 0;
+    }
+
+    private static boolean intentarModalidad(Page pagina) {
+        Locator combos = pagina.locator(SELECTOR_COMBO);
+        for (int i = 0; i < combos.count(); i++) {
+            Locator combo = combos.nth(i);
+            try {
+                combo.scrollIntoViewIfNeeded();
+                combo.click();
+                pagina.waitForTimeout(600);
+                List<String> textos = leerOpciones(pagina);
+                int idx = buscarOpcion(textos, MODALIDAD);
+                if (idx >= 0) {
+                    pagina.locator(SELECTOR_OPCION).nth(idx).click();
+                    pagina.waitForTimeout(1500);
+                    return true;
+                }
+                pagina.keyboard().press("Escape");
+                pagina.waitForTimeout(300);
+            } catch (RuntimeException ignorado) {
+                // no era un combo con opciones
+            }
+        }
+        return false;
+    }
+
+    // ==================== CAPTURA ====================
+
+    private static void capturarSinInventario(Page pagina) throws IOException {
+        System.out.println(">>> Estado 'sin inventario' capturado (05-sin-inventario).");
+        escribir("05-sin-inventario.html", pagina.content());
+        escribir("05-sin-inventario-elementos.txt", informeElementos(pagina, "sin inventario"));
+        escribir("05-sin-inventario-texto.txt", pagina.locator("body").innerText());
+        captura(pagina, "05-sin-inventario");
+    }
+
+    private static void capturarPaso2(Page pagina, boolean pausar) throws IOException {
+        volcar(pagina, "10-paso2-inventario");
+        explorarControlesPaso2(pagina);
+        volcar(pagina, "11-paso2-final");
+        if (pausar) {
+            pausa("PASO 2 capturado en 'reconocimiento'. Revisa 10-* y 11-*. ENTER para cerrar.");
+        }
+    }
+
+    private static void explorarControlesPaso2(Page pagina) throws IOException {
+        StringBuilder informe = new StringBuilder("# Controles interactivos del paso 2\n\n");
+        Locator combos = pagina.locator(SELECTOR_COMBO);
+        informe.append("Combos detectados: ").append(combos.count()).append("\n\n");
+        for (int i = 0; i < combos.count(); i++) {
+            Locator combo = combos.nth(i);
+            informe.append("## Combo ").append(i).append('\n');
+            informe.append("selector: ").append(seguro(() -> selectorDe(combo))).append('\n');
+            informe.append("placeholder: ").append(seguro(() -> String.valueOf(combo.getAttribute("placeholder")))).append('\n');
+            informe.append("texto:    ").append(seguro(() -> limpiar(combo.innerText()))).append('\n');
+            try {
+                combo.scrollIntoViewIfNeeded();
+                combo.click();
+                pagina.waitForTimeout(800);
+                List<String> opciones = leerOpciones(pagina);
+                informe.append("opciones (").append(opciones.size()).append("):\n");
+                opciones.forEach(o -> informe.append("   - ").append(o).append('\n'));
+                escribir("12-paso2-overlay-" + i + ".html", overlayHtml(pagina));
+                captura(pagina, "12-paso2-combo-" + i);
+                pagina.keyboard().press("Escape");
+                pagina.waitForTimeout(400);
+            } catch (RuntimeException e) {
+                informe.append("NO SE PUDO ABRIR: ").append(e.getMessage()).append('\n');
+            }
+            informe.append('\n');
+        }
+        informe.append("# Radios, checkboxes, botones y pestanas\n");
+        for (Locator el : pagina.locator(
+                "input[type='radio'], input[type='checkbox'], button, [role='radio'], [role='tab']").all()) {
+            informe.append("- ").append(seguro(() -> (String) el.evaluate("el => el.tagName.toLowerCase()")))
+                    .append("  texto='").append(seguro(() -> limpiar(el.innerText())))
+                    .append("'  selector: ").append(seguro(() -> selectorDe(el))).append('\n');
+        }
+        informe.append("\n# Encabezados de tabla\n");
+        for (Locator th : pagina.locator("table th, table thead td, [role='columnheader']").all()) {
+            informe.append("- ").append(seguro(() -> limpiar(th.innerText())))
+                    .append("  selector: ").append(seguro(() -> selectorDe(th))).append('\n');
+        }
+        informe.append("\n# Filas de inventario (primeras 10)\n");
+        for (Locator tr : pagina.locator(FILAS_INVENTARIO).all().stream().limit(10).toList()) {
+            informe.append("- ").append(seguro(() -> limpiar(tr.innerText()))).append('\n');
+        }
+        escribir("12-paso2-controles.txt", informe.toString());
+    }
+
+    // ==================== UTILIDADES ====================
+
+    private static Path perfilReconocimiento() {
+        String appdata = System.getenv("APPDATA");
+        Path base = (appdata != null && !appdata.isBlank())
+                ? Path.of(appdata)
+                : Path.of(System.getProperty("user.home"), "Library", "Application Support");
+        return base.resolve("MonitorSIAE").resolve("perfiles").resolve("_reconocimiento");
+    }
+
+    private static void registrarIntento(int intento, String seccional, Page pagina) {
+        MONITOREO.append("Consulta ").append(intento)
+                .append("  seccional=").append(seccional)
+                .append("  filas=").append(pagina.locator(FILAS_INVENTARIO).count())
+                .append('\n');
+        try {
+            escribir("monitoreo.txt", MONITOREO.toString());
+        } catch (IOException ignorado) {
+            // best-effort
+        }
     }
 
     private static void volcar(Page pagina, String nombre) throws IOException {
@@ -199,7 +571,7 @@ public final class Reconocimiento {
                         .append("   attrs:    ").append(attrsDe(elemento)).append('\n')
                         .append("   texto:    ").append(limpiar(elemento.innerText())).append("\n\n");
             } catch (RuntimeException ignorado) {
-                // El elemento desaparecio del DOM entre la lista y la lectura.
+                // el elemento desaparecio del DOM
             }
         }
         return informe.toString();
@@ -234,6 +606,14 @@ public final class Reconocimiento {
                 + "el.getAttributeNames().map(n => [n, el.getAttribute(n)])))"));
     }
 
+    private static String valorDe(Locator elemento) {
+        try {
+            return elemento.inputValue();
+        } catch (RuntimeException e) {
+            return "";
+        }
+    }
+
     private static String overlayHtml(Page pagina) {
         return String.valueOf(pagina.evaluate("() => {"
                 + " const c = document.querySelector('.cdk-overlay-container, .overlay-container');"
@@ -250,7 +630,7 @@ public final class Reconocimiento {
                     + respuesta.headerValue("content-type") + " " + respuesta.url());
             try {
                 String contentType = respuesta.headerValue("content-type");
-                if (contentType != null && contentType.contains("json") && cuerposGuardados < 15) {
+                if (contentType != null && contentType.contains("json") && cuerposGuardados < 40) {
                     String cuerpo = respuesta.text();
                     if (cuerpo.length() > 400_000) {
                         cuerpo = cuerpo.substring(0, 400_000);
@@ -259,7 +639,7 @@ public final class Reconocimiento {
                             cuerpo, StandardCharsets.UTF_8);
                 }
             } catch (RuntimeException | IOException ignorado) {
-                // El cuerpo puede no estar disponible si la pagina ya navego.
+                // el cuerpo puede no estar disponible
             }
         });
     }
@@ -276,11 +656,29 @@ public final class Reconocimiento {
         return texto == null ? "" : texto.replaceAll("\\s+", " ").strip();
     }
 
+    private static String normalizar(String texto) {
+        return Normalizer.normalize(texto == null ? "" : texto, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "")
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("\\s+", " ")
+                .strip();
+    }
+
+    private static int buscarOpcion(List<String> textos, String valor) {
+        String buscado = normalizar(valor);
+        for (int i = 0; i < textos.size(); i++) {
+            if (normalizar(textos.get(i)).contains(buscado)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
     private static String seguro(Proveedor proveedor) {
         try {
             return proveedor.obtener();
         } catch (RuntimeException e) {
-            return "<error: " + e.getMessage() + ">";
+            return "";
         }
     }
 

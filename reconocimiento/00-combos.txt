@@ -1,0 +1,34 @@
+# Combos candidatos en la pagina
+
+Total detectado: 3
+
+## Candidato 0
+tag:        input
+attrs:      {"aria-invalid":"false","autocomplete":"off","id":"asynchronous-demo","placeholder":"Seleccione como desea obtener el permiso","type":"text","class":"MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused css-1uvydh2","aria-autocomplete":"list","aria-expanded":"false","autocapitalize":"none","spellcheck":"false","role":"combobox","value":""}
+placeholder: Seleccione como desea obtener el permiso
+value:      
+texto:      
+etiqueta:   
+visible:    true
+selector:   #asynchronous-demo
+
+## Candidato 1
+tag:        input
+attrs:      {"aria-invalid":"false","autocomplete":"off","id":"asynchronous-demo","placeholder":"Ingrese el parametro Tipo de Tramite / Clase de Tramite","type":"text","class":"MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused css-1uvydh2","aria-autocomplete":"list","aria-expanded":"false","autocapitalize":"none","spellcheck":"false","role":"combobox","value":""}
+placeholder: Ingrese el parametro Tipo de Tramite / Clase de Tramite
+value:      
+texto:      
+etiqueta:   
+visible:    true
+selector:   #asynchronous-demo
+
+## Candidato 2
+tag:        input
+attrs:      {"aria-invalid":"false","autocomplete":"off","id":"asynchronous-demo","placeholder":"Indique la seccional donde va a tramitar el permiso para porte o tenencia","type":"text","class":"MuiInputBase-input MuiOutlinedInput-input jss141 MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused css-1uvydh2","aria-autocomplete":"list","aria-expanded":"false","autocapitalize":"none","spellcheck":"false","role":"combobox","value":""}
+placeholder: Indique la seccional donde va a tramitar el permiso para porte o tenencia
+value:      
+texto:      
+etiqueta:   
+visible:    true
+selector:   #asynchronous-demo
+

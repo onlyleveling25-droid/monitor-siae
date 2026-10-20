@@ -326,31 +326,49 @@ public final class PlaywrightPortalDriver implements PortalDriver {
     }
 
     @Override
-    public boolean apartar(ArmaInventario arma, Modalidad modalidad) {
-        verificarDisponible();
-        detectarSesionVencida();
+public boolean apartar(ArmaInventario arma, Modalidad modalidad) {
+    verificarDisponible();
+    detectarSesionVencida();
 
-        Locator fila = buscarFila(arma);
-        if (fila == null) {
-            throw inesperado("El arma ya no está en el listado: " + arma.descripcion(), null);
-        }
-        fila.click();
-
-        Locator botonModalidad = pagina.getByRole(AriaRole.BUTTON,
-                new Page.GetByRoleOptions().setName(etiqueta(modalidad)).setExact(true)).first();
-        botonModalidad.waitFor(new Locator.WaitForOptions().setState(WaitForSelectorState.VISIBLE)
-                .setTimeout(ESPERA_CORTA.toMillis()));
-        botonModalidad.click();
-
-        Locator confirmar = pagina.getByRole(AriaRole.BUTTON,
-                new Page.GetByRoleOptions().setName("Confirmar").setExact(true)).first();
-        confirmar.waitFor(new Locator.WaitForOptions().setState(WaitForSelectorState.VISIBLE)
-                .setTimeout(ESPERA_CORTA.toMillis()));
-        confirmar.click();
-
-        return esperarAsignacionExitosa();
+    // 1. Buscar y seleccionar la fila del arma en la tabla
+    Locator fila = buscarFila(arma);
+    if (fila == null) {
+        throw inesperado("El arma ya no está en el listado: " + arma.descripcion(), null);
     }
+    fila.scrollIntoViewIfNeeded();
+    fila.click();
+    pagina.waitForTimeout(500);
 
+    // 2. Hacer clic en el botón superior de modalidad (PORTE o TENENCIA)
+    String selectorModalidad = (modalidad == Modalidad.PORTE) 
+            ? SelectoresSiae.BOTON_PORTE 
+            : SelectoresSiae.BOTON_TENENCIA;
+            
+    Locator botonModalidad = pagina.locator(selectorModalidad).first();
+    botonModalidad.waitFor(new Locator.WaitForOptions()
+            .setState(WaitForSelectorState.VISIBLE)
+            .setTimeout(ESPERA_CORTA.toMillis()));
+    botonModalidad.click();
+    pagina.waitForTimeout(500);
+
+    // 3. Hacer clic en el botón FINALIZAR (pie de la tabla)
+    Locator botonFinalizar = pagina.locator(SelectoresSiae.BOTON_FINALIZAR).first();
+    botonFinalizar.waitFor(new Locator.WaitForOptions()
+            .setState(WaitForSelectorState.VISIBLE)
+            .setTimeout(ESPERA_CORTA.toMillis()));
+    botonFinalizar.click();
+    pagina.waitForTimeout(1000);
+
+    // 4. Confirmar en el modal/ventana emergente que aparece
+    Locator botonConfirmar = pagina.locator(SelectoresSiae.BOTON_CONFIRMAR_MODAL).first();
+    botonConfirmar.waitFor(new Locator.WaitForOptions()
+            .setState(WaitForSelectorState.VISIBLE)
+            .setTimeout(ESPERA_CORTA.toMillis()));
+    botonConfirmar.click();
+
+    // 5. Verificar que la plataforma haya registrado la asignación
+    return esperarAsignacionExitosa();
+}
     private static String etiqueta(Modalidad modalidad) {
         return switch (modalidad) {
             case PORTE ->

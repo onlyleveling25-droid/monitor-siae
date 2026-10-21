@@ -25,9 +25,13 @@ import com.microsoft.playwright.options.WaitUntilState;
  * Herramienta de reconocimiento. No forma parte de la aplicacion: se ejecuta a mano para volcar
  * el DOM del portal y poder escribir los selectores de PlaywrightPortalDriver.
  *
- * <p>Inicia sesion a mano, llena el paso 1 una vez, y luego solo cambia la seccional (de la lista
- * configurada) y pulsa GUARDAR con un intervalo aleatorio (base + jitter). Registra red, DOM y
- * navegacion de cada ciclo para poder reconstruir el paso 2 incluso sin inventario.
+ * <p>Inicia sesion a mano, llena el paso 1, cicla GUARDAR con jitter hasta que aparezca inventario
+ * y entonces EXPLORA EL PASO 2 paso a paso: pantalla intermedia, enlace, ventana FG-1, tabla,
+ * fila, modal de PORTE, modal de TENENCIA, CONFIRMAR y FINALIZAR. Volca HTML, elementos, modales
+ * y capturas de cada sub-paso.
+ *
+ * <p>OJO: la exploracion del paso 2 deja el arma pre-asignada y puede avanzar al paso 3. Para
+ * repetirla hace falta un tramite nuevo.
  */
 public final class Reconocimiento {
 
@@ -38,7 +42,6 @@ public final class Reconocimiento {
             "Solicito la adquisición de un arma para defensa personal, conforme a los requisitos y "
                     + "procedimientos establecidos por la autoridad competente. Me comprometo a "
                     + "suministrar información veraz y a cumplir las obligaciones aplicables.";
-    private static final String MODALIDAD = "PORTE";
 
     /**
      * Seccionales a monitorear, en orden de prioridad. Basta una parte reconocible (no importan
@@ -57,6 +60,9 @@ public final class Reconocimiento {
     private static final int JITTER_MAXIMO_SEGUNDOS = 45;
     private static final int MAX_CONSULTAS = 120;
 
+    /** Si el arma se aparta, pulsar el CONFIRMAR final para sellar la reserva (avanza al paso 3). */
+    private static final boolean CONFIRMAR_CIERRE = false;
+
     private static final java.util.Random RANDOM = new java.util.Random();
 
     private static final String URL = "https://dccae.cgfm.mil.co/dccae/main/SolicitudTramite";
@@ -64,14 +70,37 @@ public final class Reconocimiento {
     private static final String SELECTOR_COMBO = "mat-select, [role='combobox'], select";
     private static final String SELECTOR_OPCION =
             "mat-option, [role='option'], .mat-mdc-option, li[role='option']";
-    private static final String SIN_INVENTARIO = "text=no hay inventario";
-    private static final String FILAS_INVENTARIO = "table tbody tr";
+
+    // --- Deteccion del paso 2 (el aviso va en MAYUSCULAS: la bandera i es obligatoria) ---
+    private static final String SIN_INVENTARIO = "text=/no hay inventario/i";
+    private static final String GUARDANDO = "text=/guardando/i";
+    private static final String ENLACE_INVENTARIO =
+            "text=/solicitud\\s+adquisici[oó]n\\s+de\\s+armas/i";
+    private static final String PASO_2 = "text=FG-1";
+    private static final String FILAS_INVENTARIO =
+            "[role='row']:has([role='gridcell']), table tbody tr";
+    private static final String CELDAS_INVENTARIO = "[role='gridcell'], td, th";
+    private static final String FILA_SELECCIONADA = "text=/\\d+\\s*fila[s]?\\s+seleccionada/i";
+
+    // --- Controles del paso 2 ---
+    private static final String MODALES =
+            "[role='dialog'], .MuiDialog-container, .MuiModal-root, .MuiDialog-root";
+    private static final String BOTON_PORTE = "button:has-text('PORTE')";
+    private static final String BOTON_TENENCIA = "button:has-text('TENENCIA')";
+    private static final String BOTON_FINALIZAR = "button:has-text('FINALIZAR')";
+    private static final String BOTON_CONFIRMAR = "button:has-text('CONFIRMAR')";
+    private static final String BOTON_VOLVER = "button:has-text('VOLVER')";
+    private static final String ERROR_CUPO = "text=/cupo disponible/i";
+    private static final String ASIGNACION_EXITOSA = "text=/asignaci[oó]n exitosa|exitoso/i";
+
     private static final BufferedReader TECLADO =
             new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8));
     private static final List<String> RED = new ArrayList<>();
     private static final List<String> NAVEGACIONES = new ArrayList<>();
     private static final Set<String> URLS_VISTAS = new HashSet<>();
     private static final StringBuilder MONITOREO = new StringBuilder();
+    private static final Set<Page> PAGINAS_ENGANCHADAS = new HashSet<>();
+    private static BrowserContext contexto;
     private static boolean seccionalesAnunciadas;
     private static int cuerposGuardados;
 
@@ -96,14 +125,16 @@ public final class Reconocimiento {
         System.out.println("Espera: " + SEGUNDOS_BASE + "s base + 0.." + JITTER_MAXIMO_SEGUNDOS + "s jitter");
 
         try (Playwright playwright = Playwright.create()) {
-            BrowserContext contexto = playwright.chromium().launchPersistentContext(perfil,
+            contexto = playwright.chromium().launchPersistentContext(perfil,
                     new BrowserType.LaunchPersistentContextOptions()
                             .setChannel(canal)
                             .setHeadless(false)
-                            .setViewportSize(1600, 900));
+                            .setViewportSize((com.microsoft.playwright.options.ViewportSize) null)
+                            .setArgs(List.of("--start-maximized", "--no-first-run",
+                                    "--no-default-browser-check")));
+            contexto.onPage(Reconocimiento::enganchar);
             Page pagina = contexto.pages().isEmpty() ? contexto.newPage() : contexto.pages().getFirst();
-            registrarRed(pagina);
-            registrarNavegacion(pagina);
+            enganchar(pagina);
             pagina.navigate(URL, new Page.NavigateOptions().setWaitUntil(WaitUntilState.DOMCONTENTLOADED));
 
             try {
@@ -129,7 +160,7 @@ public final class Reconocimiento {
 
                         String seccional = cambiarSeccionalYGuardar(pagina, intento);
                         System.out.println("Seccional usada: " + seccional);
-                        pagina.waitForTimeout(2000);
+                        esperarRespuestaDeGuardar(pagina);
 
                         if (sesionVencida(pagina)) {
                             System.out.println("Sesion vencida; hay que re-loguear.");
@@ -138,12 +169,8 @@ public final class Reconocimiento {
                             continue;
                         }
 
-                        if (hayInventario(pagina)) {
-                            encontrado = true;
-                            System.out.println(">>> INVENTARIO DETECTADO en " + seccional);
-                            capturarPaso2(pagina, true);
-                        } else {
-                            if (!sinInvCapturado && hayMensajeSinInventario(pagina)) {
+                        if (hayMensajeSinInventario(pagina)) {
+                            if (!sinInvCapturado) {
                                 capturarSinInventario(pagina);
                                 sinInvCapturado = true;
                             }
@@ -158,7 +185,22 @@ public final class Reconocimiento {
                                     + " segundos (Base: " + SEGUNDOS_BASE + "s + Jitter: " + jitter
                                     + "s) antes del siguiente intento...");
                             pagina.waitForTimeout(tiempoEsperaTotal * 1000L);
+                            continue;
                         }
+
+                        if (hayPantallaIntermedia(pagina) || fg1Abierto(pagina)) {
+                            encontrado = true;
+                            System.out.println(">>> INVENTARIO DETECTADO en " + seccional);
+                            pagina = explorarPaso2(pagina);
+                            continue;
+                        }
+
+                        capturarEstadoActual(pagina, intento);
+                        registrarIntento(intento, seccional, pagina);
+                        volcarInformes();
+                        System.out.println("  Respuesta no reconocida. Ultimas peticiones: "
+                                + ultimasUrls(4));
+                        pausa("Mira la ventana. Si hay inventario y no lo detecte, corrige y pulsa ENTER.");
                     } catch (RuntimeException e) {
                         System.out.println("FALLO en la consulta " + intento + ": " + e);
                         formularioListo = false;
@@ -174,14 +216,364 @@ public final class Reconocimiento {
                 if (!encontrado) {
                     System.out.println("\nNo aparecio inventario en " + MAX_CONSULTAS + " consultas.");
                     volcar(pagina, "99-ultimo-estado");
-                    pausa("Pulsa ENTER para cerrar.");
                 }
             } catch (RuntimeException e) {
                 System.out.println("\nFALLO: " + e);
                 pausa("El navegador queda abierto. Pulsa ENTER para cerrar.");
             }
             volcarInformes();
+            pausa("Listo. Pulsa ENTER para cerrar.");
         }
+    }
+
+    // ==================== EXPLORACION DEL PASO 2 ====================
+
+    /**
+     * Recorre el paso 2 completo volcando todo lo necesario para escribir los selectores.
+     * Devuelve la pagina activa (puede ser una pestana nueva si el portal abre FG-1 aparte).
+     */
+    private static Page explorarPaso2(Page pagina) throws IOException {
+        System.out.println("\n########## EXPLORACION DEL PASO 2 ##########");
+
+        // --- A. Pantalla intermedia con el enlace ---
+        if (hayPantallaIntermedia(pagina)) {
+            volcar(pagina, "10-intermedia");
+            volcarEstructura(pagina, "10-intermedia-estructura.txt");
+            pausa("PANTALLA INTERMEDIA volcada (10-*). Debe aparecer el enlace "
+                    + "\"Solicitud adquisicion de armas\". Si el texto es otro, anotalo.");
+        } else {
+            System.out.println("No hay pantalla intermedia: FG-1 ya esta abierto.");
+        }
+
+        // --- B. Clic en el enlace, detectando pestana nueva ---
+        if (!fg1Abierto(pagina)) {
+            Locator enlace = pagina.locator(ENLACE_INVENTARIO).first();
+            if (enlace.count() == 0) {
+                System.out.println("No encontre el enlace. Haz clic TU en el enlace del navegador.");
+                pausa("Clic manual en el enlace del inventario. ENTER cuando este abierto.");
+            } else {
+                Set<Page> antes = new HashSet<>(contexto.pages());
+                enlace.click();
+                Page nueva = esperarPaginaNueva(antes, pagina, 8000);
+                if (nueva != null) {
+                    System.out.println(">>> FG-1 se abrio en una PESTANA NUEVA. url=" + nueva.url());
+                    escribir("10-pestana-nueva.txt",
+                            "FG-1 se abrio en una pestana nueva. url=" + nueva.url());
+                    pagina = nueva;
+                } else {
+                    escribir("10-pestana-nueva.txt",
+                            "FG-1 se abrio en la MISMA pestana (no hubo pestana nueva).");
+                }
+                pagina.waitForTimeout(2500);
+            }
+        }
+
+        if (!fg1Abierto(pagina)) {
+            pausa("No detecte el titulo FG-1. Acomoda la ventana a mano y pulsa ENTER.");
+        }
+        volcar(pagina, "11-fg1");
+        volcarEstructura(pagina, "11-fg1-estructura.txt");
+        pausa("FG-1 volcado (11-*). Revisa que se vean los botones PORTE y TENENCIA y la tabla.");
+
+        // --- C. Tabla de inventario ---
+        volcarTabla(pagina, "12-tabla");
+        pausa("Estructura de la tabla volcada (12-*). Revisa cuantas filas y columnas detecte.");
+
+        // --- D. Botones de la pantalla ---
+        volcarBotones(pagina, "13-botones.txt");
+        pausa("Botones volcados (13-botones.txt). Anota los textos EXACTOS de PORTE, TENENCIA "
+                + "y FINALIZAR si son distintos de los que espero.");
+
+        // --- E. Seleccionar la primera fila ---
+        List<Locator> filas = pagina.locator(FILAS_INVENTARIO).all();
+        if (filas.isEmpty()) {
+            pausa("No detecte filas. Selecciona una fila TU y pulsa ENTER.");
+        } else {
+            Locator fila = filas.getFirst();
+            fila.scrollIntoViewIfNeeded();
+            fila.click();
+            pagina.waitForTimeout(900);
+            escribir("14-fila-seleccionada.txt",
+                    "Texto de confirmacion de seleccion:\n"
+                            + textoDe(pagina.locator("body")) + "\n\n"
+                            + "Selector de la fila: " + selectorDe(fila) + "\n"
+                            + "attrs de la fila:   " + attrsDe(fila) + "\n");
+            captura(pagina, "14-fila-seleccionada");
+            System.out.println("  fila.click() hecho. Fila: " + limpiar(fila.innerText()));
+            System.out.println("  Texto de seleccion: "
+                    + limpiar(textoDe(pagina.locator(FILA_SELECCIONADA).first())));
+            pausa("Fila seleccionada (14-*). Verifica que la fila quede resaltada en el navegador.");
+        }
+
+        // --- F. Modal de PORTE ---
+        clicYVolcarModal(pagina, BOTON_PORTE, "PORTE", "15-modal-porte");
+
+        // --- G. Volver y abrir el modal de TENENCIA ---
+        clicSiExiste(pagina, BOTON_VOLVER);
+        pagina.waitForTimeout(800);
+        clicYVolcarModal(pagina, BOTON_TENENCIA, "TENENCIA", "17-modal-tenencia");
+
+        // --- H. Volver, abrir PORTE otra vez y CONFIRMAR ---
+        clicSiExiste(pagina, BOTON_VOLVER);
+        pagina.waitForTimeout(800);
+        Locator botonPorte = pagina.locator(BOTON_PORTE).first();
+        if (botonPorte.count() > 0) {
+            botonPorte.click();
+            pagina.waitForTimeout(1200);
+        }
+        Locator modal = modalVisible(pagina);
+        if (modal != null) {
+            Locator confirmar = modal.locator(BOTON_CONFIRMAR).first();
+            if (confirmar.count() > 0) {
+                confirmar.click();
+                pagina.waitForTimeout(2500);
+                escribir("18-tras-confirmar.txt",
+                        "url: " + pagina.url() + "\n"
+                                + "errorCupo=" + pagina.locator(ERROR_CUPO).count() + "\n"
+                                + "modalAbierto=" + (modalVisible(pagina) != null) + "\n\n"
+                                + textoDe(pagina.locator("body")));
+                captura(pagina, "18-tras-confirmar");
+                pausa("CONFIRMAR pulsado (18-*). Verifica si quedo pre-asignada o si salio "
+                        + "un error rojo de cupo.");
+            }
+        } else {
+            pausa("No encontre el modal para CONFIRMAR. Hazlo a mano y pulsa ENTER.");
+        }
+
+        // --- I. FINALIZAR ---
+        Locator finalizar = pagina.locator(BOTON_FINALIZAR).first();
+        if (finalizar.count() > 0) {
+            finalizar.click();
+            pagina.waitForTimeout(2000);
+            volcarModal(pagina, "19-modal-finalizar");
+            volcar(pagina, "19-finalizar");
+            pausa("FINALIZAR pulsado (19-*). Aqui aparece el modal de cierre con \"Ver Armas\".");
+            if (CONFIRMAR_CIERRE) {
+                Locator cierre = modalVisible(pagina);
+                if (cierre != null) {
+                    cierre.locator(BOTON_CONFIRMAR).first().click();
+                    pagina.waitForTimeout(3000);
+                    escribir("20-paso3.txt", "url: " + pagina.url() + "\n\n"
+                            + textoDe(pagina.locator("body")));
+                    captura(pagina, "20-paso3");
+                    System.out.println(">>> CONFIRMAR final pulsado: el tramite avanzo al paso 3.");
+                }
+            } else {
+                System.out.println(">>> Deje el CONFIRMAR final SIN pulsar (CONFIRMAR_CIERRE=false).");
+            }
+        } else {
+            pausa("No encontre FINALIZAR. Pulsalo a mano y luego ENTER.");
+        }
+
+        volcar(pagina, "21-estado-final");
+        pausa("EXPLORACION TERMINADA. Todo en la carpeta 'reconocimiento'.");
+        return pagina;
+    }
+
+    private static void clicYVolcarModal(Page pagina, String selector, String nombre, String archivo)
+            throws IOException {
+        Locator boton = pagina.locator(selector).first();
+        if (boton.count() == 0) {
+            System.out.println("  No encontre el boton " + nombre + ". Pulsalo a mano.");
+            pausa("Abre el modal de " + nombre + " a mano y pulsa ENTER.");
+        } else {
+            boton.scrollIntoViewIfNeeded();
+            boton.click();
+            pagina.waitForTimeout(1500);
+        }
+        volcarModal(pagina, archivo);
+        volcar(pagina, archivo + "-pagina");
+        Locator modal = modalVisible(pagina);
+        if (modal == null) {
+            System.out.println("  AVISO: no detecte ningun modal abierto tras " + nombre + ".");
+        } else {
+            System.out.println("  modal " + nombre + " detectado. Botones: "
+                    + textosDe(modal.locator("button, [role='button']")));
+        }
+        pausa("Modal de " + nombre + " volcado (" + archivo + "-*). Revisa el HTML del modal.");
+    }
+
+    /** Volca el HTML de cada modal visible y de sus controles. */
+    private static void volcarModal(Page pagina, String nombre) throws IOException {
+        List<Locator> modales = pagina.locator(MODALES).all();
+        StringBuilder informe = new StringBuilder("# Modales detectados: " + modales.size() + "\n\n");
+        int visibles = 0;
+        for (int i = 0; i < modales.size(); i++) {
+            Locator modal = modales.get(i);
+            boolean visible;
+            try {
+                visible = modal.isVisible();
+            } catch (RuntimeException e) {
+                continue;
+            }
+            informe.append("## Modal ").append(i).append(" visible=").append(visible).append('\n');
+            informe.append("selector: ").append(seguro(() -> selectorDe(modal))).append('\n');
+            informe.append("attrs:    ").append(seguro(() -> attrsDe(modal))).append('\n');
+            informe.append("texto:    ").append(seguro(() -> limpiar(modal.innerText()))).append('\n');
+            if (!visible) {
+                informe.append('\n');
+                continue;
+            }
+            visibles++;
+            escribir(nombre + "-modal-" + i + ".html", seguro(() -> (String) modal.evaluate("el => el.outerHTML")));
+            informe.append("botones:\n");
+            for (Locator b : modal.locator("button, [role='button'], a").all()) {
+                informe.append("   - '").append(seguro(() -> limpiar(b.innerText())))
+                        .append("'  selector: ").append(seguro(() -> selectorDe(b))).append('\n');
+            }
+            informe.append("campos:\n");
+            for (Locator c : modal.locator("input, textarea, [role='combobox'], [role='spinbutton']").all()) {
+                informe.append("   - ").append(seguro(() -> attrsDe(c)))
+                        .append("  valor='").append(seguro(() -> valorDe(c))).append("'\n");
+            }
+            informe.append("cantidad:\n");
+            for (Locator c : modal.locator("button:has-text('-'), button:has-text('+'), "
+                    + "[aria-label*='crease'], [aria-label*='uma'], input[type='number']").all()) {
+                informe.append("   - '").append(seguro(() -> limpiar(c.innerText())))
+                        .append("'  attrs: ").append(seguro(() -> attrsDe(c))).append('\n');
+            }
+            informe.append('\n');
+        }
+        informe.insert(0, "Visibles: " + visibles + "\n");
+        escribir(nombre + ".txt", informe.toString());
+    }
+
+    private static void volcarTabla(Page pagina, String nombre) throws IOException {
+        StringBuilder informe = new StringBuilder("# Estructura de la tabla de inventario\n\n");
+        Locator filas = pagina.locator(FILAS_INVENTARIO);
+        informe.append("filas detectadas: ").append(filas.count()).append('\n');
+        informe.append("tablas <table>: ").append(pagina.locator("table").count()).append('\n');
+        informe.append("roles row: ").append(pagina.locator("[role='row']").count()).append('\n');
+        informe.append("roles gridcell: ").append(pagina.locator("[role='gridcell']").count()).append('\n');
+        informe.append("roles columnheader: ").append(pagina.locator("[role='columnheader']").count()).append('\n');
+        informe.append("roles grid: ").append(pagina.locator("[role='grid']").count()).append('\n');
+        informe.append("thead/th: ").append(pagina.locator("th").count()).append('\n');
+        informe.append("paginador MUI: ").append(pagina.locator(".MuiTablePagination-root").count()).append("\n\n");
+
+        informe.append("## Encabezados\n");
+        for (Locator th : pagina.locator("th, [role='columnheader']").all()) {
+            informe.append("- '").append(seguro(() -> limpiar(th.innerText())))
+                    .append("'  selector: ").append(seguro(() -> selectorDe(th))).append('\n');
+        }
+
+        informe.append("\n## Primeras 10 filas\n");
+        List<Locator> lista = filas.all().stream().limit(10).toList();
+        for (int i = 0; i < lista.size(); i++) {
+            Locator fila = lista.get(i);
+            informe.append("### Fila ").append(i).append('\n');
+            informe.append("attrs:    ").append(seguro(() -> attrsDe(fila))).append('\n');
+            informe.append("selector: ").append(seguro(() -> selectorDe(fila))).append('\n');
+            informe.append("texto:    ").append(seguro(() -> limpiar(fila.innerText()))).append('\n');
+            for (Locator celda : fila.locator(CELDAS_INVENTARIO).all()) {
+                informe.append("   celda '").append(seguro(() -> limpiar(celda.innerText())))
+                        .append("'  attrs: ").append(seguro(() -> attrsDe(celda))).append('\n');
+            }
+            informe.append('\n');
+        }
+        informe.append("\n## Texto de seleccion en reposo\n");
+        informe.append(seguro(() -> limpiar(textoDe(pagina.locator(FILA_SELECCIONADA).first()))));
+        escribir(nombre + ".txt", informe.toString());
+        escribir(nombre + "-filas.html", seguro(() -> (String) pagina.evaluate(
+                "() => { const t = document.querySelector('table, [role=grid]');"
+                        + " return t ? t.outerHTML.slice(0, 200000) : '(sin tabla)'; }")));
+    }
+
+    private static void volcarBotones(Page pagina, String nombre) throws IOException {
+        StringBuilder informe = new StringBuilder("# Botones y enlaces visibles\n\n");
+        for (Locator b : pagina.locator("button, [role='button'], a, input[type='submit']").all()) {
+            try {
+                if (!b.isVisible()) {
+                    continue;
+                }
+            } catch (RuntimeException e) {
+                continue;
+            }
+            informe.append("- '").append(seguro(() -> limpiar(b.innerText())))
+                    .append("'  tag=").append(seguro(() -> (String) b.evaluate("el => el.tagName.toLowerCase()")))
+                    .append("  selector: ").append(seguro(() -> selectorDe(b)))
+                    .append("  habilitado=").append(seguro(() -> String.valueOf(b.isEnabled())))
+                    .append('\n');
+        }
+        escribir(nombre, informe.toString());
+    }
+
+    private static void volcarEstructura(Page pagina, String nombre) throws IOException {
+        StringBuilder informe = new StringBuilder("# Roles y controles de la pantalla\n\n");
+        informe.append("url: ").append(pagina.url()).append("\n\n");
+        informe.append("## Elementos con role\n");
+        for (Locator el : pagina.locator("[role]").all()) {
+            informe.append("- role=").append(seguro(() -> String.valueOf(el.getAttribute("role"))))
+                    .append("  tag=").append(seguro(() -> (String) el.evaluate("el => el.tagName.toLowerCase()")))
+                    .append("  texto='").append(seguro(() -> limpiar(el.innerText())).substring(0,
+                            Math.min(60, seguro(() -> limpiar(el.innerText())).length())))
+                    .append("'\n");
+        }
+        informe.append("\n## Enlaces\n");
+        for (Locator a : pagina.locator("a").all()) {
+            informe.append("- '").append(seguro(() -> limpiar(a.innerText())))
+                    .append("'  href=").append(seguro(() -> String.valueOf(a.getAttribute("href"))))
+                    .append('\n');
+        }
+        escribir(nombre, informe.toString());
+    }
+
+    private static Locator modalVisible(Page pagina) {
+        List<Locator> modales = pagina.locator(MODALES).all();
+        for (int i = modales.size() - 1; i >= 0; i--) {
+            try {
+                if (modales.get(i).isVisible()) {
+                    return modales.get(i);
+                }
+            } catch (RuntimeException ignorado) {
+                // el modal se re-renderizo
+            }
+        }
+        return null;
+    }
+
+    private static boolean hayPantallaIntermedia(Page pagina) {
+        return pagina.locator(ENLACE_INVENTARIO).count() > 0 && !fg1Abierto(pagina);
+    }
+
+    private static boolean fg1Abierto(Page pagina) {
+        return pagina.locator(PASO_2).count() > 0;
+    }
+
+    /** Espera a que GUARDAR termine: desaparece el "GUARDANDO...", o aparece cualquier resultado. */
+    private static void esperarRespuestaDeGuardar(Page pagina) {
+        long limite = System.currentTimeMillis() + 30_000;
+        while (System.currentTimeMillis() < limite) {
+            if (hayMensajeSinInventario(pagina) || hayPantallaIntermedia(pagina) || fg1Abierto(pagina)) {
+                return;
+            }
+            if (pagina.locator(GUARDANDO).count() == 0
+                    && pagina.locator(SelectoresSiae.BOTON_GUARDAR).count() > 0) {
+                pagina.waitForTimeout(500);
+                return;
+            }
+            pagina.waitForTimeout(300);
+        }
+    }
+
+    private static Page esperarPaginaNueva(Set<Page> antes, Page anterior, long timeoutMs) {
+        long limite = System.currentTimeMillis() + timeoutMs;
+        while (System.currentTimeMillis() < limite) {
+            for (Page candidata : contexto.pages()) {
+                if (!antes.contains(candidata) && !candidata.isClosed()) {
+                    return candidata;
+                }
+            }
+            anterior.waitForTimeout(200);
+        }
+        return null;
+    }
+
+    private static void enganchar(Page pagina) {
+        if (!PAGINAS_ENGANCHADAS.add(pagina)) {
+            return;
+        }
+        registrarRed(pagina);
+        registrarNavegacion(pagina);
     }
 
     // ==================== DIAGNOSTICO ====================
@@ -410,7 +802,7 @@ public final class Reconocimiento {
         guardar.click();
     }
 
-    // ==================== DETECCION DEL PASO 2 ====================
+    // ==================== DETECCION ====================
 
     private static boolean sesionVencida(Page pagina) {
         return pagina.locator(SelectoresSiae.LOGIN_PASSWORD).count() > 0;
@@ -420,35 +812,17 @@ public final class Reconocimiento {
         return pagina.locator(SIN_INVENTARIO).count() > 0;
     }
 
-    private static boolean hayInventario(Page pagina) {
-        if (hayMensajeSinInventario(pagina)) {
-            return false;
-        }
-        return pagina.locator(FILAS_INVENTARIO).count() > 0;
-    }
-
-    private static boolean intentarModalidad(Page pagina) {
-        Locator combos = pagina.locator(SELECTOR_COMBO);
-        for (int i = 0; i < combos.count(); i++) {
-            Locator combo = combos.nth(i);
+    private static void clicSiExiste(Page pagina, String selector) {
+        Locator boton = pagina.locator(selector).first();
+        if (boton.count() > 0) {
             try {
-                combo.scrollIntoViewIfNeeded();
-                combo.click();
-                pagina.waitForTimeout(600);
-                List<String> textos = leerOpciones(pagina);
-                int idx = buscarOpcion(textos, MODALIDAD);
-                if (idx >= 0) {
-                    pagina.locator(SELECTOR_OPCION).nth(idx).click();
-                    pagina.waitForTimeout(1500);
-                    return true;
-                }
-                pagina.keyboard().press("Escape");
-                pagina.waitForTimeout(300);
-            } catch (RuntimeException ignorado) {
-                // no era un combo con opciones
+                boton.scrollIntoViewIfNeeded();
+                boton.click();
+                pagina.waitForTimeout(700);
+            } catch (RuntimeException e) {
+                System.out.println("  No pude pulsar " + selector + ": " + e.getMessage());
             }
         }
-        return false;
     }
 
     // ==================== CAPTURA ====================
@@ -466,60 +840,6 @@ public final class Reconocimiento {
         escribir("05-actual.html", pagina.content());
         escribir("05-actual-texto.txt", "URL: " + pagina.url() + "\n\n" + pagina.locator("body").innerText());
         captura(pagina, String.format("05-actual-%03d", intento));
-    }
-
-    private static void capturarPaso2(Page pagina, boolean pausar) throws IOException {
-        volcar(pagina, "10-paso2-inventario");
-        explorarControlesPaso2(pagina);
-        volcar(pagina, "11-paso2-final");
-        if (pausar) {
-            pausa("PASO 2 capturado en 'reconocimiento'. Revisa 10-* y 11-*. ENTER para cerrar.");
-        }
-    }
-
-    private static void explorarControlesPaso2(Page pagina) throws IOException {
-        StringBuilder informe = new StringBuilder("# Controles interactivos del paso 2\n\n");
-        Locator combos = pagina.locator(SELECTOR_COMBO);
-        informe.append("Combos detectados: ").append(combos.count()).append("\n\n");
-        for (int i = 0; i < combos.count(); i++) {
-            Locator combo = combos.nth(i);
-            informe.append("## Combo ").append(i).append('\n');
-            informe.append("selector: ").append(seguro(() -> selectorDe(combo))).append('\n');
-            informe.append("placeholder: ").append(seguro(() -> String.valueOf(combo.getAttribute("placeholder")))).append('\n');
-            informe.append("texto:    ").append(seguro(() -> limpiar(combo.innerText()))).append('\n');
-            try {
-                combo.scrollIntoViewIfNeeded();
-                combo.click();
-                pagina.waitForTimeout(800);
-                List<String> opciones = leerOpciones(pagina);
-                informe.append("opciones (").append(opciones.size()).append("):\n");
-                opciones.forEach(o -> informe.append("   - ").append(o).append('\n'));
-                escribir("12-paso2-overlay-" + i + ".html", overlayHtml(pagina));
-                captura(pagina, "12-paso2-combo-" + i);
-                pagina.keyboard().press("Escape");
-                pagina.waitForTimeout(400);
-            } catch (RuntimeException e) {
-                informe.append("NO SE PUDO ABRIR: ").append(e.getMessage()).append('\n');
-            }
-            informe.append('\n');
-        }
-        informe.append("# Radios, checkboxes, botones y pestanas\n");
-        for (Locator el : pagina.locator(
-                "input[type='radio'], input[type='checkbox'], button, [role='radio'], [role='tab']").all()) {
-            informe.append("- ").append(seguro(() -> (String) el.evaluate("el => el.tagName.toLowerCase()")))
-                    .append("  texto='").append(seguro(() -> limpiar(el.innerText())))
-                    .append("'  selector: ").append(seguro(() -> selectorDe(el))).append('\n');
-        }
-        informe.append("\n# Encabezados de tabla\n");
-        for (Locator th : pagina.locator("table th, table thead td, [role='columnheader']").all()) {
-            informe.append("- ").append(seguro(() -> limpiar(th.innerText())))
-                    .append("  selector: ").append(seguro(() -> selectorDe(th))).append('\n');
-        }
-        informe.append("\n# Filas de inventario (primeras 10)\n");
-        for (Locator tr : pagina.locator(FILAS_INVENTARIO).all().stream().limit(10).toList()) {
-            informe.append("- ").append(seguro(() -> limpiar(tr.innerText()))).append('\n');
-        }
-        escribir("12-paso2-controles.txt", informe.toString());
     }
 
     // ==================== UTILIDADES ====================
@@ -546,6 +866,8 @@ public final class Reconocimiento {
                 .append("  seccional=").append(seccional)
                 .append("  url=").append(pagina.url())
                 .append("  filas=").append(pagina.locator(FILAS_INVENTARIO).count())
+                .append("  enlace=").append(pagina.locator(ENLACE_INVENTARIO).count())
+                .append("  fg1=").append(pagina.locator(PASO_2).count())
                 .append("  avisoNoInventario=").append(pagina.locator(SIN_INVENTARIO).count())
                 .append('\n');
         try {
@@ -567,12 +889,14 @@ public final class Reconocimiento {
     private static void volcar(Page pagina, String nombre) throws IOException {
         escribir(nombre + ".html", pagina.content());
         escribir(nombre + "-elementos.txt", informeElementos(pagina, nombre));
+        escribir(nombre + "-texto.txt", "URL: " + pagina.url() + "\n\n"
+                + pagina.locator("body").innerText());
         captura(pagina, nombre);
     }
 
     private static String informeElementos(Page pagina, String nombre) {
         List<Locator> elementos = pagina.locator(
-                "input, textarea, select, button, [role], [formcontrolname], mat-select, "
+                "input, textarea, select, button, a, [role], [formcontrolname], mat-select, "
                         + "mat-option, table, th, td").all();
         StringBuilder informe = new StringBuilder("# ").append(nombre).append('\n');
         informe.append("URL: ").append(pagina.url()).append('\n');
@@ -636,10 +960,20 @@ public final class Reconocimiento {
         }
     }
 
-    private static String overlayHtml(Page pagina) {
-        return String.valueOf(pagina.evaluate("() => {"
-                + " const c = document.querySelector('.cdk-overlay-container, .overlay-container');"
-                + " return c ? c.outerHTML : ''; }"));
+    private static String textoDe(Locator elemento) {
+        try {
+            return elemento.innerText();
+        } catch (RuntimeException e) {
+            return "";
+        }
+    }
+
+    private static List<String> textosDe(Locator elementos) {
+        List<String> textos = new ArrayList<>();
+        for (Locator el : elementos.all()) {
+            textos.add(seguro(() -> limpiar(el.innerText())));
+        }
+        return textos;
     }
 
     private static void registrarRed(Page pagina) {
@@ -651,7 +985,7 @@ public final class Reconocimiento {
             RED.add(hora() + "  " + respuesta.request().method() + " " + respuesta.status() + " "
                     + respuesta.headerValue("content-type") + " " + respuesta.url());
             try {
-                if (cuerposGuardados < 200) {
+                if (cuerposGuardados < 400) {
                     String cuerpo = respuesta.text();
                     if (cuerpo.length() > 600_000) {
                         cuerpo = cuerpo.substring(0, 600_000);

@@ -84,3 +84,5 @@
 11:08:53  POST 200 text/plain;charset=UTF-8 https://backdcc.cgfm.mil.co/service/v1/api/tramiteciu/initial/insert
 11:10:46  GET 200 application/json https://backdcc.cgfm.mil.co/service/v1/api/sys/select-fecha-hora
 11:10:47  POST 200 text/plain;charset=UTF-8 https://backdcc.cgfm.mil.co/service/v1/api/tramiteciu/initial/insert
+11:13:03  GET 200 application/json https://backdcc.cgfm.mil.co/service/v1/api/sys/select-fecha-hora
+11:13:05  POST 200 text/plain;charset=UTF-8 https://backdcc.cgfm.mil.co/service/v1/api/tramiteciu/initial/insert

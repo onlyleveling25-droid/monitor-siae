@@ -18,3 +18,4 @@
 11:06:32  Consulta 18  seccional=83 - Florencia, Caquetá  url=https://dccae.cgfm.mil.co/dccae/main/SolicitudTramite  filas=0  enlace=0  fg1=0  avisoNoInventario=1
 11:08:55  Consulta 19  seccional=83 - Florencia, Caquetá  url=https://dccae.cgfm.mil.co/dccae/main/SolicitudTramite  filas=0  enlace=0  fg1=0  avisoNoInventario=1
 11:10:48  Consulta 20  seccional=83 - Florencia, Caquetá  url=https://dccae.cgfm.mil.co/dccae/main/SolicitudTramite  filas=0  enlace=0  fg1=0  avisoNoInventario=1
+11:13:06  Consulta 21  seccional=83 - Florencia, Caquetá  url=https://dccae.cgfm.mil.co/dccae/main/SolicitudTramite  filas=0  enlace=0  fg1=0  avisoNoInventario=1

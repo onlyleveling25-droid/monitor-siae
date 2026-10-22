@@ -75,25 +75,6 @@ public sealed interface ResultadoCiclo {
         }
     }
 
-    record ArmaApartada(String seccional, EleccionArma eleccion, int intentos, List<ArmaInventario> inventario)
-            implements ResultadoCiclo {
-        public ArmaApartada {
-            inventario = List.copyOf(inventario);
-        }
-
-        public ArmaApartada(String seccional, EleccionArma eleccion, int intentos) {
-            this(seccional, eleccion, intentos, List.of(eleccion.arma()));
-        }
-
-        public boolean detieneMonitoreo() {
-            return true;
-        }
-
-        public String descripcion() {
-            return "Arma apartada en " + seccional + ": " + eleccion.arma().descripcion();
-        }
-    }
-
     /** Se intento apartar y la plataforma no lo confirmo; probablemente otra persona la tomo. */
     record ApartadoFallido(String seccional, EleccionArma eleccion, int intentos,
                            List<ArmaInventario> inventario) implements ResultadoCiclo {
@@ -123,6 +104,33 @@ public sealed interface ResultadoCiclo {
     record Inesperado(String detalle) implements ResultadoCiclo {
         public String descripcion() {
             return "Respuesta inesperada de la plataforma: " + detalle;
+        }
+    }
+
+    record ArmaApartada(String seccional, EleccionArma eleccion, int intentos,
+                        List<ArmaInventario> inventario, boolean cierreSellado)
+            implements ResultadoCiclo {
+
+        public ArmaApartada {
+            inventario = List.copyOf(inventario);
+        }
+
+        public ArmaApartada(String seccional, EleccionArma eleccion, int intentos,
+                            List<ArmaInventario> inventario) {
+            this(seccional, eleccion, intentos, inventario, true);
+        }
+
+        public ArmaApartada(String seccional, EleccionArma eleccion, int intentos) {
+            this(seccional, eleccion, intentos, List.of(eleccion.arma()), true);
+        }
+
+        public boolean detieneMonitoreo() {
+            return true;
+        }
+
+        public String descripcion() {
+            return "Arma apartada en " + seccional + ": " + eleccion.arma().descripcion()
+                    + (cierreSellado ? "" : " · la reserva no quedó sellada, pulsa FINALIZAR");
         }
     }
 }

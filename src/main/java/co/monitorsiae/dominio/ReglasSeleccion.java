@@ -22,9 +22,10 @@ public record ReglasSeleccion(
         List<CriterioArma> alternativas,
         String tipoComodin,
         List<String> excluir,
-        int reintentos) {
+        int reintentos,
+        DireccionTenencia direccionTenencia) {
 
-    public static final int REINTENTOS_POR_DEFECTO = 2;
+    public static final int REINTENTOS_POR_DEFECTO = 3;
 
     public ReglasSeleccion {
         modalidad = Objects.requireNonNullElse(modalidad, Modalidad.PORTE);
@@ -34,10 +35,11 @@ public record ReglasSeleccion(
         tipoComodin = Listas.texto(tipoComodin);
         excluir = Listas.textos(excluir);
         reintentos = reintentos <= 0 ? REINTENTOS_POR_DEFECTO : reintentos;
+        direccionTenencia = Objects.requireNonNullElseGet(direccionTenencia, DireccionTenencia::vacia);
     }
 
     public static ReglasSeleccion porDefecto() {
         return new ReglasSeleccion(Modalidad.PORTE, List.of(), PoliticaSinObjetivo.SEGUIR_ESPERANDO,
-                List.of(), "Pistola", List.of(), REINTENTOS_POR_DEFECTO);
+                List.of(), "Pistola", List.of(), REINTENTOS_POR_DEFECTO, DireccionTenencia.vacia());
     }
 }

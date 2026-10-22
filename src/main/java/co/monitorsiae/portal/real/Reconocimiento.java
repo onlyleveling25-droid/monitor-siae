@@ -34,6 +34,9 @@ import com.microsoft.playwright.options.WaitUntilState;
  * repetirla hace falta un tramite nuevo.
  */
 public final class Reconocimiento {
+    public void main() throws Exception {
+        main(new String[0]);
+    }
 
     // ==================== PARAMETROS DEL PASO 1 (edita aqui) ====================
     private static final String OBTENER_PERMISO = "Defensa Personal";
@@ -47,8 +50,9 @@ public final class Reconocimiento {
      * Seccionales a monitorear, en orden de prioridad. Basta una parte reconocible (no importan
      * tildes ni mayusculas): "Bogota" encuentra "16 - Usaquén, Bogotá D.C.".
      * Lista vacia = todas. Tambien por consola: {@code -Dexec.args="chrome Bogota,Medellin"}.
+     * Si ninguna coincide, se usan todas las disponibles en vez de abortar.
      */
-    private static String[] seccionalesAMonitorear = {"Bogota", "Medellin"};
+    private static String[] seccionalesAMonitorear = {"Florencia"};
 
     // Pistas para localizar cada combo (por placeholder, texto o etiqueta). Se prueban en orden.
     private static final String[] PISTA_PERMISO = {"obtener el permiso", "como desea obtener", "permiso"};
@@ -56,9 +60,9 @@ public final class Reconocimiento {
     private static final String[] PISTA_SECCIONAL = {"seccional"};
 
     // ==================== MONITOREO ====================
-    private static final int SEGUNDOS_BASE = 180;
+    private static final int SEGUNDOS_BASE = 100;
     private static final int JITTER_MAXIMO_SEGUNDOS = 45;
-    private static final int MAX_CONSULTAS = 120;
+    private static final int MAX_CONSULTAS = 130;
 
     /** Si el arma se aparta, pulsar el CONFIRMAR final para sellar la reserva (avanza al paso 3). */
     private static final boolean CONFIRMAR_CIERRE = false;
@@ -76,22 +80,32 @@ public final class Reconocimiento {
     private static final String GUARDANDO = "text=/guardando/i";
     private static final String ENLACE_INVENTARIO =
             "text=/solicitud\\s+adquisici[oó]n\\s+de\\s+armas/i";
-    private static final String PASO_2 = "text=FG-1";
+
+    /**
+     * Senal de FG-1 ABIERTA. NO sirve "text=FG-1": la tarjeta de la pantalla intermedia y la
+     * cabecera de los modales tambien dicen FG-1. La barra inferior con FINALIZAR es exclusiva
+     * de la ventana del inventario.
+     */
+    private static final String PASO_2 = "button:has-text('FINALIZAR')";
+
+    /** Tras sellar la reserva el portal muestra el formulario de la Fiscalia. */
+    private static final String PASO_3 = "text=/Formulario antecedentes Fiscal[ií]a/i";
+
     private static final String FILAS_INVENTARIO =
-            "[role='row']:has([role='gridcell']), table tbody tr";
-    private static final String CELDAS_INVENTARIO = "[role='gridcell'], td, th";
+            "table tbody tr, [role='row']:has([role='gridcell'])";
+    private static final String CELDAS_INVENTARIO = "td, [role='gridcell']";
     private static final String FILA_SELECCIONADA = "text=/\\d+\\s*fila[s]?\\s+seleccionada/i";
 
     // --- Controles del paso 2 ---
+    /** Angular Material (mat-dialog, cdk-overlay) y MUI por si acaso. */
     private static final String MODALES =
-            "[role='dialog'], .MuiDialog-container, .MuiModal-root, .MuiDialog-root";
+            "[role='dialog'], mat-dialog-container, .cdk-overlay-pane, .MuiDialog-container";
     private static final String BOTON_PORTE = "button:has-text('PORTE')";
     private static final String BOTON_TENENCIA = "button:has-text('TENENCIA')";
     private static final String BOTON_FINALIZAR = "button:has-text('FINALIZAR')";
     private static final String BOTON_CONFIRMAR = "button:has-text('CONFIRMAR')";
     private static final String BOTON_VOLVER = "button:has-text('VOLVER')";
-    private static final String ERROR_CUPO = "text=/cupo disponible/i";
-    private static final String ASIGNACION_EXITOSA = "text=/asignaci[oó]n exitosa|exitoso/i";
+    private static final String ERROR_CUPO = "text=/no cuenta con cupo disponible/i";
 
     private static final BufferedReader TECLADO =
             new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8));
@@ -106,7 +120,7 @@ public final class Reconocimiento {
 
     public static void main(String[] args) throws Exception {
         Files.createDirectories(SALIDA);
-        String canal = args.length > 0 ? args[0] : "chrome";
+        String canal = args.length > 0 ? args[0] : "msedge";
         if (args.length > 1 && !args[1].isBlank()) {
             String[] pedidas = args[1].split(",");
             for (int i = 0; i < pedidas.length; i++) {
@@ -239,21 +253,24 @@ public final class Reconocimiento {
         if (hayPantallaIntermedia(pagina)) {
             volcar(pagina, "10-intermedia");
             volcarEstructura(pagina, "10-intermedia-estructura.txt");
-            pausa("PANTALLA INTERMEDIA volcada (10-*). Debe aparecer el enlace "
-                    + "\"Solicitud adquisicion de armas\". Si el texto es otro, anotalo.");
+            System.out.println("  Enlace detectado: '" + limpiar(textoDe(enlaceInventario(pagina))) + "'");
+            pausa("PANTALLA INTERMEDIA volcada (10-*). Debe aparecer el enlace al inventario. "
+                    + "Si el texto es otro, anotalo.");
         } else {
             System.out.println("No hay pantalla intermedia: FG-1 ya esta abierto.");
         }
 
         // --- B. Clic en el enlace, detectando pestana nueva ---
         if (!fg1Abierto(pagina)) {
-            Locator enlace = pagina.locator(ENLACE_INVENTARIO).first();
+            Locator enlace = enlaceInventario(pagina);
             if (enlace.count() == 0) {
                 System.out.println("No encontre el enlace. Haz clic TU en el enlace del navegador.");
                 pausa("Clic manual en el enlace del inventario. ENTER cuando este abierto.");
             } else {
                 Set<Page> antes = new HashSet<>(contexto.pages());
+                System.out.println(">>> Pulsando el enlace del inventario.");
                 enlace.click();
+                System.out.println(">>> Enlace pulsado. Buscando la ventana FG-1...");
                 Page nueva = esperarPaginaNueva(antes, pagina, 8000);
                 if (nueva != null) {
                     System.out.println(">>> FG-1 se abrio en una PESTANA NUEVA. url=" + nueva.url());
@@ -269,7 +286,9 @@ public final class Reconocimiento {
         }
 
         if (!fg1Abierto(pagina)) {
-            pausa("No detecte el titulo FG-1. Acomoda la ventana a mano y pulsa ENTER.");
+            System.out.println(">>> AVISO: no detecte la barra con FINALIZAR. "
+                    + "Botones visibles: " + textosDe(pagina.locator("button")));
+            pausa("No detecte FG-1. Acomoda la ventana a mano y pulsa ENTER.");
         }
         volcar(pagina, "11-fg1");
         volcarEstructura(pagina, "11-fg1-estructura.txt");
@@ -326,15 +345,17 @@ public final class Reconocimiento {
             Locator confirmar = modal.locator(BOTON_CONFIRMAR).first();
             if (confirmar.count() > 0) {
                 confirmar.click();
-                pagina.waitForTimeout(2500);
+                // El snackbar de cupo es efimero: se busca enseguida.
+                boolean cupo = esperarErrorDeCupo(modal);
                 escribir("18-tras-confirmar.txt",
                         "url: " + pagina.url() + "\n"
-                                + "errorCupo=" + pagina.locator(ERROR_CUPO).count() + "\n"
+                                + "errorCupo=" + cupo + "\n"
                                 + "modalAbierto=" + (modalVisible(pagina) != null) + "\n\n"
                                 + textoDe(pagina.locator("body")));
                 captura(pagina, "18-tras-confirmar");
-                pausa("CONFIRMAR pulsado (18-*). Verifica si quedo pre-asignada o si salio "
-                        + "un error rojo de cupo.");
+                pausa(cupo
+                        ? "SALIO EL ERROR DE CUPO (18-*). Verifica el texto en 18-tras-confirmar.txt."
+                        : "CONFIRMAR pulsado (18-*). Verifica si el arma quedo pre-asignada.");
             }
         } else {
             pausa("No encontre el modal para CONFIRMAR. Hazlo a mano y pulsa ENTER.");
@@ -353,7 +374,8 @@ public final class Reconocimiento {
                 if (cierre != null) {
                     cierre.locator(BOTON_CONFIRMAR).first().click();
                     pagina.waitForTimeout(3000);
-                    escribir("20-paso3.txt", "url: " + pagina.url() + "\n\n"
+                    escribir("20-paso3.txt", "url: " + pagina.url() + "\n"
+                            + "paso3=" + pagina.locator(PASO_3).count() + "\n\n"
                             + textoDe(pagina.locator("body")));
                     captura(pagina, "20-paso3");
                     System.out.println(">>> CONFIRMAR final pulsado: el tramite avanzo al paso 3.");
@@ -386,9 +408,14 @@ public final class Reconocimiento {
         Locator modal = modalVisible(pagina);
         if (modal == null) {
             System.out.println("  AVISO: no detecte ningun modal abierto tras " + nombre + ".");
+            System.out.println("  Contenedores probados: " + MODALES);
+            System.out.println("  Elementos con role=dialog en la pagina: "
+                    + pagina.locator("[role='dialog'], mat-dialog-container").count());
         } else {
             System.out.println("  modal " + nombre + " detectado. Botones: "
                     + textosDe(modal.locator("button, [role='button']")));
+            System.out.println("  etiquetas: "
+                    + textosDe(modal.locator("mat-label, label, .mat-mdc-floating-label")));
         }
         pausa("Modal de " + nombre + " volcado (" + archivo + "-*). Revisa el HTML del modal.");
     }
@@ -415,20 +442,32 @@ public final class Reconocimiento {
                 continue;
             }
             visibles++;
-            escribir(nombre + "-modal-" + i + ".html", seguro(() -> (String) modal.evaluate("el => el.outerHTML")));
+            escribir(nombre + "-modal-" + i + ".html",
+                    seguro(() -> (String) modal.evaluate("el => el.outerHTML")));
+
+            informe.append("etiquetas:\n");
+            for (Locator l : modal.locator("mat-label, label, .mat-mdc-floating-label").all()) {
+                informe.append("   - '").append(seguro(() -> limpiar(l.innerText())))
+                        .append("'  selector: ").append(seguro(() -> selectorDe(l))).append('\n');
+            }
             informe.append("botones:\n");
             for (Locator b : modal.locator("button, [role='button'], a").all()) {
                 informe.append("   - '").append(seguro(() -> limpiar(b.innerText())))
-                        .append("'  selector: ").append(seguro(() -> selectorDe(b))).append('\n');
+                        .append("'  selector: ").append(seguro(() -> selectorDe(b)))
+                        .append("  habilitado=").append(seguro(() -> String.valueOf(b.isEnabled())))
+                        .append('\n');
             }
             informe.append("campos:\n");
-            for (Locator c : modal.locator("input, textarea, [role='combobox'], [role='spinbutton']").all()) {
+            for (Locator c : modal.locator(
+                    "input, textarea, mat-select, [role='combobox'], [role='spinbutton']").all()) {
                 informe.append("   - ").append(seguro(() -> attrsDe(c)))
                         .append("  valor='").append(seguro(() -> valorDe(c))).append("'\n");
             }
-            informe.append("cantidad:\n");
-            for (Locator c : modal.locator("button:has-text('-'), button:has-text('+'), "
-                    + "[aria-label*='crease'], [aria-label*='uma'], input[type='number']").all()) {
+            informe.append("cantidad (botones - y +):\n");
+            for (Locator c : modal.locator(
+                    "button:has-text('+'), button:has-text('-'), button:has-text('−'), "
+                            + "[aria-label*='umentar'], [aria-label*='isminuir'], "
+                            + "[aria-label*='umar'], input[type='number']").all()) {
                 informe.append("   - '").append(seguro(() -> limpiar(c.innerText())))
                         .append("'  attrs: ").append(seguro(() -> attrsDe(c))).append('\n');
             }
@@ -443,12 +482,12 @@ public final class Reconocimiento {
         Locator filas = pagina.locator(FILAS_INVENTARIO);
         informe.append("filas detectadas: ").append(filas.count()).append('\n');
         informe.append("tablas <table>: ").append(pagina.locator("table").count()).append('\n');
+        informe.append("mat-table: ").append(pagina.locator("mat-table, table[mat-table]").count()).append('\n');
         informe.append("roles row: ").append(pagina.locator("[role='row']").count()).append('\n');
         informe.append("roles gridcell: ").append(pagina.locator("[role='gridcell']").count()).append('\n');
         informe.append("roles columnheader: ").append(pagina.locator("[role='columnheader']").count()).append('\n');
-        informe.append("roles grid: ").append(pagina.locator("[role='grid']").count()).append('\n');
         informe.append("thead/th: ").append(pagina.locator("th").count()).append('\n');
-        informe.append("paginador MUI: ").append(pagina.locator(".MuiTablePagination-root").count()).append("\n\n");
+        informe.append("mat-paginator: ").append(pagina.locator("mat-paginator").count()).append("\n\n");
 
         informe.append("## Encabezados\n");
         for (Locator th : pagina.locator("th, [role='columnheader']").all()) {
@@ -502,10 +541,10 @@ public final class Reconocimiento {
         informe.append("url: ").append(pagina.url()).append("\n\n");
         informe.append("## Elementos con role\n");
         for (Locator el : pagina.locator("[role]").all()) {
+            String texto = seguro(() -> limpiar(el.innerText()));
             informe.append("- role=").append(seguro(() -> String.valueOf(el.getAttribute("role"))))
                     .append("  tag=").append(seguro(() -> (String) el.evaluate("el => el.tagName.toLowerCase()")))
-                    .append("  texto='").append(seguro(() -> limpiar(el.innerText())).substring(0,
-                            Math.min(60, seguro(() -> limpiar(el.innerText())).length())))
+                    .append("  texto='").append(texto, 0, Math.min(60, texto.length()))
                     .append("'\n");
         }
         informe.append("\n## Enlaces\n");
@@ -531,8 +570,67 @@ public final class Reconocimiento {
         return null;
     }
 
+    /** El snackbar de cupo vive pocos segundos: bucle corto y se corta al cerrarse el modal. */
+    private static boolean esperarErrorDeCupo(Locator modal) {
+        long limite = System.currentTimeMillis() + 6000;
+        long cierreEn = 0L;
+        while (System.currentTimeMillis() < limite) {
+            if (paginaDe(modal).locator(ERROR_CUPO).count() > 0) {
+                return true;
+            }
+            boolean visible;
+            try {
+                visible = modal.isVisible();
+            } catch (RuntimeException e) {
+                visible = false;
+            }
+            if (cierreEn == 0L && !visible) {
+                cierreEn = System.currentTimeMillis();
+            }
+            if (cierreEn != 0L && System.currentTimeMillis() - cierreEn > 1500) {
+                return false;
+            }
+            pausaCorta();
+        }
+        return false;
+    }
+
+    private static Page paginaDe(Locator elemento) {
+        return (Page) elemento.evaluateHandle("el => el.ownerDocument.defaultView").asElement() != null
+                ? paginaActual()
+                : paginaActual();
+    }
+
+    private static Page PAGINA_ACTUAL;
+
+    private static Page paginaActual() {
+        return PAGINA_ACTUAL != null ? PAGINA_ACTUAL : contexto.pages().getFirst();
+    }
+
+    private static void pausaCorta() {
+        try {
+            Thread.sleep(120);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    /** Enlace de la pantalla intermedia, con respaldo por si no es un <a>. */
+    private static Locator enlaceInventario(Page pagina) {
+        for (String candidato : new String[]{
+                "a:has-text('adquisici')",
+                ENLACE_INVENTARIO,
+                "mat-card:has-text('adquisici')"}) {
+            Locator locator = pagina.locator(candidato);
+            if (locator.count() > 0) {
+                return locator.first();
+            }
+        }
+        return pagina.locator(ENLACE_INVENTARIO).first();
+    }
+
     private static boolean hayPantallaIntermedia(Page pagina) {
-        return pagina.locator(ENLACE_INVENTARIO).count() > 0 && !fg1Abierto(pagina);
+        return enlaceInventario(pagina).count() > 0 && !fg1Abierto(pagina);
     }
 
     private static boolean fg1Abierto(Page pagina) {
@@ -756,13 +854,15 @@ public final class Reconocimiento {
         }
 
         if (elegidas.isEmpty()) {
-            throw new RuntimeException("Ninguna seccional de la lista existe en el portal. Pedidas: "
-                    + List.of(seccionalesAMonitorear) + ". Disponibles: " + disponibles);
+            System.out.println("  AVISO: ninguna seccional pedida existe en el portal. Pedidas: "
+                    + List.of(seccionalesAMonitorear));
+            System.out.println("  Disponibles: " + disponibles);
+            System.out.println("  Se usaran todas las disponibles.");
+            elegidas.addAll(disponibles);
         }
         if (!seccionalesAnunciadas) {
             if (!sinMatch.isEmpty()) {
                 System.out.println("  AVISO: estas seccionales pedidas no aparecen en el portal: " + sinMatch);
-                System.out.println("  Disponibles: " + disponibles);
             }
             System.out.println("Seccionales a monitorear (" + elegidas.size() + "): " + elegidas);
             seccionalesAnunciadas = true;
@@ -866,7 +966,7 @@ public final class Reconocimiento {
                 .append("  seccional=").append(seccional)
                 .append("  url=").append(pagina.url())
                 .append("  filas=").append(pagina.locator(FILAS_INVENTARIO).count())
-                .append("  enlace=").append(pagina.locator(ENLACE_INVENTARIO).count())
+                .append("  enlace=").append(enlaceInventario(pagina).count())
                 .append("  fg1=").append(pagina.locator(PASO_2).count())
                 .append("  avisoNoInventario=").append(pagina.locator(SIN_INVENTARIO).count())
                 .append('\n');
@@ -887,6 +987,7 @@ public final class Reconocimiento {
     }
 
     private static void volcar(Page pagina, String nombre) throws IOException {
+        PAGINA_ACTUAL = pagina;
         escribir(nombre + ".html", pagina.content());
         escribir(nombre + "-elementos.txt", informeElementos(pagina, nombre));
         escribir(nombre + "-texto.txt", "URL: " + pagina.url() + "\n\n"

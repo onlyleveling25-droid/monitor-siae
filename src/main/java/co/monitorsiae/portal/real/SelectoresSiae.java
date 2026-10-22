@@ -1,39 +1,60 @@
 package co.monitorsiae.portal.real;
 
 /**
- * Todos los selectores del portal SIAE en un solo lugar. Si el portal cambia,
- * se toca aqui.
+ * Todos los selectores del portal SIAE en un solo lugar. Si el portal cambia, se toca aqui.
+ *
+ * <p>El paso 1 es React + MUI. El paso 2 es otra aplicacion del portal (Angular + Material) y
+ * puede abrirse en una pestana aparte: los selectores de esa parte son los que se revisan primero
+ * si algo falla.
  */
 final class SelectoresSiae {
 
-        private SelectoresSiae() {
-        }
+    private SelectoresSiae() {
+    }
 
-        // --- Paso 1 ---------------------------------------------------------------
-        // Los tres desplegables comparten id="asynchronous-demo": se distinguen por su
-        // placeholder.
-        static final String PLACEHOLDER_PERMISO = "Seleccione como desea obtener el permiso";
-        static final String PLACEHOLDER_TIPO_TRAMITE = "Ingrese el parametro Tipo de Tramite / Clase de Tramite";
-        static final String PLACEHOLDER_SECCIONAL = "Indique la seccional donde va a tramitar el permiso para porte o tenencia";
+    // --- Paso 1: los tres combos comparten id, se distinguen por el placeholder ---
+    static final String PLACEHOLDER_PERMISO = "Seleccione como desea obtener el permiso";
+    static final String PLACEHOLDER_TIPO_TRAMITE =
+            "Ingrese el parametro Tipo de Tramite / Clase de Tramite";
+    static final String PLACEHOLDER_SECCIONAL =
+            "Indique la seccional donde va a tramitar el permiso para porte o tenencia";
 
-        static final String OPCIONES = "[role='option']";
-        static final String CAMPO_DESCRIPCION = "textarea[name='descripcion']";
-        static final String CONTADOR_DESCRIPCION = "text=/restantes\\s*\\d+/";
-        static final String BOTON_GUARDAR = "button:has-text('GUARDAR')";
-        static final String AVISO_NO_DISPONIBLE = "div[role='alert']:has-text('no esta disponible')";
-        static final String LOGIN_PASSWORD = "input[type='password']";
-        static final String INGRESAR_PORTAL = "text=INGRESAR PORTAL";
+    static final String CAMPO_DESCRIPCION = "textarea[name='descripcion']";
+    static final String CONTADOR_DESCRIPCION = "text=/restantes\\s*\\d+/";
+    static final String BOTON_GUARDAR = "button:has-text('GUARDAR')";
+    static final String AVISO_NO_DISPONIBLE = "div[role='alert']:has-text('no esta disponible')";
+    static final String LOGIN_PASSWORD = "input[type='password']";
+    static final String INGRESAR_PORTAL = "text=INGRESAR PORTAL";
 
-     
-        // --- Paso 2 (Estructura real del manual DCCAE) ---------------------------
-        static final String PASO_2 = "text=FG-1";
-        static final String SIN_INVENTARIO = "text=/[Nn]o hay inventario/";
-        static final String FILAS_INVENTARIO = "table tbody tr";
+    /** Opciones de cualquier lista abierta: MUI (React) y Material (Angular). */
+    static final String OPCIONES = "[role='option'], mat-option, li[role='option']";
 
-        // Nuevos selectores para apartar:
-        static final String BOTON_PORTE = "button:has-text('PORTE'), div:has-text('PORTE'), [role='button']:has-text('PORTE')";
-        static final String BOTON_TENENCIA = "button:has-text('TENENCIA'), div:has-text('TENENCIA'), [role='button']:has-text('TENENCIA')";
-        static final String BOTON_FINALIZAR = "button:has-text('FINALIZAR'), button:has-text('Finalizar')";
-        static final String BOTON_CONFIRMAR_MODAL = "button:has-text('CONFIRMAR'), button:has-text('Confirmar')";
-        static final String ASIGNACION_EXITOSA = "text=/Asignaci[oó]n exitosa|exitoso|registrad[ao]/i";
+    // --- Paso 2 -----------------------------------------------------------------
+    // El aviso real va en MAYUSCULAS: la bandera i no es opcional.
+    static final String SIN_INVENTARIO = "text=/NO HAY INVENTARIO DISPONIBLE/i";
+    static final String GUARDANDO = "text=/GUARDANDO/i";
+
+    /** Pantalla intermedia: hay que pulsar este enlace para que se abra el inventario. */
+    static final String ENLACE_INVENTARIO = "text=/solicitud\\s+adquisici[oó]n\\s+de\\s+armas/i";
+    static final String PASO_2 = "text=FG-1";
+
+    /** Filas: mat-table de Angular Material o DataGrid de MUI. */
+    static final String FILAS_INVENTARIO = "table tbody tr, [role='row']:has([role='gridcell'])";
+    static final String CELDAS_INVENTARIO = "td, [role='gridcell']";
+    static final String FILA_SELECCIONADA = "text=/\\d+\\s*fila[s]?\\s+seleccionada/i";
+
+    /** Modales: Angular Material (mat-dialog) y MUI. */
+    static final String MODALES =
+            "[role='dialog'], mat-dialog-container, .cdk-overlay-pane, .MuiDialog-container";
+    static final String CAMPOS_MODAL =
+            "input, textarea, [role='combobox'], mat-select, [role='spinbutton']";
+    static final String BOTON_CONFIRMAR = "button:has-text('CONFIRMAR')";
+    static final String BOTON_VOLVER = "button:has-text('VOLVER')";
+
+    static final String BOTON_PORTE = "button:has-text('PORTE')";
+    static final String BOTON_TENENCIA = "button:has-text('TENENCIA')";
+    static final String BOTON_FINALIZAR = "button:has-text('FINALIZAR')";
+
+    static final String ERROR_CUPO = "text=/NO CUENTA CON CUPO DISPONIBLE/i";
+    static final String ASIGNACION_EXITOSA ="text=/asignaci[oó]n\\s+exitosa|se\\s+asign[oó]|registrad[oa]\\s+correctamente/i";
 }

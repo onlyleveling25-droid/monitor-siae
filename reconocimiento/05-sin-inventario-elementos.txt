@@ -2,7 +2,7 @@
 URL: https://dccae.cgfm.mil.co/dccae/main/SolicitudTramite
 Elementos: 42
 
-0. div  caja=0,0,1600,900
+0. div  caja=0,0,2552,1307
    selector: div[role="main"]
    attrs:    {"role":"main"}
    texto:    DCCAE | DEPARTAMENTO CONTROL COMERCIO DE ARMAS, MUNICIONES Y EXPLOSIVOS 0 Estado de trámite Solicitud del trámite Mis citas Armas registradas Actas transporte Formularios Documentos aprobados Descargos SQC Descargo Explosivos Evento municiones Inicio de Tramite Formulario de Solicitud Cargue de Documentos Tipo de Usuario Tipo de Usuario Identificación Identificación Nombre Usuario Nombre Usuario Seleccione como desea obtener el permiso Seleccione como desea obtener el permiso Tipo de Tramite / Clase de Tramite Tipo de Tramite / Clase de Tramite Seccional Seccional Descripción (Máx 500 Caracteres, mínimo 150 Caracteres, restantes 271) Descripción (Máx 500 Caracteres, mínimo 150 Caracteres, restantes 271) GUARDANDO... SEÑOR USUARIO, NO HAY INVENTARIO DISPONIBLE POR PARTE DE INDUMIL EN ESTA SECCIONAL
@@ -12,22 +12,22 @@ Elementos: 42
    attrs:    {"class":"MuiButtonBase-root MuiIconButton-root MuiIconButton-colorInherit MuiIconButton-edgeStart MuiIconButton-sizeLarge jss99 css-1x52uzk","tabindex":"0","type":"button","aria-label":"open drawer"}
    texto:    
 
-2. button  caja=1328,12,56,56
+2. button  caja=2280,12,56,56
    selector: button[aria-label="usuarios encontrados"]
    attrs:    {"class":"MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textInherit MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorInherit MuiButton-root MuiButton-text MuiButton-textInherit MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorInherit jss150 css-b7766g","tabindex":"0","type":"button","aria-label":"usuarios encontrados"}
    texto:    
 
-3. button  caja=1392,12,56,56
+3. button  caja=2344,12,56,56
    selector: button[aria-label="usuarios encontrados"]
    attrs:    {"class":"MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textInherit MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorInherit MuiButton-root MuiButton-text MuiButton-textInherit MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorInherit jss150 css-b7766g","tabindex":"0","type":"button","aria-label":"usuarios encontrados"}
    texto:    
 
-4. button  caja=1456,12,56,56
+4. button  caja=2408,12,56,56
    selector: button[aria-label="usuarios encontrados"]
    attrs:    {"class":"MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textInherit MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorInherit MuiButton-root MuiButton-text MuiButton-textInherit MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorInherit jss150 css-b7766g","tabindex":"0","type":"button","aria-label":"usuarios encontrados"}
    texto:    0
 
-5. button  caja=1520,12,56,56
+5. button  caja=2472,12,56,56
    selector: button[aria-label="usuarios encontrados"]
    attrs:    {"class":"MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textInherit MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorInherit MuiButton-root MuiButton-text MuiButton-textInherit MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorInherit jss150 css-b7766g","tabindex":"0","type":"button","aria-label":"usuarios encontrados"}
    texto:    
@@ -92,82 +92,82 @@ Elementos: 42
    attrs:    {"class":"MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button jss156 css-j5ar9c","tabindex":"0","role":"button"}
    texto:    Evento municiones
 
-18. input  caja=116,299,692,56
+18. input  caja=116,299,1168,56
    selector: #:r3:
    attrs:    {"aria-invalid":"false","id":":r3:","type":"text","class":"MuiInputBase-input MuiOutlinedInput-input css-1x5jdmq","value":"PERSONA NATURAL"}
    texto:    
 
-19. input  caja=824,299,692,56
+19. input  caja=1300,299,1168,56
    selector: #:r4:
-   attrs:    {"aria-invalid":"false","id":":r4:","type":"text","class":"MuiInputBase-input MuiOutlinedInput-input css-1x5jdmq","value":"1007652942"}
+   attrs:    {"aria-invalid":"false","id":":r4:","type":"text","class":"MuiInputBase-input MuiOutlinedInput-input css-1x5jdmq","value":"1118648684"}
    texto:    
 
-20. input  caja=116,371,692,56
+20. input  caja=116,371,1168,56
    selector: #:r5:
-   attrs:    {"aria-invalid":"false","id":":r5:","type":"text","class":"MuiInputBase-input MuiOutlinedInput-input css-1x5jdmq","value":"YEFERSON ALEJANDRO GARCIA MARIN"}
+   attrs:    {"aria-invalid":"false","id":":r5:","type":"text","class":"MuiInputBase-input MuiOutlinedInput-input css-1x5jdmq","value":"DIDIER LEONARDO VARGAS MONTAÑEZ"}
    texto:    
 
-21. input  caja=833,380,618,38
+21. input  caja=1309,380,1094,38
    selector: #asynchronous-demo
    attrs:    {"aria-invalid":"false","autocomplete":"off","id":"asynchronous-demo","placeholder":"Seleccione como desea obtener el permiso","type":"text","class":"MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused css-1uvydh2","aria-autocomplete":"list","aria-expanded":"false","autocapitalize":"none","spellcheck":"false","role":"combobox","value":"Defensa Personal"}
    texto:    
 
-22. button  caja=1455,385,28,28
+22. button  caja=2407,385,28,28
    selector: button[aria-label="Clear"]
    attrs:    {"class":"MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium MuiAutocomplete-clearIndicator css-edpqz1","tabindex":"-1","type":"button","aria-label":"Clear","title":"Clear"}
    texto:    
 
-23. button  caja=1481,385,28,28
+23. button  caja=2433,385,28,28
    selector: button[aria-label="Open"]
    attrs:    {"class":"MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium MuiAutocomplete-popupIndicator css-uge3vf","tabindex":"-1","type":"button","aria-label":"Open","title":"Open"}
    texto:    
 
-24. input  caja=125,452,618,38
+24. input  caja=125,452,1094,38
    selector: #asynchronous-demo
    attrs:    {"aria-invalid":"false","autocomplete":"off","id":"asynchronous-demo","placeholder":"Ingrese el parametro Tipo de Tramite / Clase de Tramite","type":"text","class":"MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused css-1uvydh2","aria-autocomplete":"list","aria-expanded":"false","autocapitalize":"none","spellcheck":"false","role":"combobox","value":"Armas personas naturales: Adquisición de arma"}
    texto:    
 
-25. button  caja=747,457,28,28
+25. button  caja=1223,457,28,28
    selector: button[aria-label="Clear"]
    attrs:    {"class":"MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium MuiAutocomplete-clearIndicator css-edpqz1","tabindex":"-1","type":"button","aria-label":"Clear","title":"Clear"}
    texto:    
 
-26. button  caja=773,457,28,28
+26. button  caja=1249,457,28,28
    selector: button[aria-label="Open"]
    attrs:    {"class":"MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium MuiAutocomplete-popupIndicator css-uge3vf","tabindex":"-1","type":"button","aria-label":"Open","title":"Open"}
    texto:    
 
-27. input  caja=833,452,618,38
+27. input  caja=1309,452,1094,38
    selector: #asynchronous-demo
-   attrs:    {"aria-invalid":"false","autocomplete":"off","id":"asynchronous-demo","placeholder":"Indique la seccional donde va a tramitar el permiso para porte o tenencia","type":"text","class":"MuiInputBase-input MuiOutlinedInput-input jss153 MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused css-1uvydh2","aria-autocomplete":"list","aria-expanded":"false","autocapitalize":"none","spellcheck":"false","role":"combobox","value":"16 - Usaquén, Bogotá D.C."}
+   attrs:    {"aria-invalid":"false","autocomplete":"off","id":"asynchronous-demo","placeholder":"Indique la seccional donde va a tramitar el permiso para porte o tenencia","type":"text","class":"MuiInputBase-input MuiOutlinedInput-input jss153 MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused css-1uvydh2","aria-autocomplete":"list","aria-expanded":"false","autocapitalize":"none","spellcheck":"false","role":"combobox","value":"83 - Florencia, Caquetá"}
    texto:    
 
-28. button  caja=1455,457,28,28
+28. button  caja=2407,457,28,28
    selector: button[aria-label="Clear"]
    attrs:    {"class":"MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium MuiAutocomplete-clearIndicator css-edpqz1","tabindex":"-1","type":"button","aria-label":"Clear","title":"Clear"}
    texto:    
 
-29. button  caja=1481,457,28,28
+29. button  caja=2433,457,28,28
    selector: button[aria-label="Open"]
    attrs:    {"class":"MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium MuiAutocomplete-popupIndicator css-uge3vf","tabindex":"-1","type":"button","aria-label":"Open","title":"Open"}
    texto:    
 
-30. textarea  caja=130,532,1372,92
+30. textarea  caja=130,532,2324,92
    selector: #:rc:
    attrs:    {"rows":"4","aria-invalid":"false","id":":rc:","name":"descripcion","placeholder":"Escriba la solicitud correspondiente al trámite que desea iniciar, indicando toda la información correspondiente relacionada (datos personales, datos del arma), argumente de manera clara la necesidad especifica que buscar ser atendida con el trámite a realizar","maxlength":"500","class":"MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputMultiline css-u36398","style":"height: 92px;"}
    texto:    
 
-31. textarea  caja=116,515,1372,0
+31. textarea  caja=116,515,2324,0
    selector: div > div:nth-of-type(8) > div > div > textarea:nth-of-type(2)
-   attrs:    {"aria-hidden":"true","class":"MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputMultiline css-u36398","readonly":"","tabindex":"-1","style":"visibility: hidden; position: absolute; overflow: hidden; height: 0px; top: 0px; left: 0px; transform: translateZ(0px); padding-top: 0px; padding-bottom: 0px; width: 1372px;"}
+   attrs:    {"aria-hidden":"true","class":"MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputMultiline css-u36398","readonly":"","tabindex":"-1","style":"visibility: hidden; position: absolute; overflow: hidden; height: 0px; top: 0px; left: 0px; transform: translateZ(0px); padding-top: 0px; padding-bottom: 0px; width: 2324px;"}
    texto:    
 
-32. button  caja=706,656,220,37
+32. button  caja=1103,656,379,37
    selector: button[type="button"]
    attrs:    {"class":"MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-fullWidth Mui-disabled MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-fullWidth css-16hc19s","tabindex":"-1","type":"button","disabled":""}
    texto:    GUARDANDO...
 
-33. div  caja=20,832,698,48
+33. div  caja=20,1239,698,48
    selector: div[role="alert"]
    attrs:    {"class":"SnackbarContent-root SnackbarItem-contentRoot SnackbarItem-variantError SnackbarItem-lessPadding css-hped4j","aria-describedby":"notistack-snackbar","role":"alert","style":"transform: none; transition: transform 225ms cubic-bezier(0, 0, 0.2, 1);"}
    texto:    SEÑOR USUARIO, NO HAY INVENTARIO DISPONIBLE POR PARTE DE INDUMIL EN ESTA SECCIONAL
@@ -177,7 +177,7 @@ Elementos: 42
    attrs:    {"aria-live":"assertive","id":"__next-route-announcer__","role":"alert","style":"border: 0px; clip: rect(0px, 0px, 0px, 0px); height: 1px; margin: -1px; overflow: hidden; padding: 0px; position: absolute; top: 0px; width: 1px; white-space: nowrap; overflow-wrap: normal;"}
    texto:    
 
-35. div  caja=0,15,1600,885
+35. div  caja=0,15,2552,1292
    selector: #customized-menu
    attrs:    {"role":"presentation","id":"customized-menu","class":"MuiPopover-root MuiMenu-root MuiModal-root MuiModal-hidden css-xuzscv","aria-hidden":"true","style":"margin-top: 15px;"}
    texto:    

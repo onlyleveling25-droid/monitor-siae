@@ -1,33 +1,33 @@
 # 01-paso1-inicial
 URL: https://dccae.cgfm.mil.co/dccae/main/SolicitudTramite
-Elementos: 40
+Elementos: 39
 
-0. div  caja=0,0,1600,900
+0. div  caja=0,0,2552,1307
    selector: div[role="main"]
    attrs:    {"role":"main"}
-   texto:    DCCAE | DEPARTAMENTO CONTROL COMERCIO DE ARMAS, MUNICIONES Y EXPLOSIVOS 0 Estado de trámite Solicitud del trámite Mis citas Armas registradas Actas transporte Formularios Documentos aprobados Descargos SQC Descargo Explosivos Evento municiones Inicio de Tramite Formulario de Solicitud Cargue de Documentos Tipo de Usuario Tipo de Usuario Identificación Identificación Nombre Usuario Nombre Usuario Seleccione como desea obtener el permiso Seleccione como desea obtener el permiso Tipo de Tramite / Clase de Tramite Tipo de Tramite / Clase de Tramite Seccional Seccional Descripción (Máx 500 Caracteres, mínimo 150 Caracteres, restantes 500) Descripción (Máx 500 Caracteres, mínimo 150 Caracteres, restantes 500) GUARDAR Información válida Consultando datos necesario para inicio del tramite...
+   texto:    DCCAE | DEPARTAMENTO CONTROL COMERCIO DE ARMAS, MUNICIONES Y EXPLOSIVOS 0 Estado de trámite Solicitud del trámite Mis citas Armas registradas Actas transporte Formularios Documentos aprobados Descargos SQC Descargo Explosivos Evento municiones Inicio de Tramite Formulario de Solicitud Cargue de Documentos Tipo de Usuario Tipo de Usuario Identificación Identificación Nombre Usuario Nombre Usuario Seleccione como desea obtener el permiso Seleccione como desea obtener el permiso Tipo de Tramite / Clase de Tramite Tipo de Tramite / Clase de Tramite Seccional Seccional Descripción (Máx 500 Caracteres, mínimo 150 Caracteres, restantes 500) Descripción (Máx 500 Caracteres, mínimo 150 Caracteres, restantes 500) GUARDAR
 
 1. button  caja=12,16,48,48
    selector: button[aria-label="open drawer"]
    attrs:    {"class":"MuiButtonBase-root MuiIconButton-root MuiIconButton-colorInherit MuiIconButton-edgeStart MuiIconButton-sizeLarge jss87 css-1x52uzk","tabindex":"0","type":"button","aria-label":"open drawer"}
    texto:    
 
-2. button  caja=1328,12,56,56
+2. button  caja=2280,12,56,56
    selector: button[aria-label="usuarios encontrados"]
    attrs:    {"class":"MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textInherit MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorInherit MuiButton-root MuiButton-text MuiButton-textInherit MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorInherit jss138 css-b7766g","tabindex":"0","type":"button","aria-label":"usuarios encontrados"}
    texto:    
 
-3. button  caja=1392,12,56,56
+3. button  caja=2344,12,56,56
    selector: button[aria-label="usuarios encontrados"]
    attrs:    {"class":"MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textInherit MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorInherit MuiButton-root MuiButton-text MuiButton-textInherit MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorInherit jss138 css-b7766g","tabindex":"0","type":"button","aria-label":"usuarios encontrados"}
    texto:    
 
-4. button  caja=1456,12,56,56
+4. button  caja=2408,12,56,56
    selector: button[aria-label="usuarios encontrados"]
    attrs:    {"class":"MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textInherit MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorInherit MuiButton-root MuiButton-text MuiButton-textInherit MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorInherit jss138 css-b7766g","tabindex":"0","type":"button","aria-label":"usuarios encontrados"}
    texto:    0
 
-5. button  caja=1520,12,56,56
+5. button  caja=2472,12,56,56
    selector: button[aria-label="usuarios encontrados"]
    attrs:    {"class":"MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textInherit MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorInherit MuiButton-root MuiButton-text MuiButton-textInherit MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorInherit jss138 css-b7766g","tabindex":"0","type":"button","aria-label":"usuarios encontrados"}
    texto:    
@@ -92,112 +92,102 @@ Elementos: 40
    attrs:    {"class":"MuiButtonBase-root MuiListItem-root MuiListItem-gutters MuiListItem-padding MuiListItem-button jss144 css-j5ar9c","tabindex":"0","role":"button"}
    texto:    Evento municiones
 
-18. input  caja=116,299,692,56
+18. input  caja=116,299,1168,56
    selector: #:r9:
    attrs:    {"aria-invalid":"false","id":":r9:","type":"text","class":"MuiInputBase-input MuiOutlinedInput-input css-1x5jdmq","value":"PERSONA NATURAL"}
    texto:    
 
-19. input  caja=824,299,692,56
+19. input  caja=1300,299,1168,56
    selector: #:ra:
-   attrs:    {"aria-invalid":"false","id":":ra:","type":"text","class":"MuiInputBase-input MuiOutlinedInput-input css-1x5jdmq","value":"1007652942"}
+   attrs:    {"aria-invalid":"false","id":":ra:","type":"text","class":"MuiInputBase-input MuiOutlinedInput-input css-1x5jdmq","value":"1118648684"}
    texto:    
 
-20. input  caja=116,371,692,56
+20. input  caja=116,371,1168,56
    selector: #:rb:
-   attrs:    {"aria-invalid":"false","id":":rb:","type":"text","class":"MuiInputBase-input MuiOutlinedInput-input css-1x5jdmq","value":"YEFERSON ALEJANDRO GARCIA MARIN"}
+   attrs:    {"aria-invalid":"false","id":":rb:","type":"text","class":"MuiInputBase-input MuiOutlinedInput-input css-1x5jdmq","value":"DIDIER LEONARDO VARGAS MONTAÑEZ"}
    texto:    
 
-21. input  caja=833,380,644,38
+21. input  caja=1309,380,1120,38
    selector: #asynchronous-demo
    attrs:    {"aria-invalid":"false","autocomplete":"off","id":"asynchronous-demo","placeholder":"Seleccione como desea obtener el permiso","type":"text","class":"MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused css-1uvydh2","aria-autocomplete":"list","aria-expanded":"false","autocapitalize":"none","spellcheck":"false","role":"combobox","value":""}
    texto:    
 
-22. button  caja=1481,385,28,28
+22. button  caja=2433,385,28,28
    selector: button[aria-label="Open"]
    attrs:    {"class":"MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium MuiAutocomplete-popupIndicator css-uge3vf","tabindex":"-1","type":"button","aria-label":"Open","title":"Open"}
    texto:    
 
-23. input  caja=125,452,644,38
+23. input  caja=125,452,1120,38
    selector: #asynchronous-demo
    attrs:    {"aria-invalid":"false","autocomplete":"off","id":"asynchronous-demo","placeholder":"Ingrese el parametro Tipo de Tramite / Clase de Tramite","type":"text","class":"MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused css-1uvydh2","aria-autocomplete":"list","aria-expanded":"false","autocapitalize":"none","spellcheck":"false","role":"combobox","value":""}
    texto:    
 
-24. button  caja=773,457,28,28
+24. button  caja=1249,457,28,28
    selector: button[aria-label="Open"]
    attrs:    {"class":"MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium MuiAutocomplete-popupIndicator css-uge3vf","tabindex":"-1","type":"button","aria-label":"Open","title":"Open"}
    texto:    
 
-25. input  caja=833,452,644,38
+25. input  caja=1309,452,1120,38
    selector: #asynchronous-demo
    attrs:    {"aria-invalid":"false","autocomplete":"off","id":"asynchronous-demo","placeholder":"Indique la seccional donde va a tramitar el permiso para porte o tenencia","type":"text","class":"MuiInputBase-input MuiOutlinedInput-input jss141 MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused css-1uvydh2","aria-autocomplete":"list","aria-expanded":"false","autocapitalize":"none","spellcheck":"false","role":"combobox","value":""}
    texto:    
 
-26. button  caja=1481,457,28,28
+26. button  caja=2433,457,28,28
    selector: button[aria-label="Open"]
    attrs:    {"class":"MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium MuiAutocomplete-popupIndicator css-uge3vf","tabindex":"-1","type":"button","aria-label":"Open","title":"Open"}
    texto:    
 
-27. textarea  caja=130,532,1372,92
+27. textarea  caja=130,532,2324,92
    selector: #:ri:
    attrs:    {"rows":"4","aria-invalid":"false","id":":ri:","name":"descripcion","placeholder":"Escriba la justificación del arma argumentando la necesidad de portarla o tenerla","maxlength":"500","class":"MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputMultiline css-u36398","style":"height: 92px;"}
    texto:    
 
-28. textarea  caja=116,515,1372,0
+28. textarea  caja=116,515,2324,0
    selector: div > div:nth-of-type(8) > div > div > textarea:nth-of-type(2)
-   attrs:    {"aria-hidden":"true","class":"MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputMultiline css-u36398","readonly":"","tabindex":"-1","style":"visibility: hidden; position: absolute; overflow: hidden; height: 0px; top: 0px; left: 0px; transform: translateZ(0px); padding-top: 0px; padding-bottom: 0px; width: 1372px;"}
+   attrs:    {"aria-hidden":"true","class":"MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputMultiline css-u36398","readonly":"","tabindex":"-1","style":"visibility: hidden; position: absolute; overflow: hidden; height: 0px; top: 0px; left: 0px; transform: translateZ(0px); padding-top: 0px; padding-bottom: 0px; width: 2324px;"}
    texto:    
 
-29. button  caja=706,656,220,37
+29. button  caja=1103,656,379,37
    selector: button[type="button"]
    attrs:    {"class":"MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-fullWidth Mui-disabled MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-fullWidth css-16hc19s","tabindex":"-1","type":"button","disabled":""}
    texto:    GUARDAR
 
-30. div  caja=20,832,288,48
-   selector: div[role="alert"]
-   attrs:    {"class":"SnackbarContent-root SnackbarItem-contentRoot SnackbarItem-variantSuccess jss1 SnackbarItem-lessPadding css-hped4j","aria-describedby":"notistack-snackbar","role":"alert","style":"transform: none; transition: transform 225ms cubic-bezier(0, 0, 0.2, 1);"}
-   texto:    Información válida
-
-31. div  caja=20,772,406,48
-   selector: div[role="alert"]
-   attrs:    {"class":"SnackbarContent-root SnackbarItem-contentRoot SnackbarItem-variantSuccess jss1 SnackbarItem-lessPadding css-hped4j","aria-describedby":"notistack-snackbar","role":"alert","style":"transform: none; transition: transform 225ms cubic-bezier(0, 0, 0.2, 1);"}
-   texto:    Consultando datos necesario para inicio del tramite...
-
-32. p  caja=-1,-1,1,1
+30. p  caja=-1,-1,1,1
    selector: #__next-route-announcer__
    attrs:    {"aria-live":"assertive","id":"__next-route-announcer__","role":"alert","style":"border: 0px; clip: rect(0px, 0px, 0px, 0px); height: 1px; margin: -1px; overflow: hidden; padding: 0px; position: absolute; top: 0px; width: 1px; white-space: nowrap; overflow-wrap: normal;"}
    texto:    DCCAE :: DEPARTAMENTO CONTROL COMERCIO DE ARMAS
 
-33. div  caja=0,15,1600,885
+31. div  caja=0,15,2552,1292
    selector: #customized-menu
    attrs:    {"role":"presentation","id":"customized-menu","class":"MuiPopover-root MuiMenu-root MuiModal-root MuiModal-hidden css-xuzscv","aria-hidden":"true","style":"margin-top: 15px;"}
    texto:    
 
-34. ul  caja=47,79,279,164
+32. ul  caja=47,79,279,164
    selector: ul[role="menu"]
    attrs:    {"class":"MuiList-root MuiList-padding MuiMenu-list css-r8u8y9","role":"menu","tabindex":"-1"}
    texto:    
 
-35. li  caja=47,83,279,64
+33. li  caja=47,83,279,64
    selector: li[role="menuitem"]
    attrs:    {"class":"MuiButtonBase-root MuiMenuItem-root MuiMenuItem-gutters MuiMenuItem-root MuiMenuItem-gutters css-ja7cw5","tabindex":"0","role":"menuitem"}
    texto:    
 
-36. li  caja=47,157,279,20
+34. li  caja=47,157,279,20
    selector: li[role="menuitem"]
    attrs:    {"class":"MuiButtonBase-root MuiMenuItem-root MuiMenuItem-gutters MuiMenuItem-root MuiMenuItem-gutters css-ja7cw5","tabindex":"-1","role":"menuitem"}
    texto:    
 
-37. li  caja=47,177,279,20
+35. li  caja=47,177,279,20
    selector: li[role="menuitem"]
    attrs:    {"class":"MuiButtonBase-root MuiMenuItem-root MuiMenuItem-gutters MuiMenuItem-root MuiMenuItem-gutters css-ja7cw5","tabindex":"-1","role":"menuitem"}
    texto:    
 
-38. li  caja=47,197,279,20
+36. li  caja=47,197,279,20
    selector: li[role="menuitem"]
    attrs:    {"class":"MuiButtonBase-root MuiMenuItem-root MuiMenuItem-gutters MuiMenuItem-root MuiMenuItem-gutters css-ja7cw5","tabindex":"-1","role":"menuitem"}
    texto:    
 
-39. li  caja=47,218,279,20
+37. li  caja=47,218,279,20
    selector: li[role="menuitem"]
    attrs:    {"class":"MuiButtonBase-root MuiMenuItem-root MuiMenuItem-gutters MuiMenuItem-root MuiMenuItem-gutters css-ja7cw5","tabindex":"-1","role":"menuitem"}
    texto:    

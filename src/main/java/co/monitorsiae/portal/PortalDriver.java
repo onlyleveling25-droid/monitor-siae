@@ -3,6 +3,7 @@ package co.monitorsiae.portal;
 import co.monitorsiae.dominio.ArmaInventario;
 import co.monitorsiae.dominio.Modalidad;
 import co.monitorsiae.dominio.ParametrosTramite;
+import co.monitorsiae.dominio.ReglasSeleccion;
 
 import java.util.List;
 
@@ -64,5 +65,24 @@ public interface PortalDriver extends AutoCloseable {
 
     @Override
     default void close() {
+    }
+
+    /**
+     * Aparta el arma: selecciona la fila, abre el modal de la modalidad y confirma.
+     * Deja el arma pre-asignada, pero sin sellar la reserva.
+     *
+     * @return verdadero si la plataforma acepto la pre-asignacion
+     */
+    default boolean apartar(ArmaInventario arma, ReglasSeleccion reglas) {
+        return apartar(arma, reglas.modalidad());
+    }
+
+    /**
+     * Pulsa FINALIZAR y confirma el cierre general, lo que sella la reserva y avanza al paso 3.
+     *
+     * @return verdadero si la plataforma confirmo el cierre
+     */
+    default boolean confirmarCierre() {
+        return true;
     }
 }

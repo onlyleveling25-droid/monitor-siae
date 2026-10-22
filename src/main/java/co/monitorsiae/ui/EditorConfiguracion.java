@@ -6,6 +6,7 @@ import co.monitorsiae.dominio.Cliente;
 import co.monitorsiae.dominio.AccesoAplicacion;
 import co.monitorsiae.dominio.Configuracion;
 import co.monitorsiae.dominio.CriterioArma;
+import co.monitorsiae.dominio.DireccionTenencia;
 import co.monitorsiae.dominio.EntornoPortal;
 import co.monitorsiae.dominio.HorarioOperacion;
 import co.monitorsiae.dominio.Modalidad;
@@ -104,6 +105,9 @@ final class EditorConfiguracion extends BorderPane {
             "Opcional. Cada fila es una alternativa; se revisan en el orden de la lista.",
             "Ej. cz, p10");
     private final TextField tipoComodin = new TextField("Pistola");
+    private final TextField departamento = new TextField();
+    private final TextField ciudad = new TextField();
+    private final TextField direccion = new TextField();
     private final ListaEditable excluir = new ListaEditable(
             "Si una palabra aparece en el arma, esta se descarta aunque coincida con un objetivo.",
             "Ej. 22 lr");
@@ -418,6 +422,9 @@ final class EditorConfiguracion extends BorderPane {
                 descripcionConContador(),
                 seccion("Selección del arma"),
                 campo("Reacción", modo), campo("Modalidad", modalidad),
+                campo("Departamento (solo TENENCIA)", departamento),
+                campo("Ciudad (solo TENENCIA)", ciudad),
+                campo("Dirección completa (solo TENENCIA)", direccion),
                 campo("Objetivos prioritarios", objetivos), campo("Si no aparece ningún objetivo", politica),
                 campo("Alternativas", alternativas), campo("Tipo comodín (último recurso)", tipoComodin),
                 campo("Excluir", excluir), campo("Reintentos al apartar", reintentos));
@@ -645,6 +652,9 @@ final class EditorConfiguracion extends BorderPane {
         politica.setValue(cliente.seleccion().siNoHayObjetivo());
         alternativas.setValues(formatearCriterios(cliente.seleccion().alternativas()));
         tipoComodin.setText(cliente.seleccion().tipoComodin());
+        departamento.setText(cliente.seleccion().direccionTenencia().departamento());
+        ciudad.setText(cliente.seleccion().direccionTenencia().ciudad());
+        direccion.setText(cliente.seleccion().direccionTenencia().direccion());
         excluir.setValues(cliente.seleccion().excluir());
         reintentos.getValueFactory().setValue(Math.min(5, cliente.seleccion().reintentos()));
     }
@@ -655,7 +665,7 @@ final class EditorConfiguracion extends BorderPane {
                 permiso.getText(), tipoTramite.getText(), seccionales.values(), descripcion.getText());
         ReglasSeleccion reglas = new ReglasSeleccion(valor(modalidad.getValue()),
                 criterios(objetivos.values()), valor(politica.getValue()), criterios(alternativas.values()),
-                tipoComodin.getText(), excluir.values(), reintentos.getValue());
+                tipoComodin.getText(), excluir.values(), reintentos.getValue(), new DireccionTenencia(departamento.getText(), ciudad.getText(), direccion.getText()));
         return new Cliente(anterior.id(), nombre.getText(), activo.isSelected(), tramite,
                 valor(modo.getValue()), reglas,
                 preferenciaSonido.getValue() == null

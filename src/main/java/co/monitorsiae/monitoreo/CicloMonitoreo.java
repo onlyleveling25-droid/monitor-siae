@@ -39,6 +39,7 @@ public final class CicloMonitoreo {
             return new ResultadoCiclo.Inesperado(e.getMessage());
         }
     }
+    
 
     private ResultadoCiclo recorrer(Cliente cliente, PortalDriver portal) {
         ParametrosTramite tramite = cliente.tramite();
@@ -73,8 +74,9 @@ public final class CicloMonitoreo {
             PortalDriver portal, String seccional, EleccionArma eleccion, ReglasSeleccion reglas,
             List<ArmaInventario> inventario) {
         for (int intento = 1; intento <= reglas.reintentos(); intento++) {
-            if (portal.apartar(eleccion.arma(), reglas.modalidad())) {
-                return new ResultadoCiclo.ArmaApartada(seccional, eleccion, intento, inventario);
+            if (portal.apartar(eleccion.arma(), reglas)) {
+                boolean sellado = portal.confirmarCierre();
+                return new ResultadoCiclo.ArmaApartada(seccional, eleccion, intento, inventario, sellado);
             }
         }
         return new ResultadoCiclo.ApartadoFallido(seccional, eleccion, reglas.reintentos(), inventario);

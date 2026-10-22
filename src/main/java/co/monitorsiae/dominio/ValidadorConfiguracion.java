@@ -111,6 +111,11 @@ public final class ValidadorConfiguracion {
             problemas.add(new ProblemaConfiguracion(ubicacion,
                     "Los reintentos no pueden ser más de " + REINTENTOS_MAXIMOS + "."));
         }
+
+        if (reglas.modalidad() == Modalidad.TENENCIA && !reglas.direccionTenencia().completa()) {
+            problemas.add(new ProblemaConfiguracion(ubicacion,
+                    "La modalidad es TENENCIA: complete departamento, ciudad y dirección."));
+        }
     }
 
     private static String etiqueta(Cliente cliente) {

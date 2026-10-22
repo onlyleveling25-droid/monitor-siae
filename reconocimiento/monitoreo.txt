@@ -1,2 +1,20 @@
-15:12:20  Consulta 1  seccional=16 - Usaquén, Bogotá D.C.  url=https://dccae.cgfm.mil.co/dccae/main/SolicitudTramite  filas=0  avisoNoInventario=0
-15:15:59  Consulta 2  seccional=45 - Medellín, Antioquia  url=https://dccae.cgfm.mil.co/dccae/main/SolicitudTramite  filas=0  avisoNoInventario=0
+10:24:28  Consulta 1  seccional=83 - Florencia, Caquetá  url=https://dccae.cgfm.mil.co/dccae/main/SolicitudTramite  filas=0  enlace=0  fg1=0  avisoNoInventario=0
+10:26:25  Consulta 2  seccional=83 - Florencia, Caquetá  url=https://dccae.cgfm.mil.co/dccae/main/SolicitudTramite  filas=0  enlace=0  fg1=0  avisoNoInventario=1
+10:28:35  Consulta 3  seccional=83 - Florencia, Caquetá  url=https://dccae.cgfm.mil.co/dccae/main/SolicitudTramite  filas=0  enlace=0  fg1=0  avisoNoInventario=1
+10:30:25  Consulta 4  seccional=83 - Florencia, Caquetá  url=https://dccae.cgfm.mil.co/dccae/main/SolicitudTramite  filas=0  enlace=0  fg1=0  avisoNoInventario=1
+10:32:27  Consulta 5  seccional=83 - Florencia, Caquetá  url=https://dccae.cgfm.mil.co/dccae/main/SolicitudTramite  filas=0  enlace=0  fg1=0  avisoNoInventario=1
+10:34:46  Consulta 6  seccional=83 - Florencia, Caquetá  url=https://dccae.cgfm.mil.co/dccae/main/SolicitudTramite  filas=0  enlace=0  fg1=0  avisoNoInventario=1
+10:36:49  Consulta 7  seccional=83 - Florencia, Caquetá  url=https://dccae.cgfm.mil.co/dccae/main/SolicitudTramite  filas=0  enlace=0  fg1=0  avisoNoInventario=1
+10:39:04  Consulta 8  seccional=83 - Florencia, Caquetá  url=https://dccae.cgfm.mil.co/dccae/main/SolicitudTramite  filas=0  enlace=0  fg1=0  avisoNoInventario=1
+10:41:13  Consulta 9  seccional=83 - Florencia, Caquetá  url=https://dccae.cgfm.mil.co/dccae/main/SolicitudTramite  filas=0  enlace=0  fg1=0  avisoNoInventario=1
+10:43:19  Consulta 10  seccional=83 - Florencia, Caquetá  url=https://dccae.cgfm.mil.co/dccae/main/SolicitudTramite  filas=0  enlace=0  fg1=0  avisoNoInventario=1
+10:45:49  Consulta 11  seccional=83 - Florencia, Caquetá  url=https://dccae.cgfm.mil.co/dccae/main/SolicitudTramite  filas=0  enlace=0  fg1=0  avisoNoInventario=1
+10:48:12  Consulta 12  seccional=83 - Florencia, Caquetá  url=https://dccae.cgfm.mil.co/dccae/main/SolicitudTramite  filas=0  enlace=0  fg1=0  avisoNoInventario=0
+10:55:07  Consulta 13  seccional=83 - Florencia, Caquetá  url=https://dccae.cgfm.mil.co/dccae/main/SolicitudTramite  filas=0  enlace=0  fg1=0  avisoNoInventario=1
+10:57:24  Consulta 14  seccional=83 - Florencia, Caquetá  url=https://dccae.cgfm.mil.co/dccae/main/SolicitudTramite  filas=0  enlace=0  fg1=0  avisoNoInventario=1
+10:59:46  Consulta 15  seccional=83 - Florencia, Caquetá  url=https://dccae.cgfm.mil.co/dccae/main/SolicitudTramite  filas=0  enlace=0  fg1=0  avisoNoInventario=1
+11:01:58  Consulta 16  seccional=83 - Florencia, Caquetá  url=https://dccae.cgfm.mil.co/dccae/main/SolicitudTramite  filas=0  enlace=0  fg1=0  avisoNoInventario=1
+11:04:01  Consulta 17  seccional=83 - Florencia, Caquetá  url=https://dccae.cgfm.mil.co/dccae/main/SolicitudTramite  filas=0  enlace=0  fg1=0  avisoNoInventario=1
+11:06:32  Consulta 18  seccional=83 - Florencia, Caquetá  url=https://dccae.cgfm.mil.co/dccae/main/SolicitudTramite  filas=0  enlace=0  fg1=0  avisoNoInventario=1
+11:08:55  Consulta 19  seccional=83 - Florencia, Caquetá  url=https://dccae.cgfm.mil.co/dccae/main/SolicitudTramite  filas=0  enlace=0  fg1=0  avisoNoInventario=1
+11:10:48  Consulta 20  seccional=83 - Florencia, Caquetá  url=https://dccae.cgfm.mil.co/dccae/main/SolicitudTramite  filas=0  enlace=0  fg1=0  avisoNoInventario=1

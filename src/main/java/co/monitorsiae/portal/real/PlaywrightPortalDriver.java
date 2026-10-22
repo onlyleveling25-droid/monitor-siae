@@ -1,9 +1,11 @@
 package co.monitorsiae.portal.real;
 
 import co.monitorsiae.dominio.ArmaInventario;
+import co.monitorsiae.dominio.DireccionTenencia;
 import co.monitorsiae.dominio.Modalidad;
 import co.monitorsiae.dominio.NavegadorPreferido;
 import co.monitorsiae.dominio.ParametrosTramite;
+import co.monitorsiae.dominio.ReglasSeleccion;
 import co.monitorsiae.dominio.Texto;
 import co.monitorsiae.portal.OpcionNoDisponibleException;
 import co.monitorsiae.portal.PortalDriver;
@@ -12,7 +14,6 @@ import co.monitorsiae.portal.PortalInesperadoException;
 import co.monitorsiae.portal.ResultadoGuardar;
 import co.monitorsiae.portal.SesionPortalCerradaException;
 import co.monitorsiae.portal.SesionVencidaException;
-import com.microsoft.playwright.options.AriaRole;
 import com.microsoft.playwright.BrowserContext;
 import com.microsoft.playwright.BrowserType;
 import com.microsoft.playwright.Locator;
@@ -30,8 +31,10 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 public final class PlaywrightPortalDriver implements PortalDriver {
 
@@ -45,8 +48,9 @@ public final class PlaywrightPortalDriver implements PortalDriver {
 
     private final Playwright playwright;
     private final BrowserContext contexto;
-    private final Page pagina;
     private final Path capturas;
+    /** Pagina activa. Cambia si el portal abre el inventario en una pestana nueva. */
+    private volatile Page pagina;
     private volatile boolean cerrado;
     private volatile boolean cerrando;
     private volatile Runnable accionAlCerrar = () -> { };
@@ -57,8 +61,8 @@ public final class PlaywrightPortalDriver implements PortalDriver {
         BrowserContext contextoCreado;
         Page paginaCreada;
         try {
-            BrowserType.LaunchPersistentContextOptions opciones
-                    = new BrowserType.LaunchPersistentContextOptions()
+            BrowserType.LaunchPersistentContextOptions opciones =
+                    new BrowserType.LaunchPersistentContextOptions()
                             .setChannel(canal(navegador))
                             .setHeadless(false)
                             .setViewportSize((ViewportSize) null)
@@ -82,20 +86,19 @@ public final class PlaywrightPortalDriver implements PortalDriver {
         playwright = runtime;
         contexto = contextoCreado;
         pagina = paginaCreada;
-        contexto.onClose(ignorado -> registrarCierre());
-        pagina.onClose(ignorado -> registrarCierre());
+        contextoCreado.onClose(ignorado -> registrarCierre());
+        paginaCreada.onClose(ignorado -> registrarCierre());
     }
 
     private static String canal(NavegadorPreferido navegador) {
         return switch (navegador) {
-            case CHROME ->
-                "chrome";
-            case EDGE ->
-                "msedge";
+            case CHROME -> "chrome";
+            case EDGE -> "msedge";
         };
     }
 
-    // --- Paso 1 ---------------------------------------------------------------
+    // --- Paso 1 ------------------------------------------------------------------
+
     @Override
     public List<String> abrirFormulario(ParametrosTramite tramite) {
         verificarDisponible();
@@ -106,28 +109,6 @@ public final class PlaywrightPortalDriver implements PortalDriver {
                 "tipo de trámite");
         return leerOpciones(SelectoresSiae.PLACEHOLDER_SECCIONAL);
     }
-    
-    private void asegurarPaso1() {
-        detectarSesionVencida();
-        if (pagina.locator(SelectoresSiae.CAMPO_DESCRIPCION).count() > 0) {
-            return;
-        }
-        pagina.navigate(URL_TRAMITE,
-                new Page.NavigateOptions().setWaitUntil(WaitUntilState.DOMCONTENTLOADED));
-        esperarPaso1();
-    }
-
-    private void seleccionarSiHaceFalta(String placeholder, String valor, String nombre) {
-        Locator combo = combo(placeholder);
-        combo.waitFor(new Locator.WaitForOptions().setState(WaitForSelectorState.VISIBLE)
-                .setTimeout(ESPERA_CORTA.toMillis()));
-        if (Texto.equivalentes(combo.inputValue(), valor)) {
-            return;
-        }
-        elegirCombo(placeholder, valor, nombre);
-    }
-
-
 
     @Override
     public ResultadoGuardar enviarPaso1(String seccional, String descripcion) {
@@ -145,7 +126,11 @@ public final class PlaywrightPortalDriver implements PortalDriver {
         return esperarResultadoGuardar();
     }
 
-    private void recargarPaso1() {
+    private void asegurarPaso1() {
+        detectarSesionVencida();
+        if (pagina.locator(SelectoresSiae.CAMPO_DESCRIPCION).count() > 0) {
+            return;
+        }
         pagina.navigate(URL_TRAMITE,
                 new Page.NavigateOptions().setWaitUntil(WaitUntilState.DOMCONTENTLOADED));
         esperarPaso1();
@@ -163,16 +148,24 @@ public final class PlaywrightPortalDriver implements PortalDriver {
         throw inesperado("No se abrió el formulario del paso 1.", null);
     }
 
-    private void elegirCombo(String placeholder, String valor, String nombre) {
-        int indice = -1;
-        List<Locator> utiles = new ArrayList<>();
-        List<String> textos = new ArrayList<>();
+    private void seleccionarSiHaceFalta(String placeholder, String valor, String nombre) {
+        Locator combo = combo(placeholder);
+        combo.waitFor(new Locator.WaitForOptions().setState(WaitForSelectorState.VISIBLE)
+                .setTimeout(ESPERA_CORTA.toMillis()));
+        if (Texto.equivalentes(combo.inputValue(), valor)) {
+            return;
+        }
+        elegirCombo(placeholder, valor, nombre);
+    }
 
+    private void elegirCombo(String placeholder, String valor, String nombre) {
         Locator combo = combo(placeholder);
         combo.waitFor(new Locator.WaitForOptions().setState(WaitForSelectorState.VISIBLE)
                 .setTimeout(ESPERA_CORTA.toMillis()));
         combo.click();
 
+        List<Locator> utiles = new ArrayList<>();
+        List<String> textos = new ArrayList<>();
         long limite = System.nanoTime() + ESPERA_CORTA.toNanos();
         while (System.nanoTime() < limite) {
             utiles.clear();
@@ -191,7 +184,7 @@ public final class PlaywrightPortalDriver implements PortalDriver {
             pagina.waitForTimeout(250);
         }
 
-        indice = indiceQueCoincide(textos, valor);
+        int indice = indiceQueCoincide(textos, valor);
         if (indice < 0) {
             pagina.keyboard().press("Escape");
             throw new OpcionNoDisponibleException("No apareció \"" + valor + "\" en la lista de "
@@ -230,32 +223,6 @@ public final class PlaywrightPortalDriver implements PortalDriver {
         return pagina.getByPlaceholder(placeholder).first();
     }
 
-    private static String textoDe(Locator elemento) {
-        String texto = elemento.innerText();
-        return texto == null ? "" : texto.replaceAll("\\s+", " ").strip();
-    }
-
-    private static boolean esRuido(String texto) {
-        String plano = Texto.normalizar(texto);
-        return plano.isEmpty() || plano.startsWith("cargando") || plano.startsWith("loading")
-                || plano.startsWith("no option") || plano.startsWith("sin opcion")
-                || plano.startsWith("no hay opcion");
-    }
-
-    private static int indiceQueCoincide(List<String> opciones, String valor) {
-        for (int i = 0; i < opciones.size(); i++) {
-            if (Texto.equivalentes(opciones.get(i), valor)) {
-                return i;
-            }
-        }
-        for (int i = 0; i < opciones.size(); i++) {
-            if (Texto.contieneTermino(opciones.get(i), valor)) {
-                return i;
-            }
-        }
-        return -1;
-    }
-
     private void esperarGuardarHabilitado(Locator guardar) {
         long limite = System.nanoTime() + ESPERA_CORTA.toNanos();
         while (System.nanoTime() < limite) {
@@ -285,97 +252,253 @@ public final class PlaywrightPortalDriver implements PortalDriver {
         return contador.count() == 0 ? "Sin contador visible." : textoDe(contador);
     }
 
+    /** GUARDAR puede dar tres desenlaces: sin inventario, pantalla intermedia, o FG-1 directo. */
     private ResultadoGuardar esperarResultadoGuardar() {
         long limite = System.nanoTime() + ESPERA_LARGA.toNanos();
         while (System.nanoTime() < limite) {
             detectarSesionVencida();
-            if (pagina.locator(SelectoresSiae.PASO_2).count() > 0) {
-                return ResultadoGuardar.AVANZO_PASO_2;
-            }
-            if (pagina.locator(SelectoresSiae.SIN_INVENTARIO).count() > 0) {
+            if (hayMensajeSinInventario()) {
                 return ResultadoGuardar.SIN_INVENTARIO;
+            }
+            if (fg1Abierto() || hayEnlaceInventario()) {
+                return ResultadoGuardar.AVANZO_PASO_2;
             }
             pagina.waitForTimeout(300);
         }
         throw inesperado("No se reconoció la respuesta del portal después de GUARDAR.", null);
     }
 
-    // --- Paso 2 ---------------------------------------------------------------
+    // --- Paso 2 ------------------------------------------------------------------
+
+    /** Pulsa el enlace de la pantalla intermedia y sigue la ventana si se abre aparte. */
+    private void asegurarPaso2() {
+        if (fg1Abierto()) {
+            return;
+        }
+        Locator enlace = pagina.locator(SelectoresSiae.ENLACE_INVENTARIO).first();
+        if (enlace.count() == 0) {
+            throw inesperado("El portal no mostró el enlace al inventario.", null);
+        }
+        enlace.scrollIntoViewIfNeeded();
+        Set<Page> antes = new HashSet<>(contexto.pages());
+        enlace.click();
+
+        long limite = System.nanoTime() + ESPERA_MEDIA.toNanos();
+        while (System.nanoTime() < limite) {
+            for (Page candidata : contexto.pages()) {
+                if (!antes.contains(candidata) && !candidata.isClosed()) {
+                    adoptarPagina(candidata);
+                    break;
+                }
+            }
+            if (fg1Abierto()) {
+                return;
+            }
+            pagina.waitForTimeout(250);
+        }
+        throw inesperado("No se abrió la ventana del inventario.", null);
+    }
+
+    private void adoptarPagina(Page nueva) {
+        try {
+            nueva.waitForLoadState();
+        } catch (PlaywrightException ignorado) {
+            // la ventana puede estar cargando todavia
+        }
+        nueva.onClose(ignorado -> registrarCierre());
+        pagina = nueva;
+        LOG.info("El inventario se abrió en una ventana aparte: {}", nueva.url());
+    }
+
     @Override
     public List<ArmaInventario> leerInventario() {
         verificarDisponible();
         detectarSesionVencida();
+        asegurarPaso2();
         esperarFilasInventario();
 
         List<ArmaInventario> armas = new ArrayList<>();
         List<Locator> filas = pagina.locator(SelectoresSiae.FILAS_INVENTARIO).all();
         for (int i = 0; i < filas.size(); i++) {
             Locator fila = filas.get(i);
-            String descripcion = textoDe(fila);
-            if (descripcion.isEmpty()) {
+            List<Locator> celdas = fila.locator(SelectoresSiae.CELDAS_INVENTARIO).all();
+            List<String> textos = new ArrayList<>();
+            for (Locator celda : celdas) {
+                textos.add(textoDe(celda));
+            }
+            String descripcion = textos.isEmpty() ? textoDe(fila) : String.join(" ", textos);
+            if (descripcion.isBlank()) {
                 continue;
             }
-            String tipo = "";
-            List<Locator> celdas = fila.locator("td").all();
-            if (!celdas.isEmpty()) {
-                tipo = textoDe(celdas.getFirst());
-            }
+            String tipo = textos.isEmpty() ? "" : textos.getFirst();
             armas.add(new ArmaInventario(i, descripcion, tipo));
         }
         return armas;
     }
 
     @Override
-public boolean apartar(ArmaInventario arma, Modalidad modalidad) {
-    verificarDisponible();
-    detectarSesionVencida();
+    public boolean apartar(ArmaInventario arma, Modalidad modalidad) {
+        verificarDisponible();
+        detectarSesionVencida();
+        asegurarPaso2();
 
-    // 1. Buscar y seleccionar la fila del arma en la tabla
-    Locator fila = buscarFila(arma);
-    if (fila == null) {
-        throw inesperado("El arma ya no está en el listado: " + arma.descripcion(), null);
+        Locator fila = buscarFila(arma);
+        if (fila == null) {
+            return false;   // se la llevaron entre la lectura y el clic
+        }
+        fila.scrollIntoViewIfNeeded();
+        fila.click();
+        esperarFilaSeleccionada();
+
+        pagina.locator(modalidad == Modalidad.PORTE
+                ? SelectoresSiae.BOTON_PORTE
+                : SelectoresSiae.BOTON_TENENCIA).first().click();
+
+        Locator modal = esperarModal();
+        confirmarEn(modal);
+
+        if (hayErrorDeCupo()) {
+            LOG.info("Sin cupo disponible para {}; se intentará con otra arma.", arma.descripcion());
+            volverDelModal();
+            return false;
+        }
+        esperarModalCerrado(modal);
+        return true;
     }
-    fila.scrollIntoViewIfNeeded();
-    fila.click();
-    pagina.waitForTimeout(500);
 
-    // 2. Hacer clic en el botón superior de modalidad (PORTE o TENENCIA)
-    String selectorModalidad = (modalidad == Modalidad.PORTE) 
-            ? SelectoresSiae.BOTON_PORTE 
-            : SelectoresSiae.BOTON_TENENCIA;
-            
-    Locator botonModalidad = pagina.locator(selectorModalidad).first();
-    botonModalidad.waitFor(new Locator.WaitForOptions()
-            .setState(WaitForSelectorState.VISIBLE)
-            .setTimeout(ESPERA_CORTA.toMillis()));
-    botonModalidad.click();
-    pagina.waitForTimeout(500);
+    @Override
+    public boolean confirmarCierre() {
+        verificarDisponible();
+        detectarSesionVencida();
 
-    // 3. Hacer clic en el botón FINALIZAR (pie de la tabla)
-    Locator botonFinalizar = pagina.locator(SelectoresSiae.BOTON_FINALIZAR).first();
-    botonFinalizar.waitFor(new Locator.WaitForOptions()
-            .setState(WaitForSelectorState.VISIBLE)
-            .setTimeout(ESPERA_CORTA.toMillis()));
-    botonFinalizar.click();
-    pagina.waitForTimeout(1000);
+        Locator finalizar = pagina.locator(SelectoresSiae.BOTON_FINALIZAR).first();
+        if (finalizar.count() == 0) {
+            LOG.warn("No se encontró FINALIZAR; la reserva queda sin sellar.");
+            return false;
+        }
+        finalizar.scrollIntoViewIfNeeded();
+        finalizar.click();
 
-    // 4. Confirmar en el modal/ventana emergente que aparece
-    Locator botonConfirmar = pagina.locator(SelectoresSiae.BOTON_CONFIRMAR_MODAL).first();
-    botonConfirmar.waitFor(new Locator.WaitForOptions()
-            .setState(WaitForSelectorState.VISIBLE)
-            .setTimeout(ESPERA_CORTA.toMillis()));
-    botonConfirmar.click();
+        Locator modal = esperarModal();
+        confirmarEn(modal);
+        return esperarAsignacionExitosa(modal);
+    }
 
-    // 5. Verificar que la plataforma haya registrado la asignación
-    return esperarAsignacionExitosa();
-}
-    private static String etiqueta(Modalidad modalidad) {
-        return switch (modalidad) {
-            case PORTE ->
-                "Porte";
-            case TENENCIA ->
-                "Tenencia";
-        };
+    /** CONFIRMAR del modal. Acotado al modal para no confundirlo con el del cierre general. */
+    private void confirmarEn(Locator modal) {
+        Locator confirmar = modal.locator(SelectoresSiae.BOTON_CONFIRMAR).first();
+        confirmar.waitFor(new Locator.WaitForOptions().setState(WaitForSelectorState.VISIBLE)
+                .setTimeout(ESPERA_CORTA.toMillis()));
+        confirmar.click();
+        pagina.waitForTimeout(600);
+    }
+
+    /** Devuelve el modal visible más reciente, no el primero del DOM. */
+    private Locator esperarModal() {
+        long limite = System.nanoTime() + ESPERA_CORTA.toNanos();
+        while (System.nanoTime() < limite) {
+            List<Locator> modales = pagina.locator(SelectoresSiae.MODALES).all();
+            for (int i = modales.size() - 1; i >= 0; i--) {
+                if (estaVisible(modales.get(i))) {
+                    return modales.get(i);
+                }
+            }
+            pagina.waitForTimeout(150);
+        }
+        throw inesperado("No apareció el cuadro de confirmación del portal.", null);
+    }
+
+    private void esperarModalCerrado(Locator modal) {
+        long limite = System.nanoTime() + ESPERA_CORTA.toNanos();
+        while (System.nanoTime() < limite) {
+            if (!estaVisible(modal)) {
+                return;
+            }
+            pagina.waitForTimeout(150);
+        }
+    }
+
+    private void volverDelModal() {
+        Locator volver = pagina.locator(SelectoresSiae.BOTON_VOLVER).first();
+        if (volver.count() > 0 && estaVisible(volver)) {
+            volver.click();
+            pagina.waitForTimeout(600);
+        }
+    }
+
+    private void esperarFilaSeleccionada() {
+        long limite = System.nanoTime() + ESPERA_CORTA.toNanos();
+        while (System.nanoTime() < limite) {
+            if (pagina.locator(SelectoresSiae.FILA_SELECCIONADA).count() > 0) {
+                return;
+            }
+            pagina.waitForTimeout(150);
+        }
+        throw inesperado("El clic en la fila no quedó registrado.", null);
+    }
+
+    private boolean hayErrorDeCupo() {
+        return pagina.locator(SelectoresSiae.ERROR_CUPO).count() > 0;
+    }
+
+    private boolean esperarAsignacionExitosa(Locator modal) {
+        long limite = System.nanoTime() + ESPERA_MEDIA.toNanos();
+        while (System.nanoTime() < limite) {
+            detectarSesionVencida();
+            if (pagina.locator(SelectoresSiae.ASIGNACION_EXITOSA).count() > 0) {
+                return true;
+            }
+            if (modal != null && !estaVisible(modal)) {
+                return true;   // el modal se cerró: se aceptó
+            }
+            pagina.waitForTimeout(300);
+        }
+        return false;
+    }
+
+    /** CONFIRMAR: los dos desplegables del modal de TENENCIA y el campo de dirección. */
+    private void llenarDireccion(Locator modal, DireccionTenencia direccion) {
+        List<Locator> combos = modal.locator("mat-select, [role='combobox'], select").all();
+        if (combos.size() >= 2) {
+            elegirEnModal(combos.get(0), direccion.departamento(), "departamento");
+            elegirEnModal(combos.get(1), direccion.ciudad(), "ciudad");
+        } else {
+            LOG.warn("El modal de TENENCIA no mostró los dos desplegables esperados.");
+        }
+        Locator campo = modal.locator("textarea, input[type='text']").last();
+        if (campo.count() > 0) {
+            campo.fill(direccion.direccion());
+        }
+    }
+
+    private void elegirEnModal(Locator combo, String valor, String nombre) {
+        combo.click();
+        List<Locator> opciones = new ArrayList<>();
+        List<String> textos = new ArrayList<>();
+        long limite = System.nanoTime() + ESPERA_CORTA.toNanos();
+        while (System.nanoTime() < limite) {
+            opciones.clear();
+            textos.clear();
+            for (Locator opcion : pagina.locator(SelectoresSiae.OPCIONES).all()) {
+                String texto = textoDe(opcion);
+                if (!esRuido(texto)) {
+                    opciones.add(opcion);
+                    textos.add(texto);
+                }
+            }
+            if (!textos.isEmpty()) {
+                break;
+            }
+            pagina.waitForTimeout(200);
+        }
+        int indice = indiceQueCoincide(textos, valor);
+        if (indice < 0) {
+            pagina.keyboard().press("Escape");
+            throw inesperado("No apareció \"" + valor + "\" en el desplegable de " + nombre
+                    + ". Opciones vistas: " + String.join(" | ", textos), null);
+        }
+        opciones.get(indice).click();
+        pagina.waitForTimeout(400);
     }
 
     private Locator buscarFila(ArmaInventario arma) {
@@ -384,6 +507,16 @@ public boolean apartar(ArmaInventario arma, Modalidad modalidad) {
             String texto = textoDe(fila);
             if (Texto.equivalentes(texto, arma.descripcion())
                     || Texto.contieneTermino(texto, arma.descripcion())) {
+                return fila;
+            }
+        }
+        for (Locator fila : filas) {
+            List<Locator> celdas = fila.locator(SelectoresSiae.CELDAS_INVENTARIO).all();
+            if (celdas.size() < 3) {
+                continue;
+            }
+            if (Texto.equivalentes(textoDe(celdas.getFirst()), arma.tipo())
+                    && Texto.contieneTermino(textoDe(fila), arma.descripcion())) {
                 return fila;
             }
         }
@@ -396,32 +529,74 @@ public boolean apartar(ArmaInventario arma, Modalidad modalidad) {
             if (pagina.locator(SelectoresSiae.FILAS_INVENTARIO).count() > 0) {
                 return;
             }
+            if (hayMensajeSinInventario()) {
+                return;   // FG-1 abierto pero con la tabla vacía
+            }
             pagina.waitForTimeout(300);
         }
         throw inesperado("El paso 2 no mostró filas de inventario.", null);
     }
 
-    private boolean esperarAsignacionExitosa() {
-        long limite = System.nanoTime() + ESPERA_MEDIA.toNanos();
-        while (System.nanoTime() < limite) {
-            detectarSesionVencida();
-            if (pagina.locator(SelectoresSiae.ASIGNACION_EXITOSA).count() > 0) {
-                return true;
-            }
-            pagina.waitForTimeout(300);
-        }
-        return false;
+    // --- Comunes -----------------------------------------------------------------
+
+    private boolean hayMensajeSinInventario() {
+        return pagina.locator(SelectoresSiae.SIN_INVENTARIO).count() > 0;
     }
 
-    // --- Comunes --------------------------------------------------------------
+    private boolean hayEnlaceInventario() {
+        return pagina.locator(SelectoresSiae.ENLACE_INVENTARIO).count() > 0;
+    }
+
+    private boolean fg1Abierto() {
+        return pagina.locator(SelectoresSiae.PASO_2).count() > 0;
+    }
+
     private void detectarSesionVencida() {
         Locator contrasena = pagina.locator(SelectoresSiae.LOGIN_PASSWORD).first();
-        Locator ingresarPortal = pagina.locator(SelectoresSiae.INGRESAR_PORTAL).first();
-        if ((contrasena.count() > 0 && contrasena.isVisible())
-                || (ingresarPortal.count() > 0 && ingresarPortal.isVisible())) {
+        Locator ingresar = pagina.locator(SelectoresSiae.INGRESAR_PORTAL).first();
+        if ((contrasena.count() > 0 && estaVisible(contrasena))
+                || (ingresar.count() > 0 && estaVisible(ingresar))) {
             throw new SesionVencidaException(
                     "La plataforma pidió iniciar sesión de nuevo en la ventana del cliente.");
         }
+    }
+
+    private static boolean estaVisible(Locator elemento) {
+        try {
+            return elemento.isVisible();
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
+    private static String textoDe(Locator elemento) {
+        try {
+            String texto = elemento.innerText();
+            return texto == null ? "" : texto.replaceAll("\\s+", " ").strip();
+        } catch (RuntimeException e) {
+            return "";
+        }
+    }
+
+    private static boolean esRuido(String texto) {
+        String plano = Texto.normalizar(texto);
+        return plano.isEmpty() || plano.startsWith("cargando") || plano.startsWith("loading")
+                || plano.startsWith("no option") || plano.startsWith("sin opcion")
+                || plano.startsWith("no hay opcion");
+    }
+
+    private static int indiceQueCoincide(List<String> opciones, String valor) {
+        for (int i = 0; i < opciones.size(); i++) {
+            if (Texto.equivalentes(opciones.get(i), valor)) {
+                return i;
+            }
+        }
+        for (int i = 0; i < opciones.size(); i++) {
+            if (Texto.contieneTermino(opciones.get(i), valor)) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     @Override
@@ -438,8 +613,8 @@ public boolean apartar(ArmaInventario arma, Modalidad modalidad) {
             return !cerrado && !pagina.isClosed();
         } catch (PlaywrightException e) {
             if (cerrado || pagina.isClosed()
-                    || (e.getMessage() != null
-                    && e.getMessage().toLowerCase(java.util.Locale.ROOT).contains("has been closed"))) {
+                    || (e.getMessage() != null && e.getMessage().toLowerCase(java.util.Locale.ROOT)
+                            .contains("has been closed"))) {
                 registrarCierre();
                 return false;
             }
@@ -457,6 +632,9 @@ public boolean apartar(ArmaInventario arma, Modalidad modalidad) {
 
     private void registrarCierre() {
         if (cerrando || cerrado) {
+            return;
+        }
+        if (!pagina.isClosed()) {
             return;
         }
         cerrado = true;
@@ -508,3 +686,5 @@ public boolean apartar(ArmaInventario arma, Modalidad modalidad) {
         }
     }
 }
+
+

@@ -338,8 +338,21 @@ public final class PlaywrightPortalDriver implements PortalDriver {
 
     @Override
     public boolean apartar(ArmaInventario arma, Modalidad modalidad) {
+        return apartar(arma, modalidad, DireccionTenencia.vacia());
+    }
+
+    @Override
+    public boolean apartar(ArmaInventario arma, ReglasSeleccion reglas) {
+        return apartar(arma, reglas.modalidad(), reglas.direccionTenencia());
+    }
+
+    private boolean apartar(ArmaInventario arma, Modalidad modalidad, DireccionTenencia direccion) {
         verificarDisponible();
         detectarSesionVencida();
+        if (modalidad == Modalidad.TENENCIA && !direccion.completa()) {
+            throw new PortalException("La modalidad TENENCIA exige departamento, ciudad y dirección "
+                    + "completa; revisa la configuración del cliente.");
+        }
         asegurarPaso2();
 
         Locator fila = buscarFila(arma);
@@ -355,15 +368,36 @@ public final class PlaywrightPortalDriver implements PortalDriver {
                 : SelectoresSiae.BOTON_TENENCIA).first().click();
 
         Locator modal = esperarModal();
-        confirmarEn(modal);
-
-        if (hayErrorDeCupo()) {
-            LOG.info("Sin cupo disponible para {}; se intentará con otra arma.", arma.descripcion());
-            volverDelModal();
-            return false;
+        if (modalidad == Modalidad.TENENCIA) {
+            llenarDireccion(modal, direccion);  // CONFIRMAR con 17-modal-tenencia.html
         }
-        esperarModalCerrado(modal);
-        return true;
+        confirmarEn(modal);
+        return esperarDesenlacePreasignacion(modal, arma);
+    }
+
+    /**
+     * Tras CONFIRMAR, el error de cupo es un snackbar que se autodestruye en segundos: se sondea
+     * en bucle corto. Si el modal se cierra sin snackbar, la pre-asignacion quedo aceptada.
+     */
+    private boolean esperarDesenlacePreasignacion(Locator modal, ArmaInventario arma) {
+        long limite = System.nanoTime() + ESPERA_MEDIA.toNanos();
+        long modalCerradoDesde = 0;
+        while (System.nanoTime() < limite) {
+            if (hayErrorDeCupo()) {
+                LOG.info("Sin cupo disponible para {}; se intentará con otra arma.", arma.descripcion());
+                volverDelModal();
+                return false;
+            }
+            if (!estaVisible(modal)) {
+                if (modalCerradoDesde == 0) {
+                    modalCerradoDesde = System.nanoTime();
+                } else if (System.nanoTime() - modalCerradoDesde > Duration.ofSeconds(2).toNanos()) {
+                    return true;   // modal cerrado y sin snackbar de cupo: aceptada
+                }
+            }
+            pagina.waitForTimeout(120);
+        }
+        throw inesperado("El modal de confirmación no se cerró después de CONFIRMAR.", null);
     }
 
     @Override
@@ -379,9 +413,32 @@ public final class PlaywrightPortalDriver implements PortalDriver {
         finalizar.scrollIntoViewIfNeeded();
         finalizar.click();
 
+        // Modal de cierre general: "¿Desea confirmar y continuar el proceso...?" con Ver Armas.
         Locator modal = esperarModal();
         confirmarEn(modal);
-        return esperarAsignacionExitosa(modal);
+        return esperarAvancePaso3(modal);
+    }
+
+    /** Tras el CONFIRMAR de cierre, el portal avanza al paso 3 (Formulario antecedentes Fiscalia). */
+    private boolean esperarAvancePaso3(Locator modal) {
+        long limite = System.nanoTime() + ESPERA_MEDIA.toNanos();
+        boolean modalCerrado = false;
+        while (System.nanoTime() < limite) {
+            detectarSesionVencida();
+            if (hayPaso3()) {   // CONFIRMAR con 18-tras-confirmar.txt
+                return true;
+            }
+            if (!estaVisible(modal)) {
+                modalCerrado = true;
+            }
+            pagina.waitForTimeout(300);
+        }
+        if (modalCerrado) {
+            LOG.warn("El modal de cierre se cerró pero no se detectó el paso 3; "
+                    + "se asume reserva sellada. Verifícalo en la ventana del cliente.");
+            return true;
+        }
+        return false;
     }
 
     /** CONFIRMAR del modal. Acotado al modal para no confundirlo con el del cierre general. */

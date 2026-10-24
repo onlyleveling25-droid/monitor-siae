@@ -36,7 +36,16 @@ final class SelectoresSiae {
 
     /** Pantalla intermedia: hay que pulsar este enlace para que se abra el inventario. */
     static final String ENLACE_INVENTARIO = "text=/solicitud\\s+adquisici[oó]n\\s+de\\s+armas/i";
-    static final String PASO_2 = "text=FG-1";
+
+    /**
+     * Senal de FG-1 ABIERTA. NO sirve "text=FG-1": ese texto tambien esta en la tarjeta de la
+     * pantalla intermedia y en la cabecera de cada modal. El boton FINALIZAR es exclusivo de la
+     * ventana del inventario.
+     */
+    static final String PASO_2 = "button:has-text('FINALIZAR')";
+
+    /** Tras sellar la reserva, la tarjeta pasa a "Formulario antecedentes Fiscalia". */
+    static final String PASO_3 = "text=/Formulario antecedentes Fiscal[ií]a/i"; // CONFIRMAR con 18-tras-confirmar.txt
 
     /** Filas: mat-table de Angular Material o DataGrid de MUI. */
     static final String FILAS_INVENTARIO = "table tbody tr, [role='row']:has([role='gridcell'])";

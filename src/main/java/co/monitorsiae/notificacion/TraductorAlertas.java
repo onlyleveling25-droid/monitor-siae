@@ -25,6 +25,15 @@ public final class TraductorAlertas {
                     describir(e.eleccion()) + " en " + e.seccional()
                             + ". Selecciónela ya en la ventana del navegador de este cliente.",
                     "Atención. Hay un arma disponible para " + cliente.nombre() + ". Selecciónela ya."));
+            // Aunque no se logró sellar la reserva, hubo inventario real: se avisa igual que una
+            // oportunidad para que la persona intervenga de inmediato, sin esperar la ventana horaria.
+            case ResultadoCiclo.ApartadoFallido f -> Optional.of(new Alerta(cliente.id(), Gravedad.OPORTUNIDAD,
+                    "Arma disponible (no se pudo apartar): " + cliente.nombre(),
+                    describir(f.eleccion()) + " en " + f.seccional()
+                            + ". La plataforma no confirmó el apartado tras " + f.intentos()
+                            + " intento(s); revise la ventana del navegador de este cliente.",
+                    "Atención. Había un arma disponible para " + cliente.nombre()
+                            + " pero no se pudo apartar. Revise de inmediato."));
             case ResultadoCiclo.SesionVencida s -> Optional.of(new Alerta(cliente.id(), Gravedad.PROBLEMA,
                     "Sesión cerrada: " + cliente.nombre(),
                     "La plataforma cerró la sesión. Inicie sesión de nuevo en la ventana de este cliente y "

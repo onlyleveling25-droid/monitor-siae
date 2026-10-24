@@ -33,4 +33,19 @@ class SelectorSeccionalTest {
     void ignoraSeccionalesQueNoSonObjetivo() {
         assertTrue(selector.elegir(List.of("73 - Cali, Valle del Cauca"), List.of("Medellín", "Bogotá")).isEmpty());
     }
+
+    @Test
+    void elegirTodasDevuelveLasAceptadasEnOrdenDePreferenciaSinRepetidos() {
+        List<String> abiertas = List.of("73 - Cali, Valle del Cauca", "16 - Usaquén, Bogotá D.C.",
+                "05 - Medellín, Antioquia");
+
+        assertEquals(List.of("05 - Medellín, Antioquia", "16 - Usaquén, Bogotá D.C."),
+                selector.elegirTodas(abiertas, List.of("Medellín", "Bogotá")));
+    }
+
+    @Test
+    void elegirTodasEsVaciaSiNingunaAbiertaEsAceptada() {
+        assertTrue(selector.elegirTodas(List.of("73 - Cali, Valle del Cauca"), List.of("Medellín", "Bogotá"))
+                .isEmpty());
+    }
 }

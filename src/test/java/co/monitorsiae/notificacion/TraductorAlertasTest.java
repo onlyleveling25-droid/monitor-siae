@@ -45,6 +45,15 @@ class TraductorAlertasTest {
     }
 
     @Test
+    void armaNoApartadaSigueSiendoUnaOportunidadQueDebeAlertar() {
+        Alerta alerta = traductor.deResultado(cliente, new ResultadoCiclo.ApartadoFallido(SECCIONAL,
+                new EleccionArma(glock, MotivoEleccion.OBJETIVO, 0), 2)).orElseThrow();
+
+        assertEquals(Gravedad.OPORTUNIDAD, alerta.gravedad());
+        assertTrue(alerta.titulo().contains("Ana Pérez"));
+    }
+
+    @Test
     void sesionVencidaYFallosRepetidosSonProblemas() {
         assertEquals(Gravedad.PROBLEMA, traductor.deResultado(cliente,
                 new ResultadoCiclo.SesionVencida("login")).orElseThrow().gravedad());

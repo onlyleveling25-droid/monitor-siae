@@ -12,6 +12,7 @@ import co.monitorsiae.portal.PortalException;
 import co.monitorsiae.portal.ResultadoGuardar;
 import co.monitorsiae.portal.SesionVencidaException;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -50,26 +51,33 @@ public final class CicloMonitoreo {
             return new ResultadoCiclo.SeccionalesCerradas();
         }
 
-        Optional<String> seccional = selectorSeccional.elegir(abiertas, tramite.seccionales());
-        if (seccional.isEmpty()) {
+        List<String> candidatas = selectorSeccional.elegirTodas(abiertas, tramite.seccionales());
+        if (candidatas.isEmpty()) {
             return new ResultadoCiclo.SinSeccionalObjetivo(abiertas);
         }
 
-        if (portal.enviarPaso1(seccional.get(), tramite.descripcion()) == ResultadoGuardar.SIN_INVENTARIO) {
-            return new ResultadoCiclo.SinInventario(seccional.get());
-        }
+        // Prueba cada seccional aceptada en orden de preferencia: si una no tiene inventario,
+        // sigue con la siguiente antes de darse por vencido en este ciclo.
+        List<String> probadasSinInventario = new ArrayList<>();
+        for (String seccional : candidatas) {
+            if (portal.enviarPaso1(seccional, tramite.descripcion()) == ResultadoGuardar.SIN_INVENTARIO) {
+                probadasSinInventario.add(seccional);
+                continue;
+            }
 
-        List<ArmaInventario> inventario = portal.leerInventario();
-        Optional<EleccionArma> eleccion = selectorArma.elegir(inventario, cliente.seleccion());
-        if (eleccion.isEmpty()) {
-            return new ResultadoCiclo.SinArmaDeInteres(seccional.get(), inventario);
-        }
+            List<ArmaInventario> inventario = portal.leerInventario();
+            Optional<EleccionArma> eleccion = selectorArma.elegir(inventario, cliente.seleccion());
+            if (eleccion.isEmpty()) {
+                return new ResultadoCiclo.SinArmaDeInteres(seccional, inventario);
+            }
 
-        if (cliente.modo() == ModoReaccion.ALERTA) {
-            return new ResultadoCiclo.ArmaEncontrada(seccional.get(), eleccion.get(), inventario);
+            if (cliente.modo() == ModoReaccion.ALERTA) {
+                return new ResultadoCiclo.ArmaEncontrada(seccional, eleccion.get(), inventario);
+            }
+            return apartar(portal, seccional, eleccion.get(), cliente.seleccion(), inventario,
+                    cliente.alcancePaso2());
         }
-        return apartar(portal, seccional.get(), eleccion.get(), cliente.seleccion(), inventario,
-                cliente.alcancePaso2());
+        return new ResultadoCiclo.SinInventario(String.join(" | ", probadasSinInventario));
     }
 
     private static ResultadoCiclo apartar(

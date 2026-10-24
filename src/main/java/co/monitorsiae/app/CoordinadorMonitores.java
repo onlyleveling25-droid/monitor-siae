@@ -312,6 +312,9 @@ public final class CoordinadorMonitores implements AutoCloseable {
                     } else if (resultado instanceof ResultadoCiclo.ApartadoFallido fallo) {
                         snapshots.guardar(new SnapshotInventario(Instant.now(), iniciado.id(), iniciado.nombre(),
                                 fallo.seccional(), fallo.inventario(), fallo.eleccion()));
+                        // Hubo inventario real aunque no se pudo apartar: se trata como alerta de
+                        // oportunidad, igual que si estuviera en modo ALERTA.
+                        sesion.estado = Estado.ALERTA_ENCONTRADA;
                     }
                     notificar(sesion.id, sesion.estado);
                     registro.alTerminarCiclo(iniciado, resultado);

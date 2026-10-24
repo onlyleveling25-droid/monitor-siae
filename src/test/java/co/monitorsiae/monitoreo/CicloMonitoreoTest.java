@@ -1,10 +1,12 @@
 package co.monitorsiae.monitoreo;
 
+import co.monitorsiae.dominio.ArmaInventario;
 import co.monitorsiae.dominio.Cliente;
 import co.monitorsiae.dominio.ClientesDePrueba;
 import co.monitorsiae.dominio.CriterioArma;
 import co.monitorsiae.dominio.Modalidad;
 import co.monitorsiae.dominio.ModoReaccion;
+import co.monitorsiae.dominio.ParametrosTramite;
 import co.monitorsiae.dominio.PoliticaSinObjetivo;
 import co.monitorsiae.dominio.ReglasSeleccion;
 import co.monitorsiae.portal.simulado.Escena;
@@ -12,6 +14,7 @@ import co.monitorsiae.portal.simulado.PortalSimulado;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -53,6 +56,40 @@ class CicloMonitoreoTest {
 
         assertEquals(new ResultadoCiclo.SinInventario(MEDELLIN), resultado);
         assertEquals(List.of(MEDELLIN), portal.seccionalesEnviadas());
+    }
+
+    @Test
+    void intentaConLaSiguienteSeccionalSiLaPrimeraNoTieneInventario() {
+        String cali = "73 - Cali, Valle del Cauca";
+        Cliente conDosSeccionales = clienteConSeccionales(List.of("Medellín", "Cali"));
+        PortalSimulado portal = PortalSimulado.con(new Escena(true, List.of(MEDELLIN, cali), Set.of(cali),
+                List.of(new ArmaInventario(0, "Pistola Glock Mod G-43 RAIL CAL 9mm 9T 2P GLOCK 9MM", "")),
+                true, Escena.Falla.NINGUNA));
+
+        ResultadoCiclo resultado = ciclo.ejecutar(conDosSeccionales, portal);
+
+        assertInstanceOf(ResultadoCiclo.ArmaApartada.class, resultado);
+        assertEquals(List.of(MEDELLIN, cali), portal.seccionalesEnviadas());
+    }
+
+    @Test
+    void reportaSinInventarioConTodasLasSeccionalesCuandoNingunaTieneInventario() {
+        String cali = "73 - Cali, Valle del Cauca";
+        Cliente conDosSeccionales = clienteConSeccionales(List.of("Medellín", "Cali"));
+        PortalSimulado portal = PortalSimulado.con(
+                Escena.abiertasSinInventario(MEDELLIN, cali));
+
+        ResultadoCiclo resultado = ciclo.ejecutar(conDosSeccionales, portal);
+
+        assertEquals(new ResultadoCiclo.SinInventario(MEDELLIN + " | " + cali), resultado);
+        assertEquals(List.of(MEDELLIN, cali), portal.seccionalesEnviadas());
+    }
+
+    private Cliente clienteConSeccionales(List<String> seccionales) {
+        ParametrosTramite tramite = new ParametrosTramite("Defensa Personal",
+                "Armas personas naturales: Adquisición de arma", seccionales,
+                ClientesDePrueba.DESCRIPCION_VALIDA);
+        return new Cliente(null, "Ana", true, tramite, ModoReaccion.APARTAR, cliente.seleccion());
     }
 
     @Test

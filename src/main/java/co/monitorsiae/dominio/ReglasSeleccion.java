@@ -38,6 +38,13 @@ public record ReglasSeleccion(
         direccionTenencia = Objects.requireNonNullElseGet(direccionTenencia, DireccionTenencia::vacia);
     }
 
+    public ReglasSeleccion(Modalidad modalidad, List<CriterioArma> objetivos,
+                           PoliticaSinObjetivo siNoHayObjetivo, List<CriterioArma> alternativas,
+                           String tipoComodin, List<String> excluir, int reintentos) {
+        this(modalidad, objetivos, siNoHayObjetivo, alternativas, tipoComodin, excluir, reintentos,
+                DireccionTenencia.vacia());
+    }
+
     public static ReglasSeleccion porDefecto() {
         return new ReglasSeleccion(Modalidad.PORTE, List.of(), PoliticaSinObjetivo.SEGUIR_ESPERANDO,
                 List.of(), "Pistola", List.of(), REINTENTOS_POR_DEFECTO, DireccionTenencia.vacia());

@@ -4,6 +4,7 @@ import co.monitorsiae.acceso.ContrasenaRechazadaException;
 import co.monitorsiae.app.ServicioAplicacion;
 import co.monitorsiae.dominio.Cliente;
 import co.monitorsiae.dominio.AccesoAplicacion;
+import co.monitorsiae.dominio.AlcancePaso2;
 import co.monitorsiae.dominio.Configuracion;
 import co.monitorsiae.dominio.CriterioArma;
 import co.monitorsiae.dominio.DireccionTenencia;
@@ -97,6 +98,7 @@ final class EditorConfiguracion extends BorderPane {
     private final Label contadorDescripcion = new Label();
     private final ComboBox<ModoReaccion> modo = new ComboBox<>();
     private final ComboBox<Modalidad> modalidad = new ComboBox<>();
+    private final ComboBox<AlcancePaso2> alcancePaso2 = new ComboBox<>();
     private final ListaEditable objetivos = new ListaEditable(
             "Cada fila es un objetivo prioritario. Separa con coma las palabras que deben coincidir juntas.",
             "Ej. glock, g-43");
@@ -427,7 +429,9 @@ final class EditorConfiguracion extends BorderPane {
                 campo("Dirección completa (solo TENENCIA)", direccion),
                 campo("Objetivos prioritarios", objetivos), campo("Si no aparece ningún objetivo", politica),
                 campo("Alternativas", alternativas), campo("Tipo comodín (último recurso)", tipoComodin),
-                campo("Excluir", excluir), campo("Reintentos al apartar", reintentos));
+                campo("Excluir", excluir), campo("Reintentos al apartar", reintentos),
+                seccion("Paso 2 · Pre-asignación y cierre del trámite"),
+                campo("Alcance del paso 2", alcancePaso2));
         ScrollPaneFormulario scroll = new ScrollPaneFormulario(editor);
         BorderPane cuerpo = new BorderPane(scroll);
         cuerpo.setLeft(columnaLista);
@@ -633,6 +637,22 @@ final class EditorConfiguracion extends BorderPane {
         modo.setValue(cliente.modo());
         modalidad.setItems(FXCollections.observableArrayList(Modalidad.values()));
         modalidad.setValue(cliente.seleccion().modalidad());
+        alcancePaso2.setItems(FXCollections.observableArrayList(AlcancePaso2.values()));
+        alcancePaso2.setCellFactory(ignorado -> new ListCell<>() {
+            @Override
+            protected void updateItem(AlcancePaso2 item, boolean vacio) {
+                super.updateItem(item, vacio);
+                setText(vacio || item == null ? null : textoAlcancePaso2(item));
+            }
+        });
+        alcancePaso2.setButtonCell(new ListCell<>() {
+            @Override
+            protected void updateItem(AlcancePaso2 item, boolean vacio) {
+                super.updateItem(item, vacio);
+                setText(vacio || item == null ? null : textoAlcancePaso2(item));
+            }
+        });
+        alcancePaso2.setValue(cliente.alcancePaso2());
         objetivos.setValues(formatearCriterios(cliente.seleccion().objetivos()));
         politica.setItems(FXCollections.observableArrayList(PoliticaSinObjetivo.values()));
         politica.setCellFactory(ignorado -> new ListCell<>() {
@@ -670,7 +690,17 @@ final class EditorConfiguracion extends BorderPane {
                 valor(modo.getValue()), reglas,
                 preferenciaSonido.getValue() == null
                         ? PreferenciaSonidoCliente.HEREDAR
-                        : preferenciaSonido.getValue());
+                        : preferenciaSonido.getValue(),
+                alcancePaso2.getValue() == null
+                        ? AlcancePaso2.SELLAR_TRAMITE_COMPLETO
+                        : alcancePaso2.getValue());
+    }
+
+    private static String textoAlcancePaso2(AlcancePaso2 alcance) {
+        return switch (alcance) {
+            case PRE_ASIGNAR_ARMA -> "Pre-asignar el arma y dejar el trámite para revisión manual";
+            case SELLAR_TRAMITE_COMPLETO -> "Pre-asignar el arma y sellar el trámite automáticamente";
+        };
     }
 
     private static String textoPreferenciaSonido(PreferenciaSonidoCliente preferencia) {

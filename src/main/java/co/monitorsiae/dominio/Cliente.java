@@ -12,6 +12,7 @@ import java.util.UUID;
  * @param tramite valores del paso 1
  * @param modo    reaccion ante un arma que cumple las reglas
  * @param seleccion reglas para elegir el arma
+ * @param alcancePaso2 hasta donde debe llegar la automatizacion del paso 2 (pre-asignar o sellar el tramite)
  */
 public record Cliente(
         String id,
@@ -20,7 +21,8 @@ public record Cliente(
         ParametrosTramite tramite,
         ModoReaccion modo,
         ReglasSeleccion seleccion,
-        PreferenciaSonidoCliente preferenciaSonido) {
+        PreferenciaSonidoCliente preferenciaSonido,
+        AlcancePaso2 alcancePaso2) {
 
     public Cliente {
         id = id == null || id.isBlank() ? UUID.randomUUID().toString() : id.strip();
@@ -29,15 +31,23 @@ public record Cliente(
         modo = Objects.requireNonNullElse(modo, ModoReaccion.APARTAR);
         seleccion = Objects.requireNonNullElseGet(seleccion, ReglasSeleccion::porDefecto);
         preferenciaSonido = Objects.requireNonNullElse(preferenciaSonido, PreferenciaSonidoCliente.HEREDAR);
+        alcancePaso2 = Objects.requireNonNullElse(alcancePaso2, AlcancePaso2.SELLAR_TRAMITE_COMPLETO);
+    }
+
+    public Cliente(String id, String nombre, boolean activo, ParametrosTramite tramite,
+                   ModoReaccion modo, ReglasSeleccion seleccion, PreferenciaSonidoCliente preferenciaSonido) {
+        this(id, nombre, activo, tramite, modo, seleccion, preferenciaSonido, AlcancePaso2.SELLAR_TRAMITE_COMPLETO);
     }
 
     public Cliente(String id, String nombre, boolean activo, ParametrosTramite tramite,
                    ModoReaccion modo, ReglasSeleccion seleccion) {
-        this(id, nombre, activo, tramite, modo, seleccion, PreferenciaSonidoCliente.HEREDAR);
+        this(id, nombre, activo, tramite, modo, seleccion, PreferenciaSonidoCliente.HEREDAR,
+                AlcancePaso2.SELLAR_TRAMITE_COMPLETO);
     }
 
     public static Cliente nuevo(String nombre) {
         return new Cliente(null, nombre, true, ParametrosTramite.porDefecto(),
-                ModoReaccion.APARTAR, ReglasSeleccion.porDefecto(), PreferenciaSonidoCliente.HEREDAR);
+                ModoReaccion.APARTAR, ReglasSeleccion.porDefecto(), PreferenciaSonidoCliente.HEREDAR,
+                AlcancePaso2.SELLAR_TRAMITE_COMPLETO);
     }
 }

@@ -1,5 +1,6 @@
 package co.monitorsiae.monitoreo;
 
+import co.monitorsiae.dominio.AlcancePaso2;
 import co.monitorsiae.dominio.ArmaInventario;
 import co.monitorsiae.dominio.Cliente;
 import co.monitorsiae.dominio.ModoReaccion;
@@ -67,15 +68,16 @@ public final class CicloMonitoreo {
         if (cliente.modo() == ModoReaccion.ALERTA) {
             return new ResultadoCiclo.ArmaEncontrada(seccional.get(), eleccion.get(), inventario);
         }
-        return apartar(portal, seccional.get(), eleccion.get(), cliente.seleccion(), inventario);
+        return apartar(portal, seccional.get(), eleccion.get(), cliente.seleccion(), inventario,
+                cliente.alcancePaso2());
     }
 
     private static ResultadoCiclo apartar(
             PortalDriver portal, String seccional, EleccionArma eleccion, ReglasSeleccion reglas,
-            List<ArmaInventario> inventario) {
+            List<ArmaInventario> inventario, AlcancePaso2 alcancePaso2) {
         for (int intento = 1; intento <= reglas.reintentos(); intento++) {
             if (portal.apartar(eleccion.arma(), reglas)) {
-                boolean sellado = portal.confirmarCierre();
+                boolean sellado = alcancePaso2 == AlcancePaso2.SELLAR_TRAMITE_COMPLETO && portal.confirmarCierre();
                 return new ResultadoCiclo.ArmaApartada(seccional, eleccion, intento, inventario, sellado);
             }
         }

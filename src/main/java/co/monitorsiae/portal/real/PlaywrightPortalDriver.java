@@ -608,6 +608,10 @@ public final class PlaywrightPortalDriver implements PortalDriver {
         return pagina.locator(SelectoresSiae.PASO_2).count() > 0;
     }
 
+    private boolean hayPaso3() {
+        return pagina.locator(SelectoresSiae.PASO_3).count() > 0;
+    }
+
     private void detectarSesionVencida() {
         Locator contrasena = pagina.locator(SelectoresSiae.LOGIN_PASSWORD).first();
         Locator ingresar = pagina.locator(SelectoresSiae.INGRESAR_PORTAL).first();

@@ -31,23 +31,23 @@ public record Cliente(
         modo = Objects.requireNonNullElse(modo, ModoReaccion.APARTAR);
         seleccion = Objects.requireNonNullElseGet(seleccion, ReglasSeleccion::porDefecto);
         preferenciaSonido = Objects.requireNonNullElse(preferenciaSonido, PreferenciaSonidoCliente.HEREDAR);
-        alcancePaso2 = Objects.requireNonNullElse(alcancePaso2, AlcancePaso2.SELLAR_TRAMITE_COMPLETO);
+        alcancePaso2 = Objects.requireNonNullElse(alcancePaso2, AlcancePaso2.PRE_ASIGNAR_ARMA);
     }
 
     public Cliente(String id, String nombre, boolean activo, ParametrosTramite tramite,
                    ModoReaccion modo, ReglasSeleccion seleccion, PreferenciaSonidoCliente preferenciaSonido) {
-        this(id, nombre, activo, tramite, modo, seleccion, preferenciaSonido, AlcancePaso2.SELLAR_TRAMITE_COMPLETO);
+        this(id, nombre, activo, tramite, modo, seleccion, preferenciaSonido, AlcancePaso2.PRE_ASIGNAR_ARMA);
     }
 
     public Cliente(String id, String nombre, boolean activo, ParametrosTramite tramite,
                    ModoReaccion modo, ReglasSeleccion seleccion) {
         this(id, nombre, activo, tramite, modo, seleccion, PreferenciaSonidoCliente.HEREDAR,
-                AlcancePaso2.SELLAR_TRAMITE_COMPLETO);
+                AlcancePaso2.PRE_ASIGNAR_ARMA);
     }
 
     public static Cliente nuevo(String nombre) {
         return new Cliente(null, nombre, true, ParametrosTramite.porDefecto(),
                 ModoReaccion.APARTAR, ReglasSeleccion.porDefecto(), PreferenciaSonidoCliente.HEREDAR,
-                AlcancePaso2.SELLAR_TRAMITE_COMPLETO);
+                AlcancePaso2.PRE_ASIGNAR_ARMA);
     }
 }

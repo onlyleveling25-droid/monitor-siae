@@ -869,7 +869,7 @@ final class EditorConfiguracion extends BorderPane {
                         ? PreferenciaSonidoCliente.HEREDAR
                         : preferenciaSonido.getValue(),
                 alcancePaso2.getValue() == null
-                        ? AlcancePaso2.SELLAR_TRAMITE_COMPLETO
+                        ? AlcancePaso2.PRE_ASIGNAR_ARMA
                         : alcancePaso2.getValue());
     }
 

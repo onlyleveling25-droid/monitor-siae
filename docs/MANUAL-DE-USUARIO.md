@@ -495,7 +495,7 @@ editarlas; no pierdes lo que habías escrito.
 
 | Campo | Qué es |
 |---|---|
-| **Alcance del paso 2** | **Pre-asignar el arma y sellar el trámite automáticamente** *(predeterminado)*: aparta el arma y además pulsa el cierre final. **Pre-asignar el arma y dejar el trámite para revisión manual**: aparta el arma pero **tú** pulsas **FINALIZAR** y confirmas. Úsalo si prefieres revisar antes de sellar. |
+| **Alcance del paso 2** | **Pre-asignar el arma y dejar el trámite para revisión manual** *(predeterminado)*: aparta el arma (CONFIRMAR del primer cuadro) y se detiene; **tú** pulsas **FINALIZAR** y confirmas. **Pre-asignar el arma y sellar el trámite automáticamente**: además pulsa **FINALIZAR** y el CONFIRMAR del segundo cuadro, y el monitoreo se detiene; no rellena nada de lo que el portal muestre después (Formulario antecedentes Fiscalía). |
 
 #### Ejemplo completo de un cliente
 
@@ -505,7 +505,7 @@ editarlas; no pierdes lo que habías escrito.
 > **Reacción:** Apartar · **Modalidad:** PORTE · **Reintentos:** 2
 > **Objetivos:** `glock, g-43` y luego `glock, g-26` · **Si no hay objetivo:** Objetivos → alternativas → comodín
 > **Alternativas:** `cordova, compacta` · **Comodín:** `Pistola` · **Excluir:** `22 lr`
-> **Paso 2:** sellar el trámite automáticamente
+> **Paso 2:** sellar el trámite automáticamente *(opción que se elige a propósito)*
 >
 > Resultado: el programa prueba Medellín y luego Bogotá. Si hay un Glock G-43, lo aparta; si no, un Glock G-26;
 > si tampoco, una Cordova compacta; si tampoco, la primera pistola que no sea .22 LR; y si no hay ninguna,

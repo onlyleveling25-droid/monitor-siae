@@ -306,10 +306,9 @@ modo ensayo, por indicación del usuario:
   `ServicioAplicacion.guardarConfiguracionInicial(...)` (sin pasar por el validador completo, porque
   el asistente deja a propósito un cliente incompleto para terminar de llenarlo en Configuración).
 - El editor visual semanal (`EditorConfiguracion.EditorHorarioSemanal`) es solo una representación
-  distinta del `HorarioOperacion` existente: una grilla de 7 días × 24 horas donde se resalta la
-  ventana activa. No se amplió el dominio para soportar horarios distintos por día; la grilla refleja
-  fielmente la única ventana compartida que ya existía, para no inventar una capacidad que el resto
-  del sistema (ciclo de monitoreo, validaciones) no tiene.
+  distinta del `HorarioOperacion`: una grilla de 7 días × 24 horas donde se resalta la ventana de
+  cada día. En esta fase la grilla reflejaba una única ventana compartida; D19 la amplió a un rango
+  por día.
 - El escalamiento de alarmas reutiliza `PerfilEscalamiento`/`NivelEscalamiento` (ya existentes en el
   dominio) y se conecta con `CentralAlertas.tiempoActivo(clienteId)`, un método nuevo que devuelve
   cuánto lleva activa sin reconocer la alerta de un cliente (usa un `Clock` inyectable para poder
@@ -325,6 +324,20 @@ modo ensayo, por indicación del usuario:
 todo el formulario de Configuración de una sola vez, dar una lectura visual inmediata del horario sin
 reinventar sus reglas, y permitir que las alertas se vuelvan más insistentes con el tiempo sin obligar
 a nadie a usarlo (el perfil de escalamiento sigue siendo opcional y deshabilitado por defecto).
+
+## D19. Horario de operación por día (aprobado por el usuario, 2026-10-26)
+
+**Decisión:** cada día de la semana tiene su propio rango de horas (`FranjaHoraria`); un día sin
+rango no se consulta. Hay como máximo una franja por día y no cruza la medianoche. El formato de
+configuración sube a la versión 3; los archivos de la versión 2 (días con un único rango
+compartido) se migran a una franja idéntica por cada día marcado, así que su comportamiento no
+cambia. El horario sigue desactivado por defecto (D11).
+
+**Motivo:** el usuario necesita horas distintas según el día (por ejemplo, un sábado más corto).
+
+**Consecuencias:** una versión anterior de la aplicación se niega a abrir un archivo de versión 3
+(en lugar de interpretar mal el horario). El editor ofrece campos de hora por día y "Copiar Lunes a
+todos los días". Quedan fuera dos franjas en un mismo día y horarios que cruzan la medianoche.
 
 ## Pendientes por confirmar
 

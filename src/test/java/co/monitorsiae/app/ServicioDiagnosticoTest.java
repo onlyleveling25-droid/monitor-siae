@@ -154,4 +154,14 @@ class ServicioDiagnosticoTest {
         return new Configuracion(base.version(), base.acceso(), base.navegador(), base.entornoPortal(),
                 base.intervaloConsultaSegundos(), horario, base.clientes(), base.preferenciasAlertas());
     }
+
+    @Test
+    void unaSolaFranjaInvalidaBastaParaMarcarProblemaEnElHorario() {
+        base = conHorario(new HorarioOperacion(true, java.util.Map.of(
+                DayOfWeek.MONDAY, new co.monitorsiae.dominio.FranjaHoraria(LocalTime.of(6, 0), LocalTime.of(16, 0)),
+                DayOfWeek.SATURDAY, new co.monitorsiae.dominio.FranjaHoraria(LocalTime.of(12, 0), LocalTime.of(9, 0))),
+                HorarioOperacion.ZONA_COLOMBIA));
+
+        assertEquals(PROBLEMA, de(ejecutar(), "Horario").nivel());
+    }
 }

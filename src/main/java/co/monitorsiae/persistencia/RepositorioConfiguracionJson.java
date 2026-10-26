@@ -1,10 +1,12 @@
 package co.monitorsiae.persistencia;
 
 import co.monitorsiae.dominio.Configuracion;
+import co.monitorsiae.dominio.HorarioOperacion;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 import java.io.IOException;
@@ -36,6 +38,7 @@ public final class RepositorioConfiguracionJson implements RepositorioConfigurac
     private static ObjectMapper crearMapeador() {
         return new ObjectMapper()
                 .registerModule(new JavaTimeModule())
+                .registerModule(new SimpleModule().addDeserializer(HorarioOperacion.class, new DeserializadorHorario()))
                 .enable(SerializationFeature.INDENT_OUTPUT)
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
                 // Permite abrir archivos de versiones futuras compatibles sin fallar por un campo nuevo.

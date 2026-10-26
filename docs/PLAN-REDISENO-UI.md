@@ -132,9 +132,11 @@ una comprobación que falla). Pendiente validación visual y con un equipo sin v
   portal y Resumen, navegables con Atrás/Siguiente, validación del nombre del primer cliente y
   aplicación final que solo fija navegador/entorno/primer cliente, sin tocar horario ni alertas.
 - Editor visual semanal (`EditorConfiguracion.EditorHorarioSemanal`): grilla de 7 columnas (una por
-  día) por 24 franjas horarias, con estilos `.schedule-slot` / `.schedule-slot:active`; representa
-  fielmente el modelo actual de `HorarioOperacion` (una sola ventana compartida entre los días
-  activos), sin introducir variación por día que el dominio no soporta.
+  día) por 24 franjas horarias, con estilos `.schedule-slot` / `.schedule-slot:active`, nombre de cada
+  día y eje de horas. Desde el 2026-10-26 cada día tiene sus propios campos Desde/Hasta (ver D19 en
+  `docs/DECISIONES.md`): `HorarioOperacion` guarda una `FranjaHoraria` por día, el formato de
+  configuración pasó a la versión 3 y los archivos de la versión 2 se migran a una franja idéntica por
+  día. Esta es la única excepción aprobada a la regla de no cambiar horarios.
 - Perfiles y escalamiento de alarmas: `PerfilEscalamiento`/`NivelEscalamiento` en el dominio,
   `CentralAlertas.tiempoActivo(clienteId)` para medir cuánto lleva una alerta sin reconocer, y
   `CanalSonido`/`CanalVoz` con sobrecargas que consultan ese tiempo para forzar sonido/voz al
@@ -192,8 +194,8 @@ usuario.
   semanal y perfiles/escalamiento de alarmas, con 153 pruebas en verde; modo ensayo excluido a
   propósito; pendiente validación manual del usuario.
 - Bitácora y Diagnóstico: implementados con pruebas; pendiente validación visual del usuario.
-- Cierre (fase 9), parte automatizable: compilación limpia y 175 pruebas en verde con JDK 21 (ejecutadas tres veces
-  seguidas); el JSON de configuración no cambió de formato. Faltan la prueba guiada de todos los flujos, las
+- Cierre (fase 9), parte automatizable: compilación limpia y 182 pruebas en verde con JDK 21 (ejecutadas tres veces
+  seguidas); el JSON de configuración pasó a la versión 3 (horario por día) con migración probada desde la versión 2. Faltan la prueba guiada de todos los flujos, las
   validaciones manuales pendientes de cada fase y la aprobación explícita.
 - Fuera de alcance por decisión previa: modo ensayo.
 - Rama activa: `feature/redisenio-ui-reconocimiento` (el plan original nombraba `feature/redisenio-ui`).

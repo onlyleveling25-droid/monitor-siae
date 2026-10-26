@@ -24,7 +24,7 @@ public record Configuracion(
         List<Cliente> clientes,
         PreferenciasAlertas preferenciasAlertas) {
 
-    public static final int VERSION_ACTUAL = 2;
+    public static final int VERSION_ACTUAL = 3;
     public static final int INTERVALO_MINIMO_SEGUNDOS = 2;
     public static final int INTERVALO_POR_DEFECTO_SEGUNDOS = 5;
 
@@ -78,6 +78,11 @@ public record Configuracion(
     public Configuracion conPreferenciasAlertas(PreferenciasAlertas nuevasPreferencias) {
         return new Configuracion(version, acceso, navegador, entornoPortal,
                 intervaloConsultaSegundos, horario, clientes, nuevasPreferencias);
+    }
+
+    public Configuracion conHorario(HorarioOperacion nuevoHorario) {
+        return new Configuracion(version, acceso, navegador, entornoPortal,
+                intervaloConsultaSegundos, nuevoHorario, clientes, preferenciasAlertas);
     }
 
     public Configuracion conVersionActual() {

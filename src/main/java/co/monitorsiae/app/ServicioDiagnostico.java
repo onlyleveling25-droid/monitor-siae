@@ -161,9 +161,9 @@ public final class ServicioDiagnostico {
         if (!horario.restringir()) {
             return Comprobacion.correcta("Horario", "Sin restricción: el monitor consulta a cualquier hora.");
         }
-        if (horario.dias().isEmpty() || !horario.desde().isBefore(horario.hasta())) {
+        if (horario.franjas().isEmpty() || horario.franjas().values().stream().anyMatch(f -> !f.esValida())) {
             return Comprobacion.problema("Horario", "El horario restringido no deja ninguna franja válida.",
-                    "Elige al menos un día y una hora de inicio anterior a la de fin en Ajustes > Horario.");
+                    "Elige al menos un día y, en cada día, una hora de inicio anterior a la de fin en Ajustes > Horario.");
         }
         if (new VentanaHoraria(horario, reloj).permiteAhora()) {
             return Comprobacion.correcta("Horario", "Dentro del horario configurado.");

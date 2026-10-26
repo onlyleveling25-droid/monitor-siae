@@ -36,14 +36,20 @@ public final class ValidadorConfiguracion {
 
         HorarioOperacion horario = configuracion.horario();
         if (horario.restringir()) {
-            if (horario.dias().isEmpty()) {
+            if (horario.franjas().isEmpty()) {
                 problemas.add(new ProblemaConfiguracion("Horario", "Seleccione al menos un día."));
             }
-            if (!horario.desde().isBefore(horario.hasta())) {
-                problemas.add(new ProblemaConfiguracion("Horario",
-                        "La hora inicial debe ser anterior a la hora final."));
-            }
+            horario.franjas().forEach((dia, franja) -> {
+                if (!franja.esValida()) {
+                    problemas.add(new ProblemaConfiguracion("Horario",
+                            "En " + nombreDia(dia) + ", la hora inicial debe ser anterior a la hora final."));
+                }
+            });
         }
+    }
+
+    private static String nombreDia(java.time.DayOfWeek dia) {
+        return dia.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.forLanguageTag("es"));
     }
 
     private void validarCliente(Cliente cliente, List<ProblemaConfiguracion> problemas) {

@@ -3,7 +3,6 @@ package co.monitorsiae.monitoreo;
 import co.monitorsiae.dominio.HorarioOperacion;
 
 import java.time.Clock;
-import java.time.LocalTime;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.TextStyle;
@@ -29,21 +28,20 @@ public final class VentanaHoraria {
             return true;
         }
         ZonedDateTime ahora = ZonedDateTime.now(reloj).withZoneSameInstant(horario.zona());
-        LocalTime hora = ahora.toLocalTime();
-        return horario.dias().contains(ahora.getDayOfWeek())
-                && !hora.isBefore(horario.desde())
-                && hora.isBefore(horario.hasta());
+        return horario.franja(ahora.getDayOfWeek())
+                .map(franja -> franja.contiene(ahora.toLocalTime()))
+                .orElse(false);
     }
 
     public String motivoFueraDeHorario() {
         ZonedDateTime ahora = ZonedDateTime.now(reloj).withZoneSameInstant(horario.zona());
-        String hora = ahora.format(DateTimeFormatter.ofPattern("EEEE HH:mm",
-                Locale.forLanguageTag("es")));
-        String dias = horario.dias().stream()
-                .map(dia -> dia.getDisplayName(TextStyle.SHORT, Locale.forLanguageTag("es")))
+        Locale es = Locale.forLanguageTag("es");
+        String hora = ahora.format(DateTimeFormatter.ofPattern("EEEE HH:mm", es));
+        String franjas = horario.franjas().entrySet().stream()
+                .map(e -> e.getKey().getDisplayName(TextStyle.SHORT, es)
+                        + " " + e.getValue().desde() + " a " + e.getValue().hasta())
                 .collect(Collectors.joining(", "));
-        return "Fuera del horario configurado (" + horario.desde() + " a " + horario.hasta()
-                + ", " + horario.zona().getId() + "). Ahora son las " + hora
-                + "; días permitidos: " + dias + ". Reintento en 30 segundos.";
+        return "Fuera del horario configurado (" + horario.zona().getId() + "). Ahora son las " + hora
+                + "; horario por día: " + franjas + ". Reintento en 30 segundos.";
     }
 }

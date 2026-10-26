@@ -91,4 +91,24 @@ class ValidadorConfiguracionTest {
     private static Configuracion conCliente(Cliente cliente) {
         return Configuracion.porDefecto().conClientes(List.of(cliente));
     }
+
+    @Test
+    void unaFranjaInvalidaSenalaElDiaConElProblema() {
+        HorarioOperacion horario = new HorarioOperacion(true, java.util.Map.of(
+                java.time.DayOfWeek.MONDAY, new FranjaHoraria(java.time.LocalTime.of(8, 0), java.time.LocalTime.of(16, 0)),
+                java.time.DayOfWeek.SATURDAY, new FranjaHoraria(java.time.LocalTime.of(12, 0), java.time.LocalTime.of(9, 0))),
+                HorarioOperacion.ZONA_COLOMBIA);
+
+        var problemas = validador.validar(Configuracion.porDefecto().conHorario(horario));
+
+        assertEquals(1, problemas.size());
+        assertTrue(problemas.getFirst().mensaje().contains("sábado"));
+    }
+
+    @Test
+    void horarioRestringidoSinNingunDiaEsInvalido() {
+        HorarioOperacion vacio = new HorarioOperacion(true, java.util.Map.of(), HorarioOperacion.ZONA_COLOMBIA);
+
+        assertEquals(1, validador.validar(Configuracion.porDefecto().conHorario(vacio)).size());
+    }
 }

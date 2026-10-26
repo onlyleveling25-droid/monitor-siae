@@ -167,4 +167,53 @@ class RepositorioConfiguracionJsonTest {
                 null, 7, HorarioOperacion.porDefecto(),
                 List.of(ClientesDePrueba.valido("Ana"), ClientesDePrueba.valido("Luis")));
     }
+
+    @Test
+    void migraElHorarioDeLaVersion2AUnaFranjaIdenticaPorDia() throws IOException {
+        Files.createDirectories(archivo.getParent());
+        Files.writeString(archivo, """
+                {
+                  "version": 2,
+                  "horario": {
+                    "restringir": true,
+                    "dias": ["MONDAY", "FRIDAY"],
+                    "desde": "07:30:00",
+                    "hasta": "17:00:00",
+                    "zona": "America/Bogota"
+                  }
+                }
+                """);
+
+        HorarioOperacion horario = repositorio.cargar().horario();
+
+        assertTrue(horario.restringir());
+        assertEquals(List.of(java.time.DayOfWeek.MONDAY, java.time.DayOfWeek.FRIDAY), horario.dias());
+        var esperada = new co.monitorsiae.dominio.FranjaHoraria(java.time.LocalTime.of(7, 30),
+                java.time.LocalTime.of(17, 0));
+        assertEquals(esperada, horario.franja(java.time.DayOfWeek.MONDAY).orElseThrow());
+        assertEquals(esperada, horario.franja(java.time.DayOfWeek.FRIDAY).orElseThrow());
+        assertTrue(horario.franja(java.time.DayOfWeek.TUESDAY).isEmpty());
+    }
+
+    @Test
+    void guardaYRecuperaHorasDistintasPorDia() throws IOException {
+        var lunes = new co.monitorsiae.dominio.FranjaHoraria(java.time.LocalTime.of(8, 0), java.time.LocalTime.of(16, 0));
+        var sabado = new co.monitorsiae.dominio.FranjaHoraria(java.time.LocalTime.of(9, 0), java.time.LocalTime.of(12, 30));
+        Configuracion original = Configuracion.porDefecto().conHorario(new HorarioOperacion(true,
+                java.util.Map.of(java.time.DayOfWeek.MONDAY, lunes, java.time.DayOfWeek.SATURDAY, sabado),
+                HorarioOperacion.ZONA_COLOMBIA));
+
+        repositorio.guardar(original);
+
+        assertEquals(original, repositorio.cargar());
+        assertTrue(Files.readString(archivo).contains("\"franjas\""));
+    }
+
+    @Test
+    void unHorarioAntiguoConHoraInvalidaSeReportaComoArchivoIlegible() throws IOException {
+        Files.createDirectories(archivo.getParent());
+        Files.writeString(archivo, "{ \"version\": 2, \"horario\": { \"dias\": [\"MONDAY\"], \"desde\": \"25:99\" } }");
+
+        assertThrows(ConfiguracionIlegibleException.class, repositorio::cargar);
+    }
 }

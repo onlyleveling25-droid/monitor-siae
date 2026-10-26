@@ -20,7 +20,8 @@ persona termine el proceso.
   la anterior.
 - En cada ciclo prueba **todas** las seccionales configuradas del cliente, en orden de preferencia:
   si la primera responde sin inventario, sigue con la siguiente antes de esperar al próximo ciclo.
-- Puede limitarse a un horario (por ejemplo, lunes a viernes de 8:00 a 16:00, hora de Colombia).
+- Puede limitarse a un horario con horas propias para cada día (por ejemplo, lunes a viernes de 8:00 a
+  16:00 y sábado de 9:00 a 12:00, hora de Colombia).
 - Lee el listado de armas y elige según las reglas del cliente: armas objetivo en orden de
   prioridad y, si no hay ninguna, seguir esperando, usar alternativas o tomar cualquiera de un tipo.
 - Aparta el arma (modalidad y Confirmar) o, en modo alerta, solo avisa.

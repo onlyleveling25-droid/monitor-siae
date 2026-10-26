@@ -67,7 +67,8 @@ public final class AplicacionJavaFx extends Application {
                             id -> centralAlertas.tiempoActivo(id))));
             Function<co.monitorsiae.dominio.Cliente, PortalDriver> fabricaPortales = cliente ->
                     switch (servicio.configuracion().entornoPortal()) {
-                        case SIMULADOR -> new FabricaPortalSimulada().apply(cliente);
+                        case SIMULADOR -> new FabricaPortalSimulada(
+                                () -> servicio.configuracion().escenarioSimulador()).apply(cliente);
                         case PORTAL_REAL -> new FabricaPortalPlaywright(ubicacion,
                                 servicio::configuracion).apply(cliente);
                     };

@@ -176,7 +176,7 @@ class CoordinadorMonitoresTest {
         CoordinadorMonitores coordinador = new CoordinadorMonitores(
                 Configuracion.porDefecto().conClientes(List.of(cliente)),
                 alertas,
-                new FabricaPortalSimulada(),
+                new FabricaPortalSimulada(() -> co.monitorsiae.dominio.EscenarioSimulador.HALLAZGO_INMEDIATO),
                 (id, estado) -> {
                 });
         try {
@@ -190,7 +190,7 @@ class CoordinadorMonitoresTest {
             assertEquals("Arma disponible: Ana", alertaRecibida.get().titulo());
             esperarEstado(coordinador, cliente.id(), CoordinadorMonitores.Estado.ALERTA_ENCONTRADA);
             var snapshot = coordinador.ultimoSnapshot(cliente.id()).orElseThrow();
-            assertEquals(2, snapshot.inventario().size());
+            assertEquals(co.monitorsiae.portal.simulado.CatalogoArmas.armas().size(), snapshot.inventario().size());
             assertEquals(0, snapshot.eleccion().arma().posicion());
         } finally {
             coordinador.close();
@@ -579,6 +579,37 @@ class CoordinadorMonitoresTest {
         @Override
         public void close() {
             abierto.set(false);
+        }
+    }
+
+    @Test
+    void conElSimuladorCadaInicioEmpiezaUnEscenarioNuevo() throws InterruptedException {
+        Cliente cliente = ClientesDePrueba.valido("Ana");
+        Configuracion configuracion = Configuracion.porDefecto().conClientes(List.of(cliente));
+        BlockingQueue<Actualizacion> cambios = new LinkedBlockingQueue<>();
+        java.util.concurrent.atomic.AtomicInteger portalesCreados = new java.util.concurrent.atomic.AtomicInteger();
+        CoordinadorMonitores coordinador = new CoordinadorMonitores(configuracion,
+                new CentralAlertas(List.of()),
+                perfil -> {
+                    portalesCreados.incrementAndGet();
+                    return PortalSimulado.con(Escena.abiertasSinInventario(
+                            perfil.tramite().seccionales().getFirst()));
+                },
+                (id, estado) -> cambios.add(new Actualizacion(id, estado)));
+        try {
+            coordinador.iniciar(cliente);
+            esperar(cambios, CoordinadorMonitores.Estado.MONITOREANDO);
+            esperarResultado(coordinador, cliente.id());
+            coordinador.detener(cliente.id());
+            esperar(cambios, CoordinadorMonitores.Estado.DETENIDO);
+
+            coordinador.iniciar(cliente);
+            esperar(cambios, CoordinadorMonitores.Estado.MONITOREANDO);
+            esperarResultado(coordinador, cliente.id());
+
+            assertEquals(2, portalesCreados.get());
+        } finally {
+            coordinador.close();
         }
     }
 }

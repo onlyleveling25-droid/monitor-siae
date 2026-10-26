@@ -54,4 +54,27 @@ class PausaTest {
         assertTrue(terminada.await(1, TimeUnit.SECONDS));
         hilo.join();
     }
+
+    @Test
+    void elJitterRespetaElFactorIndicadoYConCeroNoVaria() {
+        Duration base = Duration.ofSeconds(180);
+
+        for (int i = 0; i < 500; i++) {
+            long segundos = Pausa.conJitter(base, 0.2).toSeconds();
+            org.junit.jupiter.api.Assertions.assertTrue(segundos >= 143 && segundos <= 216, "20 %: " + segundos);
+            long amplio = Pausa.conJitter(base, 0.5).toSeconds();
+            org.junit.jupiter.api.Assertions.assertTrue(amplio >= 89 && amplio <= 270, "50 %: " + amplio);
+        }
+        org.junit.jupiter.api.Assertions.assertEquals(base, Pausa.conJitter(base, 0));
+    }
+
+    @Test
+    void laPausaRealSinVariacionDuraLoPedido() throws InterruptedException {
+        long inicio = System.nanoTime();
+        Pausa.real(0).esperar(Duration.ofMillis(120));
+        long transcurridoMs = (System.nanoTime() - inicio) / 1_000_000;
+
+        org.junit.jupiter.api.Assertions.assertTrue(transcurridoMs >= 118 && transcurridoMs < 110 + 400,
+                "duró " + transcurridoMs + " ms");
+    }
 }

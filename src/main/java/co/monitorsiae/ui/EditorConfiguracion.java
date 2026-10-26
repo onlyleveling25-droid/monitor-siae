@@ -9,6 +9,7 @@ import co.monitorsiae.dominio.Configuracion;
 import co.monitorsiae.dominio.CriterioArma;
 import co.monitorsiae.dominio.DireccionTenencia;
 import co.monitorsiae.dominio.EntornoPortal;
+import co.monitorsiae.dominio.EscenarioSimulador;
 import co.monitorsiae.dominio.FranjaHoraria;
 import co.monitorsiae.dominio.HorarioOperacion;
 import co.monitorsiae.dominio.Modalidad;
@@ -78,6 +79,9 @@ final class EditorConfiguracion extends BorderPane {
     private final ComboBox<NavegadorPreferido> navegador = new ComboBox<>();
     private final ComboBox<EntornoPortal> entornoPortal = new ComboBox<>();
     private final Spinner<Integer> intervalo = new Spinner<>(2, 3600, 5);
+    private final Spinner<Integer> variacion = new Spinner<>(0, Configuracion.VARIACION_MAXIMA_PORCENTAJE,
+            Configuracion.VARIACION_POR_DEFECTO_PORCENTAJE, 5);
+    private final Label ayudaVariacion = new Label();
     private final CheckBox restringirHorario = new CheckBox("Limitar el monitoreo a un horario");
     private final Label estadoHorario = new Label();
     private EditorHorarioSemanal horarioSemanal;
@@ -109,6 +113,9 @@ final class EditorConfiguracion extends BorderPane {
     private final Label contadorDescripcion = new Label();
     private final ComboBox<ModoReaccion> modo = new ComboBox<>();
     private final Label ayudaReaccion = new Label();
+    private final ComboBox<EscenarioSimulador> escenarioSimulador = new ComboBox<>();
+    private final Label descripcionEscenario = new Label();
+    private final VBox bloqueEscenario = new VBox(5);
     private final Label ayudaSecuencia = new Label();
     private VBox campoAlternativas;
     private VBox campoComodin;
@@ -258,10 +265,28 @@ final class EditorConfiguracion extends BorderPane {
                 + "antes de iniciar o reanudar su monitoreo.");
         notaEntorno.setWrapText(true);
         notaEntorno.getStyleClass().add("field-help");
-        formulario.add(notaEntorno, 1, 3);
+        Label etiquetaEscenario = new Label("Escenario del simulador");
+        etiquetaEscenario.getStyleClass().add("field-label");
+        escenarioSimulador.setItems(FXCollections.observableArrayList(EscenarioSimulador.values()));
+        textosDe(escenarioSimulador, EscenarioSimulador::etiqueta);
+        descripcionEscenario.getStyleClass().add("field-help");
+        descripcionEscenario.setWrapText(true);
+        bloqueEscenario.getChildren().addAll(etiquetaEscenario, escenarioSimulador, descripcionEscenario);
+        escenarioSimulador.valueProperty().addListener((observable, antes, ahora) -> actualizarEscenario());
+        entornoPortal.valueProperty().addListener((observable, antes, ahora) -> actualizarEscenario());
+        formulario.add(new VBox(10, notaEntorno, bloqueEscenario), 1, 3);
         intervalo.setEditable(true);
         agregarSeccion(formulario, 4, "Frecuencia y disponibilidad");
-        addRow(formulario, 5, "Intervalo entre consultas", intervalo);
+        variacion.setEditable(true);
+        variacion.setPrefWidth(90);
+        Label etiquetaVariacion = new Label("Variación aleatoria de cada espera:");
+        HBox filaVariacion = new HBox(8, etiquetaVariacion, variacion, new Label("%"));
+        filaVariacion.setAlignment(Pos.CENTER_LEFT);
+        ayudaVariacion.getStyleClass().add("field-help");
+        ayudaVariacion.setWrapText(true);
+        intervalo.getEditor().textProperty().addListener((observable, antes, ahora) -> actualizarAyudaVariacion());
+        variacion.getEditor().textProperty().addListener((observable, antes, ahora) -> actualizarAyudaVariacion());
+        addRow(formulario, 5, "Intervalo entre consultas", new VBox(8, intervalo, filaVariacion, ayudaVariacion));
         restringirHorario.setText(null);
         restringirHorario.setAccessibleText("Limitar el monitoreo a un horario");
         Label nombreInterruptor = new Label("Limitar el monitoreo a un horario");
@@ -519,6 +544,36 @@ final class EditorConfiguracion extends BorderPane {
                         + "Marca la casilla para usarlos.");
     }
 
+    /** El escenario solo importa con el simulador; se muestra únicamente entonces. */
+    private void actualizarEscenario() {
+        boolean simulador = entornoPortal.getValue() != EntornoPortal.PORTAL_REAL;
+        bloqueEscenario.setVisible(simulador);
+        bloqueEscenario.setManaged(simulador);
+        EscenarioSimulador elegido = escenarioSimulador.getValue();
+        descripcionEscenario.setText(elegido == null ? "" : elegido.descripcion()
+                + " Cada vez que inicias un monitoreo el escenario arranca de nuevo.");
+    }
+
+    /** Explica con números qué rango de espera resulta del intervalo y la variación escritos. */
+    private void actualizarAyudaVariacion() {
+        try {
+            int segundos = Integer.parseInt(intervalo.getEditor().getText().strip());
+            int porcentaje = Integer.parseInt(variacion.getEditor().getText().strip());
+            if (porcentaje <= 0) {
+                ayudaVariacion.setText("Sin variación: cada espera dura exactamente " + segundos + " s. Un ritmo fijo "
+                        + "es fácil de distinguir del de una persona; se recomienda 20 %.");
+                return;
+            }
+            double minimo = segundos * (1 - porcentaje / 100.0);
+            double maximo = segundos * (1 + porcentaje / 100.0);
+            ayudaVariacion.setText(String.format(java.util.Locale.forLanguageTag("es"),
+                    "Cada espera dura al azar entre %.0f y %.0f s (promedio %d s). Evita un ritmo fijo de consultas; "
+                            + "se recomienda 20 %%. Con 0 se desactiva.", minimo, maximo, segundos));
+        } catch (NumberFormatException e) {
+            ayudaVariacion.setText("Escribe números enteros para ver el rango de la espera.");
+        }
+    }
+
     private static TextField campoHora(String ejemplo) {
         TextField campo = new TextField();
         campo.setPromptText(ejemplo);
@@ -540,7 +595,11 @@ final class EditorConfiguracion extends BorderPane {
     private void cargarConfiguracion(Configuracion configuracion) {
         navegador.setValue(configuracion.navegador());
         entornoPortal.setValue(configuracion.entornoPortal());
+        escenarioSimulador.setValue(configuracion.escenarioSimulador());
+        actualizarEscenario();
         intervalo.getValueFactory().setValue(configuracion.intervaloConsultaSegundos());
+        variacion.getValueFactory().setValue(configuracion.variacionEsperaPorcentaje());
+        actualizarAyudaVariacion();
         HorarioOperacion horario = configuracion.horario();
         restringirHorario.setSelected(horario.restringir());
         for (DayOfWeek dia : DayOfWeek.values()) {
@@ -580,6 +639,17 @@ final class EditorConfiguracion extends BorderPane {
         if (segundos < Configuracion.INTERVALO_MINIMO_SEGUNDOS || segundos > 3600) {
             throw new IllegalArgumentException("El intervalo debe estar entre 2 y 3600 segundos.");
         }
+        int porcentajeVariacion;
+        try {
+            porcentajeVariacion = Integer.parseInt(variacion.getEditor().getText().strip());
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("La variación de la espera debe ser un número entero de 0 a "
+                    + Configuracion.VARIACION_MAXIMA_PORCENTAJE + ".", e);
+        }
+        if (porcentajeVariacion < 0 || porcentajeVariacion > Configuracion.VARIACION_MAXIMA_PORCENTAJE) {
+            throw new IllegalArgumentException("La variación de la espera debe estar entre 0 y "
+                    + Configuracion.VARIACION_MAXIMA_PORCENTAJE + " %.");
+        }
         Map<DayOfWeek, FranjaHoraria> franjas = new EnumMap<>(DayOfWeek.class);
         for (DayOfWeek dia : DayOfWeek.values()) {
             if (dias.get(dia).isSelected()) {
@@ -593,7 +663,8 @@ final class EditorConfiguracion extends BorderPane {
         return new Configuracion(base.version(), accesoPendiente, navegador.getValue(), entornoPortal.getValue(),
                 segundos, horario, new ArrayList<>(borradores.values()),
                 new PreferenciasAlertas(sonidoHabilitado.isSelected(), vozHabilitada.isSelected(),
-                        tonoAlarma.getValue(), perfilEscalamiento));
+                        tonoAlarma.getValue(), perfilEscalamiento),
+                escenarioSimulador.getValue(), porcentajeVariacion);
     }
 
     private static String textoEntorno(EntornoPortal entorno) {

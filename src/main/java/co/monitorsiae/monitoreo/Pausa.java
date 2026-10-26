@@ -29,9 +29,18 @@ public interface Pausa {
         return Duration.ofNanos(Math.max(0, nanosConJitter));
     }
 
+    /** Espera real con la variación habitual de ±20 %. */
     static Pausa real() {
+        return real(0.2);
+    }
+
+    /**
+     * Espera real con variación aleatoria de hasta {@code factorJitter} (0.2 = ±20 %); con 0 cada espera dura
+     * exactamente lo pedido.
+     */
+    static Pausa real(double factorJitter) {
         return new Pausa() {
-            private static final double FACTOR_JITTER = 0.2;
+            private final double FACTOR_JITTER = factorJitter;
 
             private final Object candado = new Object();
             private boolean despertarSolicitado;

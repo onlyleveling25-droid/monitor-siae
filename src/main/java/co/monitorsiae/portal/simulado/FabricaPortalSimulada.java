@@ -1,24 +1,30 @@
 package co.monitorsiae.portal.simulado;
 
 import co.monitorsiae.dominio.Cliente;
+import co.monitorsiae.dominio.EscenarioSimulador;
 import co.monitorsiae.portal.PortalDriver;
 
-import java.util.List;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
- * Proporciona a cada cliente una escena de demostracion con inventario de pistolas.
+ * Proporciona a cada cliente un portal simulado que sigue el escenario elegido en la configuración. El
+ * escenario se consulta cada vez que se crea el portal, así que un cambio se aplica al siguiente inicio.
  */
 public final class FabricaPortalSimulada implements Function<Cliente, PortalDriver> {
 
+    private final Supplier<EscenarioSimulador> escenario;
+
+    public FabricaPortalSimulada() {
+        this(EscenarioSimulador::porDefecto);
+    }
+
+    public FabricaPortalSimulada(Supplier<EscenarioSimulador> escenario) {
+        this.escenario = escenario;
+    }
+
     @Override
     public PortalDriver apply(Cliente cliente) {
-        List<String> seccionales = cliente.tramite().seccionales();
-        String seccional = seccionales.isEmpty()
-                ? "Sin seccional configurada"
-                : seccionales.getFirst();
-        return PortalSimulado.con(Escena.conInventario(seccional,
-                "Pistola Cordova Compacta Cal 9MM 9T 3P CORDOVA 9MM",
-                "Pistola CZ P10 CAL 9 mm 2P 9T CZ 9MM"));
+        return new PortalSimulado(GeneradorEscenas.para(escenario.get(), cliente));
     }
 }

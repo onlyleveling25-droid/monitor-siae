@@ -34,6 +34,13 @@ public final class ValidadorConfiguracion {
                             + Configuracion.INTERVALO_MINIMO_SEGUNDOS + " segundos."));
         }
 
+        if (configuracion.variacionEsperaPorcentaje() < 0
+                || configuracion.variacionEsperaPorcentaje() > Configuracion.VARIACION_MAXIMA_PORCENTAJE) {
+            problemas.add(new ProblemaConfiguracion("General",
+                    "La variación de la espera debe estar entre 0 y " + Configuracion.VARIACION_MAXIMA_PORCENTAJE
+                            + " %."));
+        }
+
         HorarioOperacion horario = configuracion.horario();
         if (horario.restringir()) {
             if (horario.franjas().isEmpty()) {

@@ -125,4 +125,13 @@ class ValidadorConfiguracionTest {
                 .anyMatch(p -> p.mensaje().contains("TENENCIA")));
         assertTrue(validador.validar(conCliente(soloAlerta)).isEmpty());
     }
+
+    @Test
+    void laVariacionDeEsperaDebeEstarEntreCeroYElMaximo() {
+        assertTrue(validador.validar(Configuracion.porDefecto().conVariacionEsperaPorcentaje(0)).isEmpty());
+        assertTrue(validador.validar(Configuracion.porDefecto()
+                .conVariacionEsperaPorcentaje(Configuracion.VARIACION_MAXIMA_PORCENTAJE)).isEmpty());
+        assertEquals(1, validador.validar(Configuracion.porDefecto().conVariacionEsperaPorcentaje(51)).size());
+        assertEquals(1, validador.validar(Configuracion.porDefecto().conVariacionEsperaPorcentaje(-1)).size());
+    }
 }

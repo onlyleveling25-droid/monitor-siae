@@ -216,4 +216,52 @@ class RepositorioConfiguracionJsonTest {
 
         assertThrows(ConfiguracionIlegibleException.class, repositorio::cargar);
     }
+
+    @Test
+    void conservaElEscenarioDelSimuladoryUsaElPredeterminadoSiFalta() throws IOException {
+        Configuracion elegida = Configuracion.porDefecto()
+                .conEscenarioSimulador(co.monitorsiae.dominio.EscenarioSimulador.TRES_FALLOS_SEGUIDOS);
+        repositorio.guardar(elegida);
+        assertEquals(co.monitorsiae.dominio.EscenarioSimulador.TRES_FALLOS_SEGUIDOS,
+                repositorio.cargar().escenarioSimulador());
+
+        Files.writeString(archivo, "{ \"version\": 3, \"clientes\": [] }");
+        assertEquals(co.monitorsiae.dominio.EscenarioSimulador.porDefecto(), repositorio.cargar().escenarioSimulador());
+    }
+
+    @Test
+    void cambiarOtroAjusteNoPierdeElEscenario() {
+        Configuracion base = Configuracion.porDefecto()
+                .conEscenarioSimulador(co.monitorsiae.dominio.EscenarioSimulador.SESION_VENCIDA);
+
+        assertEquals(co.monitorsiae.dominio.EscenarioSimulador.SESION_VENCIDA,
+                base.conEntornoPortal(co.monitorsiae.dominio.EntornoPortal.PORTAL_REAL).escenarioSimulador());
+        assertEquals(co.monitorsiae.dominio.EscenarioSimulador.SESION_VENCIDA,
+                base.conClientes(List.of()).escenarioSimulador());
+        assertEquals(co.monitorsiae.dominio.EscenarioSimulador.SESION_VENCIDA,
+                base.conPreferenciasAlertas(PreferenciasAlertas.porDefecto()).escenarioSimulador());
+    }
+
+    @Test
+    void laVariacionDeEsperaSeConservaYUnArchivoAnteriorTomaElValorPredeterminado() throws IOException {
+        repositorio.guardar(Configuracion.porDefecto().conVariacionEsperaPorcentaje(0));
+        assertEquals(0, repositorio.cargar().variacionEsperaPorcentaje());
+
+        repositorio.guardar(Configuracion.porDefecto().conVariacionEsperaPorcentaje(35));
+        assertEquals(35, repositorio.cargar().variacionEsperaPorcentaje());
+
+        Files.writeString(archivo, "{ \"version\": 3, \"clientes\": [] }");
+        assertEquals(Configuracion.VARIACION_POR_DEFECTO_PORCENTAJE, repositorio.cargar().variacionEsperaPorcentaje());
+    }
+
+    @Test
+    void cambiarOtroAjusteNoPierdeLaVariacionDeEspera() {
+        Configuracion base = Configuracion.porDefecto().conVariacionEsperaPorcentaje(10);
+
+        assertEquals(10, base.conClientes(List.of()).variacionEsperaPorcentaje());
+        assertEquals(10, base.conEntornoPortal(co.monitorsiae.dominio.EntornoPortal.PORTAL_REAL).variacionEsperaPorcentaje());
+        assertEquals(10, base.conEscenarioSimulador(co.monitorsiae.dominio.EscenarioSimulador.SESION_VENCIDA)
+                .variacionEsperaPorcentaje());
+        assertEquals(10, base.conHorario(HorarioOperacion.porDefecto()).variacionEsperaPorcentaje());
+    }
 }

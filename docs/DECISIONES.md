@@ -270,6 +270,12 @@ persona real. Añadir una variación aleatoria reduce la previsibilidad frente a
 cambiar el comportamiento observable del programa (sigue respetando aproximadamente el intervalo
 configurado).
 
+**Actualización (2026-10-26):** la variación es configurable en Configuración → General, de 0 a 50 %
+(`variacionEsperaPorcentaje`, 20 % por defecto; 0 la desactiva y cada espera dura exactamente el
+intervalo). Se aplica al crear el monitor de un cliente, así que un cambio rige desde el siguiente
+inicio. Un archivo de configuración anterior, que no trae el campo, toma el 20 %. La voz de las
+alarmas conserva su ±20 % fijo.
+
 ## D15. Maven Wrapper propio y mínimo
 
 **Decisión:** `mvnw.cmd` + `herramientas/maven/mvnw.ps1` descargan una vez la versión exacta de Maven,

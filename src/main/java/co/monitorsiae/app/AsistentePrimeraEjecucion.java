@@ -65,6 +65,7 @@ public final class AsistentePrimeraEjecucion {
 
     private static Configuracion conNavegador(Configuracion base, NavegadorPreferido navegador) {
         return new Configuracion(base.version(), base.acceso(), navegador, base.entornoPortal(),
-                base.intervaloConsultaSegundos(), base.horario(), base.clientes(), base.preferenciasAlertas());
+                base.intervaloConsultaSegundos(), base.horario(), base.clientes(), base.preferenciasAlertas(),
+                base.escenarioSimulador(), base.variacionEsperaPorcentaje());
     }
 }

@@ -373,7 +373,8 @@ public final class CoordinadorMonitores implements AutoCloseable {
             sesion.monitor = new MonitorCliente(cliente, sesion.portal,
                     new CicloMonitoreo(new SelectorSeccional(), new SelectorArma()),
                     ventana,
-                    Duration.ofSeconds(actual.intervaloConsultaSegundos()), Pausa.real(), oyente);
+                    Duration.ofSeconds(actual.intervaloConsultaSegundos()),
+                    Pausa.real(actual.variacionEsperaPorcentaje() / 100.0), oyente);
             if (sesion.detencionSolicitada) {
                 sesion.monitor.detener();
             }
@@ -422,7 +423,8 @@ public final class CoordinadorMonitores implements AutoCloseable {
 
     private PortalDriver obtenerPortal(Cliente cliente, SesionCliente sesion) {
         EntornoPortal solicitado = configuracion.entornoPortal();
-        if (sesion.portal != null && sesion.entornoPortal != solicitado) {
+        // El simulador arranca su escenario desde el principio en cada inicio de monitoreo.
+        if (sesion.portal != null && (sesion.entornoPortal != solicitado || solicitado == EntornoPortal.SIMULADOR)) {
             sesion.portal.close();
             sesion.portal = null;
         }

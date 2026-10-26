@@ -115,10 +115,22 @@ La integración real está en etapa de validación; las comprobaciones pendiente
 Los perfiles persistentes y sus cookies viven en `%APPDATA%\MonitorSIAE\perfiles`; son datos
 sensibles locales y no deben compartirse.
 
-El simulador incluye dos pistolas de prueba (Cordova y CZ P10). Para ver una alerta sin apartar un
-arma, crea un cliente en modo **ALERTA**, agrega como objetivo `glock, g-43`, una alternativa
-`jericho`, selecciona la política **alternativas y luego tipo**, y deja `Pistola` como tipo comodín.
-Como el inventario simulado no contiene Glock ni Jericho, se elegirá la primera pistola, Cordova.
+El simulador se comporta según el **escenario** que elijas en **Configuración → General** (aparece
+solo con el entorno Simulador) y cada vez que inicias un monitoreo el escenario arranca desde el principio:
+
+- **Hay inventario desde la primera consulta:** encuentra armas de inmediato.
+- **Sin inventario y luego aparece** (predeterminado): seccionales cerradas, luego abiertas sin inventario y,
+  después de cinco consultas, inventario; se ve la espera y luego la selección según el cliente.
+- **Hay inventario, pero sin los objetivos del cliente:** prueba las alternativas y el comodín.
+- **El arma aparece pero otra persona la toma:** el apartado no se confirma (reintentos y aviso de fallo).
+- **La plataforma falla tres veces seguidas:** el monitor se detiene por fallos repetidos y suena la alarma.
+- **La sesión vence a mitad del monitoreo:** el monitor se detiene con alarma.
+- **Las seccionales siempre están cerradas:** para dejar el monitoreo corriendo.
+
+El inventario simulado tiene 15 armas con nombres al estilo de la plataforma (Glock G-43, G-26 y G-19,
+CZ P10, Cordova, Jericho, Taurus, Beretta, Sig Sauer, Smith & Wesson, Canik, Walther, Ruger 22 LR y un
+revólver), así que cualquier objetivo, alternativa, comodín o exclusión razonable se puede probar. Para ver una
+alerta sin apartar un arma, crea un cliente en modo **ALERTA** y elige el escenario que quieras.
 Las exclusiones se aplican antes de objetivos, alternativas y comodín. Si el cliente prefiere
 cualquier pistola antes que modelos concretos, agrega `Pistola` como primer objetivo prioritario;
 el tipo comodín sigue siendo el último recurso.
@@ -196,8 +208,8 @@ Se guarda en `%APPDATA%\MonitorSIAE\config.json` y se edita desde la aplicación
     descarta el arma aunque coincida con otra regla.
   - `excluir`: palabras que descartan un arma aunque coincida.
 
-Además, a nivel general: navegador (Chrome o Edge), segundos entre consultas y horario de operación
-(desactivado por defecto).
+Además, a nivel general: navegador (Chrome o Edge), segundos entre consultas (con una variación aleatoria
+de cada espera, 20 % por defecto y configurable de 0 a 50 %) y horario de operación (desactivado por defecto).
 
 Antes de monitorear, la aplicación valida la configuración y explica cada error. El botón
 **Verificar configuración** comprueba, con la sesión abierta, que cada texto exista en las

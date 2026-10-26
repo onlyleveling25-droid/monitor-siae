@@ -13,7 +13,9 @@ import co.monitorsiae.dominio.HorarioOperacion;
 import co.monitorsiae.dominio.Modalidad;
 import co.monitorsiae.dominio.ModoReaccion;
 import co.monitorsiae.dominio.NavegadorPreferido;
+import co.monitorsiae.dominio.NivelEscalamiento;
 import co.monitorsiae.dominio.ParametrosTramite;
+import co.monitorsiae.dominio.PerfilEscalamiento;
 import co.monitorsiae.dominio.PoliticaSinObjetivo;
 import co.monitorsiae.dominio.ReglasSeleccion;
 import co.monitorsiae.dominio.PreferenciaSonidoCliente;
@@ -47,6 +49,7 @@ import javafx.stage.Window;
 
 import java.time.DayOfWeek;
 import java.time.DateTimeException;
+import java.time.Duration;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.EnumMap;
@@ -81,6 +84,9 @@ final class EditorConfiguracion extends BorderPane {
     private final CheckBox vozHabilitada = new CheckBox("Leer las alertas en voz alta");
     private final Label detallePreferenciaSonido = new Label();
     private final ComboBox<TonoAlarma> tonoAlarma = new ComboBox<>();
+    private final CheckBox escalamientoHabilitado =
+            new CheckBox("Insistir más si una alerta sigue sin reconocerse");
+    private final EditorNivelesEscalamiento nivelesEscalamiento = new EditorNivelesEscalamiento();
     private final ListView<Cliente> listaClientes = new ListView<>();
     private final TabPane tabsConfiguracion = new TabPane();
     private Tab tabClientes;
@@ -251,28 +257,25 @@ final class EditorConfiguracion extends BorderPane {
         agregarSeccion(formulario, 4, "Frecuencia y disponibilidad");
         addRow(formulario, 5, "Intervalo entre consultas", intervalo);
         formulario.add(restringirHorario, 0, 6, 2, 1);
-        HBox diasFila = new HBox(8);
         for (DayOfWeek dia : DayOfWeek.values()) {
-            CheckBox check = new CheckBox(DIAS.get(dia));
-            dias.put(dia, check);
-            diasFila.getChildren().add(check);
+            dias.put(dia, new CheckBox(DIAS.get(dia)));
         }
-        addRow(formulario, 7, "Días permitidos", diasFila);
-        HBox horas = new HBox(10, desde, new Label("a"), hasta,
-                new Label("Hora local de Colombia (America/Bogota)"));
         desde.setPromptText("08:00");
         hasta.setPromptText("16:00");
-        addRow(formulario, 8, "Horario (24 horas)", horas);
+        EditorHorarioSemanal horarioSemanal = new EditorHorarioSemanal(dias, desde, hasta);
+        addRow(formulario, 7, "Horario semanal", horarioSemanal);
         Label notaHorario = new Label(
-                "El horario está desactivado por defecto. Actívalo solo si deseas limitar la actividad.");
+                "El horario está desactivado por defecto. Actívalo solo si deseas limitar la actividad. El mismo "
+                        + "rango de horas se aplica a todos los días que marques; no se puede variar por día.");
+        notaHorario.setWrapText(true);
         notaHorario.getStyleClass().add("field-help");
-        formulario.add(notaHorario, 0, 9, 2, 1);
-        agregarSeccion(formulario, 10, "Seguridad");
-        formulario.add(proteger, 0, 11, 2, 1);
+        formulario.add(notaHorario, 0, 8, 2, 1);
+        agregarSeccion(formulario, 9, "Seguridad");
+        formulario.add(proteger, 0, 10, 2, 1);
         Button cambiar = new Button("Cambiar contraseña");
         cambiar.getStyleClass().add("secondary-button");
         cambiar.setOnAction(event -> cambiarProteccion());
-        formulario.add(cambiar, 0, 12);
+        formulario.add(cambiar, 0, 11);
         VBox contenido = new VBox(8, encabezadoPanel("Preferencias generales",
                 "Configura cómo se ejecuta la aplicación y protege los cambios."));
         contenido.setPadding(new Insets(22));
@@ -335,6 +338,16 @@ final class EditorConfiguracion extends BorderPane {
         formulario.add(ayuda, 0, 6, 2, 1);
         sonidoHabilitado.selectedProperty().addListener((observable, anterior, nuevo) ->
                 actualizarAyudaPreferenciaSonido());
+        agregarSeccion(formulario, 7, "Escalamiento de insistencia");
+        formulario.add(escalamientoHabilitado, 0, 8, 2, 1);
+        Label ayudaEscalamiento = new Label(
+                "Opcional. Mientras una alerta siga sin reconocerse, va subiendo de insistencia según el tiempo "
+                        + "transcurrido: puede forzar el sonido o la voz aunque estén silenciados, y cambiar el tono.");
+        ayudaEscalamiento.setWrapText(true);
+        ayudaEscalamiento.getStyleClass().add("field-help");
+        formulario.add(ayudaEscalamiento, 0, 9, 2, 1);
+        nivelesEscalamiento.disableProperty().bind(escalamientoHabilitado.selectedProperty().not());
+        formulario.add(nivelesEscalamiento, 0, 10, 2, 1);
         contenido.getChildren().addAll(encabezado, formulario);
         ScrollPaneFormulario desplazamiento = new ScrollPaneFormulario(contenido);
         VBox contenedor = new VBox(desplazamiento);
@@ -467,6 +480,9 @@ final class EditorConfiguracion extends BorderPane {
         sonidoHabilitado.setSelected(configuracion.preferenciasAlertas().sonidoHabilitado());
         vozHabilitada.setSelected(configuracion.preferenciasAlertas().vozHabilitada());
         tonoAlarma.setValue(configuracion.preferenciasAlertas().tono());
+        PerfilEscalamiento perfilEscalamiento = configuracion.preferenciasAlertas().perfilEscalamiento();
+        escalamientoHabilitado.setSelected(perfilEscalamiento.habilitado());
+        nivelesEscalamiento.setNiveles(perfilEscalamiento.niveles());
         borradores.clear();
         configuracion.clientes().forEach(cliente -> borradores.put(cliente.id(), cliente));
         listaClientes.setItems(FXCollections.observableArrayList(configuracion.clientes()));
@@ -494,10 +510,12 @@ final class EditorConfiguracion extends BorderPane {
                 dias.entrySet().stream().filter(e -> e.getValue().isSelected()).map(Map.Entry::getKey).toList(),
                 LocalTime.parse(desde.getText().strip()), LocalTime.parse(hasta.getText().strip()),
                 HorarioOperacion.ZONA_COLOMBIA);
+        PerfilEscalamiento perfilEscalamiento =
+                new PerfilEscalamiento(escalamientoHabilitado.isSelected(), nivelesEscalamiento.getNiveles());
         return new Configuracion(base.version(), accesoPendiente, navegador.getValue(), entornoPortal.getValue(),
                 segundos, horario, new ArrayList<>(borradores.values()),
                 new PreferenciasAlertas(sonidoHabilitado.isSelected(), vozHabilitada.isSelected(),
-                        tonoAlarma.getValue()));
+                        tonoAlarma.getValue(), perfilEscalamiento));
     }
 
     private static String textoEntorno(EntornoPortal entorno) {
@@ -845,6 +863,175 @@ final class EditorConfiguracion extends BorderPane {
 
         private void setValues(List<String> nuevos) {
             valores.setAll(nuevos);
+        }
+    }
+
+    /** Lista editable de niveles de escalamiento: cada fila es espera + qué forzar + tono. */
+    private static final class EditorNivelesEscalamiento extends VBox {
+        private final javafx.collections.ObservableList<NivelEscalamiento> niveles =
+                FXCollections.observableArrayList();
+        private final ListView<NivelEscalamiento> lista = new ListView<>(niveles);
+        private final Spinner<Integer> minutosEspera = new Spinner<>(0, 180, 1);
+        private final CheckBox forzarSonidoNuevo = new CheckBox("Forzar sonido");
+        private final CheckBox forzarVozNuevo = new CheckBox("Forzar voz");
+        private final ComboBox<TonoAlarma> tonoNuevo = new ComboBox<>();
+
+        private EditorNivelesEscalamiento() {
+            super(7);
+            Label nota = new Label(
+                    "Cada fila entra en vigor cuando la alerta lleva, al menos, el tiempo indicado sin reconocerse.");
+            nota.getStyleClass().add("muted");
+            nota.setWrapText(true);
+            tonoNuevo.setItems(FXCollections.observableArrayList(TonoAlarma.values()));
+            tonoNuevo.setCellFactory(ignorado -> new ListCell<>() {
+                @Override
+                protected void updateItem(TonoAlarma tono, boolean vacio) {
+                    super.updateItem(tono, vacio);
+                    setText(vacio || tono == null ? null : tono.etiqueta());
+                }
+            });
+            tonoNuevo.setButtonCell(new ListCell<>() {
+                @Override
+                protected void updateItem(TonoAlarma tono, boolean vacio) {
+                    super.updateItem(tono, vacio);
+                    setText(vacio || tono == null ? null : tono.etiqueta());
+                }
+            });
+            tonoNuevo.setValue(TonoAlarma.SIRENA);
+            Label etiquetaMinutos = new Label("Minutos de espera:");
+            Button agregar = new Button("Agregar nivel");
+            agregar.getStyleClass().add("secondary-button");
+            agregar.setOnAction(event -> agregar());
+            HBox filaAgregar = new HBox(8, etiquetaMinutos, minutosEspera, forzarSonidoNuevo, forzarVozNuevo,
+                    tonoNuevo, agregar);
+            lista.setPrefHeight(110);
+            lista.setPlaceholder(new Label("Todavía no hay niveles configurados."));
+            lista.setCellFactory(ignorado -> new ListCell<>() {
+                @Override
+                protected void updateItem(NivelEscalamiento nivel, boolean vacio) {
+                    super.updateItem(nivel, vacio);
+                    setText(vacio || nivel == null ? null : textoNivel(nivel));
+                }
+            });
+            Button quitar = new Button("Quitar");
+            quitar.getStyleClass().add("text-button");
+            quitar.setOnAction(event -> {
+                int indice = lista.getSelectionModel().getSelectedIndex();
+                if (indice >= 0) {
+                    niveles.remove(indice);
+                }
+            });
+            HBox acciones = new HBox(7, quitar);
+            getChildren().addAll(nota, filaAgregar, lista, acciones);
+        }
+
+        private static String textoNivel(NivelEscalamiento nivel) {
+            StringBuilder texto = new StringBuilder();
+            texto.append("A los ").append(nivel.espera().toMinutes()).append(" min: ");
+            List<String> acciones = new ArrayList<>();
+            if (nivel.forzarSonido()) {
+                acciones.add("fuerza sonido");
+            }
+            if (nivel.forzarVoz()) {
+                acciones.add("fuerza voz");
+            }
+            if (acciones.isEmpty()) {
+                acciones.add("sin cambios de canal");
+            }
+            texto.append(String.join(", ", acciones)).append(" · tono ").append(nivel.tono().etiqueta());
+            return texto.toString();
+        }
+
+        private void agregar() {
+            NivelEscalamiento nivel = new NivelEscalamiento(Duration.ofMinutes(minutosEspera.getValue()),
+                    forzarSonidoNuevo.isSelected(), forzarVozNuevo.isSelected(), tonoNuevo.getValue());
+            niveles.add(nivel);
+            lista.getSelectionModel().select(niveles.size() - 1);
+        }
+
+        private List<NivelEscalamiento> getNiveles() {
+            return List.copyOf(niveles);
+        }
+
+        private void setNiveles(List<NivelEscalamiento> nuevos) {
+            niveles.setAll(nuevos);
+        }
+    }
+
+    /**
+     * Representación visual semanal del horario: una columna por día con el mismo rango de horas
+     * resaltado, fiel al modelo de {@link HorarioOperacion} (una sola ventana compartida entre los
+     * días habilitados, sin variación por día).
+     */
+    private static final class EditorHorarioSemanal extends VBox {
+        private static final int FRANJAS = 24;
+
+        private final Map<DayOfWeek, CheckBox> dias;
+        private final TextField desde;
+        private final TextField hasta;
+        private final Map<DayOfWeek, VBox> columnasFranjas = new EnumMap<>(DayOfWeek.class);
+
+        private EditorHorarioSemanal(Map<DayOfWeek, CheckBox> dias, TextField desde, TextField hasta) {
+            super(10);
+            this.dias = dias;
+            this.desde = desde;
+            this.hasta = hasta;
+
+            HBox encabezados = new HBox(4);
+            HBox columnas = new HBox(4);
+            for (DayOfWeek dia : DayOfWeek.values()) {
+                CheckBox check = dias.get(dia);
+                VBox encabezadoDia = new VBox(2, check);
+                encabezadoDia.setPrefWidth(42);
+                encabezados.getChildren().add(encabezadoDia);
+
+                VBox columna = new VBox(1);
+                columna.setPrefWidth(42);
+                for (int hora = 0; hora < FRANJAS; hora++) {
+                    javafx.scene.layout.Region franja = new javafx.scene.layout.Region();
+                    franja.setPrefSize(38, 5);
+                    franja.getStyleClass().add("schedule-slot");
+                    columna.getChildren().add(franja);
+                }
+                columnasFranjas.put(dia, columna);
+                columnas.getChildren().add(columna);
+                check.selectedProperty().addListener((observable, antes, ahora) -> refrescar());
+            }
+            HBox horas = new HBox(10, new Label("Desde"), desde, new Label("Hasta"), hasta,
+                    new Label("Hora local de Colombia (America/Bogota)"));
+            desde.textProperty().addListener((observable, antes, ahora) -> refrescar());
+            hasta.textProperty().addListener((observable, antes, ahora) -> refrescar());
+            getChildren().addAll(encabezados, columnas, horas);
+            refrescar();
+        }
+
+        private void refrescar() {
+            LocalTime horaDesde = horaValida(desde.getText());
+            LocalTime horaHasta = horaValida(hasta.getText());
+            for (Map.Entry<DayOfWeek, VBox> entrada : columnasFranjas.entrySet()) {
+                boolean diaHabilitado = dias.get(entrada.getKey()).isSelected();
+                List<Node> franjas = entrada.getValue().getChildren();
+                for (int hora = 0; hora < FRANJAS; hora++) {
+                    boolean activa = diaHabilitado && horaDesde != null && horaHasta != null
+                            && dentroDelRango(hora, horaDesde, horaHasta);
+                    franjas.get(hora).pseudoClassStateChanged(
+                            javafx.css.PseudoClass.getPseudoClass("active"), activa);
+                }
+            }
+        }
+
+        private static boolean dentroDelRango(int hora, LocalTime desde, LocalTime hasta) {
+            LocalTime inicioFranja = LocalTime.of(hora, 0);
+            LocalTime finFranja = hora == 23 ? LocalTime.MAX : LocalTime.of(hora + 1, 0);
+            return inicioFranja.isBefore(hasta) && finFranja.isAfter(desde);
+        }
+
+        private static LocalTime horaValida(String texto) {
+            try {
+                return LocalTime.parse(texto.strip());
+            } catch (RuntimeException e) {
+                return null;
+            }
         }
     }
 

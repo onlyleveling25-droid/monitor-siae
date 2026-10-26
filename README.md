@@ -18,12 +18,17 @@ persona termine el proceso.
 **Hace**
 - Llena el paso 1 con los parámetros configurados por cliente, respetando que cada lista depende de
   la anterior.
+- En cada ciclo prueba **todas** las seccionales configuradas del cliente, en orden de preferencia:
+  si la primera responde sin inventario, sigue con la siguiente antes de esperar al próximo ciclo.
 - Puede limitarse a un horario (por ejemplo, lunes a viernes de 8:00 a 16:00, hora de Colombia).
 - Lee el listado de armas y elige según las reglas del cliente: armas objetivo en orden de
   prioridad y, si no hay ninguna, seguir esperando, usar alternativas o tomar cualquiera de un tipo.
 - Aparta el arma (modalidad y Confirmar) o, en modo alerta, solo avisa.
-- Alerta con voz, sonido en bucle, ventana al frente y parpadeo en la barra de tareas.
+- Alerta con voz, sonido en bucle, ventana al frente y parpadeo en la barra de tareas, siempre que
+  detecta inventario real (arma apartada, arma disponible en modo alerta, o apartado fallido), sin
+  importar el horario de operación.
 - Detecta sesión vencida o respuestas inesperadas y avisa en lugar de repetir a ciegas.
+- Varía ligeramente (±20 %) el tiempo de espera entre consultas, para no seguir un patrón fijo.
 
 **No hace**
 - No inicia sesión ni resuelve captchas: eso lo hace siempre una persona.
@@ -111,6 +116,12 @@ Cuando el sistema encuentra un arma, guarda el inventario completo y la regla qu
 consulta con **Historial** en la tarjeta del cliente. No se guarda cada consulta sin coincidencias.
 Este archivo permanece local y puede contener información sensible del inventario.
 
+Si hay inventario real pero no se pudo confirmar el apartado (la plataforma no respondió como se
+esperaba tras los reintentos configurados), la alarma suena igual que si el arma se hubiera apartado
+o detectado en modo alerta: el hallazgo no debe pasar inadvertido solo porque el apartado automático
+falló. Esto ocurre sin importar el horario de operación configurado (D11): una vez detectado el
+inventario, la alerta siempre suena.
+
 ## Estructura
 
 ```
@@ -138,7 +149,9 @@ Se guarda en `%APPDATA%\MonitorSIAE\config.json` y se edita desde la aplicación
   importan tildes ni mayúsculas). Si la plataforma cambia un nombre, basta con corregirlo en la
   configuración.
 - Seccionales en orden de preferencia. Basta una parte reconocible: `Bogotá` encuentra
-  `16 - Usaquén, Bogotá D.C.`.
+  `16 - Usaquén, Bogotá D.C.`. En cada ciclo se prueban todas las seccionales configuradas que estén
+  abiertas, en ese orden: si la primera no tiene inventario, se intenta la siguiente antes de pasar
+  al próximo ciclo.
 - Descripción de la solicitud (entre 150 y 500 caracteres).
 - Modo: **APARTAR** (selecciona y confirma el arma) o **ALERTA** (solo avisa).
 - Reglas de selección:

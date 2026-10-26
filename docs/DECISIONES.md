@@ -145,6 +145,23 @@ del comando, porque incluye nombres escritos por el usuario.
 **Descartado por ahora:** detectar si el volumen está en silencio. Java no lo permite sin
 librerías nativas; se cubre con el botón "Probar alarma".
 
+**Actualización (2026-10-24): también alerta el apartado fallido, con la misma urgencia.**
+
+Si la plataforma devolvió inventario real pero el apartado no se pudo confirmar tras agotar los
+reintentos (`ResultadoCiclo.ApartadoFallido`), antes no se generaba ninguna alerta: el cliente se
+quedaba sin aviso aunque hubiera un arma disponible. Ahora `TraductorAlertas` trata ese resultado
+igual que `ArmaApartada`/`ArmaEncontrada`: genera una alerta de `Gravedad.OPORTUNIDAD` (misma
+urgencia sonora) indicando cuántos intentos se hicieron y pidiendo revisar la ventana del navegador.
+`CoordinadorMonitores` pasa el estado de la sesión a `ALERTA_ENCONTRADA` en ese caso, igual que en el
+modo ALERTA, para que suene la alarma sin importar si el apartado quedó sellado o no.
+
+**Motivo:** un apartado fallido por un error transitorio de la plataforma no debe significar perder
+la oportunidad en silencio; la persona debe poder intervenir manualmente de inmediato.
+
+**Alertas de oportunidad ignoran el horario de operación:** la restricción horaria (D11) solo decide
+*cuándo se consulta* el portal; una vez que una consulta (dentro o fuera de horario) trae inventario
+real, la alerta y la alarma suenan siempre. El horario nunca silencia un hallazgo ya detectado.
+
 ## D11. Horario de operación
 
 **Decisión (actualizada 2026-10-15):** la restricción horaria existe en la configuración
@@ -220,6 +237,39 @@ Gana el orden de preferencia de la configuración, no el de la lista.
 **Motivo:** la plataforma antepone un código y agrega el departamento; exigir el texto completo
 haría la configuración frágil.
 
+## D14c. Un ciclo prueba todas las seccionales configuradas, no solo la primera
+
+**Decisión (2026-10-24):** `SelectorSeccional.elegirTodas(...)` devuelve **todas** las seccionales
+abiertas aceptadas por el cliente, en el orden de preferencia de la configuración (sin repetidos).
+`CicloMonitoreo` recorre esa lista completa en el paso 1: si una seccional responde "sin inventario",
+prueba la siguiente en el mismo ciclo antes de rendirse. `elegir(...)` (una sola seccional) sigue
+existiendo como atajo sobre `elegirTodas(...)` para quien no necesite la lista completa.
+
+El ciclo solo se detiene en una seccional cuando esta devuelve inventario (con o sin arma de
+interés) o cuando el portal cambia de estado por otra razón (sesión vencida, trámite no disponible,
+error). Si **todas** las seccionales candidatas quedan sin inventario, el resultado
+`ResultadoCiclo.SinInventario` reporta la lista completa de seccionales probadas, unidas con `" | "`
+(por ejemplo, `"05 - Medellín, Antioquia | 16 - Usaquén, Bogotá D.C."`).
+
+**Motivo:** antes el ciclo se quedaba con la primera seccional aceptada y, si no tenía inventario,
+esperaba al siguiente ciclo sin probar las demás seccionales configuradas del mismo cliente en la
+misma vuelta. Con varias seccionales de interés (p. ej. Medellín y Bogotá), eso retrasaba detectar
+inventario en la segunda hasta el siguiente intervalo de espera.
+
+## D14d. Variación aleatoria (jitter) en las esperas
+
+**Decisión (2026-10-24):** `Pausa.real()` aplica una variación aleatoria de hasta ±20 % sobre la
+duración de cada espera (entre ciclos, en la espera creciente tras fallos y en la espera fuera de
+horario), mediante el método estático `Pausa.conJitter(Duration base, double factor)`
+(`ThreadLocalRandom`, nunca negativo). La interfaz `Pausa` no cambia su firma pública: el jitter vive
+solo dentro de la implementación real, para que las pruebas que usan duraciones exactas (dobles de
+prueba) no se vean afectadas.
+
+**Motivo:** un intervalo fijo entre consultas es un patrón de tráfico fácil de distinguir del de una
+persona real. Añadir una variación aleatoria reduce la previsibilidad frente a la plataforma sin
+cambiar el comportamiento observable del programa (sigue respetando aproximadamente el intervalo
+configurado).
+
 ## D15. Maven Wrapper propio y mínimo
 
 **Decisión:** `mvnw.cmd` + `herramientas/maven/mvnw.ps1` descargan una vez la versión exacta de Maven,
@@ -240,6 +290,41 @@ Windows, porque `jpackage` solo produce instaladores para el sistema donde se ej
 - macOS y Linux.
 
 ---
+
+## D18. Asistente de primera ejecución, editor visual de horario y escalamiento de alarmas (Fase 8 del rediseño de UI)
+
+**Decisión (2026-10-26):** se implementó la Fase 8 del rediseño de UI excluyendo explícitamente el
+modo ensayo, por indicación del usuario:
+
+- `AsistentePrimeraEjecucion` (dominio puro, sin JavaFX) decide cuándo hace falta el asistente
+  (`esNecesario`: configuración nula o sin clientes), valida el nombre del primer cliente y aplica el
+  resultado del asistente sobre una configuración base sin tocar horario ni preferencias de alertas.
+  `AsistentePrimeraEjecucionDialogo` es el `Dialog<Configuracion>` de JavaFX que presenta los pasos
+  (Bienvenida, Navegador, Primer cliente, Entorno del portal, Resumen) y delega toda la lógica de
+  validación/aplicación en la clase de dominio. Se invoca una sola vez al arrancar
+  `AplicacionJavaFx`, antes de construir la ventana principal, y su resultado se guarda con
+  `ServicioAplicacion.guardarConfiguracionInicial(...)` (sin pasar por el validador completo, porque
+  el asistente deja a propósito un cliente incompleto para terminar de llenarlo en Configuración).
+- El editor visual semanal (`EditorConfiguracion.EditorHorarioSemanal`) es solo una representación
+  distinta del `HorarioOperacion` existente: una grilla de 7 días × 24 horas donde se resalta la
+  ventana activa. No se amplió el dominio para soportar horarios distintos por día; la grilla refleja
+  fielmente la única ventana compartida que ya existía, para no inventar una capacidad que el resto
+  del sistema (ciclo de monitoreo, validaciones) no tiene.
+- El escalamiento de alarmas reutiliza `PerfilEscalamiento`/`NivelEscalamiento` (ya existentes en el
+  dominio) y se conecta con `CentralAlertas.tiempoActivo(clienteId)`, un método nuevo que devuelve
+  cuánto lleva activa sin reconocer la alerta de un cliente (usa un `Clock` inyectable para poder
+  probarlo con tiempo controlado). `CanalSonido` y `CanalVoz` reciben una sobrecarga de constructor
+  que acepta una función `id -> Duration` para consultar ese tiempo transcurrido y así decidir si
+  forzar sonido o voz al cruzar cada nivel configurado; cuando el perfil de escalamiento está
+  deshabilitado, el comportamiento es idéntico al anterior.
+- **Modo ensayo:** no se implementó. Quedó fuera a propósito porque necesita una especificación
+  explícita de qué puede preparar en el portal y qué nunca debe enviar, y pruebas aisladas antes de
+  poder incluirse con seguridad.
+
+**Motivo:** reducir la fricción de la primera configuración sin forzar a una persona nueva a entender
+todo el formulario de Configuración de una sola vez, dar una lectura visual inmediata del horario sin
+reinventar sus reglas, y permitir que las alertas se vuelvan más insistentes con el tiempo sin obligar
+a nadie a usarlo (el perfil de escalamiento sigue siendo opcional y deshabilitado por defecto).
 
 ## Pendientes por confirmar
 

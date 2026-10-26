@@ -1,6 +1,8 @@
 package co.monitorsiae.notificacion;
 
 import co.monitorsiae.dominio.Configuracion;
+import co.monitorsiae.dominio.NivelEscalamiento;
+import co.monitorsiae.dominio.PerfilEscalamiento;
 import co.monitorsiae.dominio.PreferenciasAlertas;
 import co.monitorsiae.dominio.TonoAlarma;
 import org.junit.jupiter.api.Test;
@@ -62,6 +64,38 @@ class CanalVozTest {
         Configuracion configuracion = Configuracion.porDefecto()
                 .conPreferenciasAlertas(new PreferenciasAlertas(true, false, TonoAlarma.SIRENA));
         CanalVoz canal = new CanalVoz(dichos::add, duracion -> { }, () -> configuracion);
+
+        canal.mostrar(List.of(alerta("ana", "Alerta para Ana")));
+        canal.esperarSilencio(Duration.ofSeconds(1));
+
+        assertTrue(dichos.isEmpty());
+    }
+
+    @Test
+    void unNivelDeEscalamientoForzarVozHaceHablarAunqueLaVozEsteDeshabilitada() throws InterruptedException {
+        PerfilEscalamiento perfil = new PerfilEscalamiento(true,
+                List.of(new NivelEscalamiento(Duration.ofMinutes(5), false, true, TonoAlarma.SIRENA)));
+        Configuracion configuracion = Configuracion.porDefecto()
+                .conPreferenciasAlertas(new PreferenciasAlertas(true, false, TonoAlarma.SIRENA, perfil));
+        CanalVoz[] canal = new CanalVoz[1];
+        canal[0] = new CanalVoz(texto -> {
+            dichos.add(texto);
+            canal[0].mostrar(List.of());
+        }, duracion -> { }, () -> configuracion, id -> Duration.ofMinutes(10));
+
+        canal[0].mostrar(List.of(alerta("ana", "Alerta para Ana")));
+        canal[0].esperarSilencio(Duration.ofSeconds(1));
+
+        assertEquals(List.of("Alerta para Ana"), dichos);
+    }
+
+    @Test
+    void sinNivelVigenteLaVozSigueDeshabilitada() throws InterruptedException {
+        PerfilEscalamiento perfil = new PerfilEscalamiento(true,
+                List.of(new NivelEscalamiento(Duration.ofMinutes(5), false, true, TonoAlarma.SIRENA)));
+        Configuracion configuracion = Configuracion.porDefecto()
+                .conPreferenciasAlertas(new PreferenciasAlertas(true, false, TonoAlarma.SIRENA, perfil));
+        CanalVoz canal = new CanalVoz(dichos::add, duracion -> { }, () -> configuracion, id -> Duration.ofMinutes(1));
 
         canal.mostrar(List.of(alerta("ana", "Alerta para Ana")));
         canal.esperarSilencio(Duration.ofSeconds(1));

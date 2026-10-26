@@ -1,6 +1,8 @@
 package co.monitorsiae.notificacion;
 
 import co.monitorsiae.dominio.Configuracion;
+import co.monitorsiae.dominio.NivelEscalamiento;
+import co.monitorsiae.dominio.PerfilEscalamiento;
 import co.monitorsiae.dominio.TonoAlarma;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,11 +14,16 @@ import javax.sound.sampled.SourceDataLine;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Supplier;
 
 /**
  * Hace sonar la sirena en bucle mientras haya alertas activas. Si alguna es una oportunidad, suena
  * la sirena aguda; si solo hay problemas, la grave.
+ *
+ * <p>Si una alerta silenciada lleva activa lo suficiente, el perfil de escalamiento puede forzar el
+ * sonido igual (ver {@link PerfilEscalamiento}); por defecto el escalamiento esta deshabilitado y el
+ * comportamiento es identico al previo.
  */
 public final class CanalSonido implements CanalAlerta {
 
@@ -27,6 +34,7 @@ public final class CanalSonido implements CanalAlerta {
     private final Map<TonoAlarma, byte[]> sirenasOportunidad = new EnumMap<>(TonoAlarma.class);
     private final Map<TonoAlarma, byte[]> sirenasProblema = new EnumMap<>(TonoAlarma.class);
     private final Supplier<Configuracion> configuracion;
+    private final MedidorTiempoActivo tiempoActivo;
 
     private volatile List<Alerta> activas = List.of();
     private volatile SourceDataLine lineaActiva;
@@ -38,7 +46,12 @@ public final class CanalSonido implements CanalAlerta {
     }
 
     public CanalSonido(Supplier<Configuracion> configuracion) {
+        this(configuracion, MedidorTiempoActivo.SIN_TIEMPO);
+    }
+
+    public CanalSonido(Supplier<Configuracion> configuracion, MedidorTiempoActivo tiempoActivo) {
         this.configuracion = configuracion;
+        this.tiempoActivo = tiempoActivo;
         for (TonoAlarma tono : TonoAlarma.values()) {
             sirenasOportunidad.put(tono, GeneradorSirena.ciclo(Gravedad.OPORTUNIDAD, tono));
             sirenasProblema.put(tono, GeneradorSirena.ciclo(Gravedad.PROBLEMA, tono));
@@ -48,14 +61,40 @@ public final class CanalSonido implements CanalAlerta {
     @Override
     public synchronized void mostrar(List<Alerta> nuevas) {
         Configuracion actual = configuracion.get();
-        tonoActual = actual.preferenciasAlertas().tono();
-        activas = filtrarPorPreferencia(actual, nuevas);
+        PerfilEscalamiento perfil = actual.preferenciasAlertas().perfilEscalamiento();
+        List<Alerta> audibles = filtrarPorPreferencia(actual, nuevas);
+        List<Alerta> forzadasPorEscalamiento = nuevas.stream()
+                .filter(alerta -> !audibles.contains(alerta))
+                .filter(alerta -> nivelVigente(perfil, alerta).map(NivelEscalamiento::forzarSonido).orElse(false))
+                .toList();
+        activas = forzadasPorEscalamiento.isEmpty() ? audibles
+                : java.util.stream.Stream.concat(audibles.stream(), forzadasPorEscalamiento.stream()).toList();
+        tonoActual = tonoMasUrgente(perfil, activas).orElse(actual.preferenciasAlertas().tono());
         if (activas.isEmpty() && lineaActiva != null) {
             lineaActiva.flush();
         }
         if (!activas.isEmpty() && hilo == null) {
             hilo = Thread.ofPlatform().daemon().name("alarma-sonido").start(this::sonar);
         }
+    }
+
+    /** Para las pruebas: que alertas estan sonando (o deberian sonar) en este momento. */
+    synchronized List<Alerta> alertasAudiblesActualmente() {
+        return activas;
+    }
+
+    private Optional<NivelEscalamiento> nivelVigente(PerfilEscalamiento perfil, Alerta alerta) {
+        return perfil.nivelVigente(tiempoActivo.tiempoActivo(alerta.clienteId()));
+    }
+
+    /** El tono del nivel de escalamiento mas insistente entre las alertas activas, si alguno aplica. */
+    private Optional<TonoAlarma> tonoMasUrgente(PerfilEscalamiento perfil, List<Alerta> activas) {
+        return activas.stream()
+                .map(alerta -> nivelVigente(perfil, alerta))
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .max(java.util.Comparator.comparing(NivelEscalamiento::espera))
+                .map(NivelEscalamiento::tono);
     }
 
     private void sonar() {

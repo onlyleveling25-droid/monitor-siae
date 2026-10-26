@@ -555,6 +555,15 @@
     -fx-border-radius: 7px;
 }
 
+.schedule-slot {
+    -fx-background-color: #E2E8F0;
+    -fx-background-radius: 2px;
+}
+
+.schedule-slot:active {
+    -fx-background-color: #2563EB;
+}
+
 .client-list {
     -fx-background-color: #F1F5F9;
     -fx-border-color: #E2E8F0;

@@ -105,14 +105,34 @@ El objetivo es mejorar claridad, eficiencia y consistencia visual sin alterar re
 
 **Validación:** fallas simuladas de cada comprobación, textos de remedio, funcionamiento sin permisos y ausencia de efectos en Playwright.
 
-### 8. Asistente y herramientas adicionales
+### 8. Asistente y herramientas adicionales — implementada (sin modo ensayo), validación manual pendiente
 
-- Asistente de primera ejecución para navegador, primer cliente, apertura de sesión e inicio.
-- Editor visual semanal que represente el horario existente sin cambiar sus reglas.
-- Evaluar modo ensayo con una especificación explícita de qué puede preparar y qué nunca debe enviar. Esta función requiere pruebas aisladas y no debe incluirse hasta que sea seguro validar el flujo sin alterar el portal.
-- Evaluar perfiles y escalamiento de alarmas de forma opcional, explícita y controlable.
+- Asistente de primera ejecución (`AsistentePrimeraEjecucion` + `AsistentePrimeraEjecucionDialogo`):
+  solo se muestra cuando la configuración no existe o no tiene clientes
+  (`AsistentePrimeraEjecucion.esNecesario`); pasos Bienvenida, Navegador, Primer cliente, Entorno del
+  portal y Resumen, navegables con Atrás/Siguiente, validación del nombre del primer cliente y
+  aplicación final que solo fija navegador/entorno/primer cliente, sin tocar horario ni alertas.
+- Editor visual semanal (`EditorConfiguracion.EditorHorarioSemanal`): grilla de 7 columnas (una por
+  día) por 24 franjas horarias, con estilos `.schedule-slot` / `.schedule-slot:active`; representa
+  fielmente el modelo actual de `HorarioOperacion` (una sola ventana compartida entre los días
+  activos), sin introducir variación por día que el dominio no soporta.
+- Perfiles y escalamiento de alarmas: `PerfilEscalamiento`/`NivelEscalamiento` en el dominio,
+  `CentralAlertas.tiempoActivo(clienteId)` para medir cuánto lleva una alerta sin reconocer, y
+  `CanalSonido`/`CanalVoz` con sobrecargas que consultan ese tiempo para forzar sonido/voz al
+  cumplirse cada nivel; sección "Escalamiento de insistencia" en Configuración
+  (`EditorNivelesEscalamiento`) para activar/desactivar y editar los niveles (espera, forzar sonido,
+  forzar voz, tono).
+- **Modo ensayo explícitamente excluido de esta fase** por indicación del usuario: no se implementó
+  ninguna preparación ni envío simulado hacia el portal. Queda pendiente para una fase futura, con su
+  propia especificación de qué puede preparar y qué nunca debe enviar, y pruebas aisladas antes de
+  incluirse.
 
-**Validación:** instalación/configuración inicial, usuarios existentes, equivalencia horaria con reglas actuales y garantías de no enviar cambios involuntarios en modo ensayo.
+**Validación:** compilación y suite automatizada en verde (153 pruebas, incluidas 9 nuevas de
+`AsistentePrimeraEjecucionTest` y los casos de escalamiento en `CentralAlertasTest`/`CanalSonidoTest`/
+`CanalVozTest`). Pendiente validación manual del usuario: recorrido completo del asistente en una
+instalación nueva, comportamiento con usuarios existentes (el asistente no debe aparecer), lectura
+visual del horario semanal frente a las reglas actuales y audio/voz de escalamiento en el equipo del
+usuario.
 
 ### 9. Cierre de la rama y aprobación
 
@@ -149,6 +169,9 @@ El objetivo es mejorar claridad, eficiencia y consistencia visual sin alterar re
 - Configuración como página: navegación revisada por el usuario; siguen pendientes los demás escenarios manuales de guardado y descarte.
 - Preferencias de alarmas: implementadas con pruebas de migración, persistencia, selección de tono y filtrado por cliente; pendiente validación de audio en el equipo del usuario.
 - Ir al navegador del cliente: implementado con pruebas del coordinador para hilo propietario y ausencia de sesión; pendiente prueba manual con varias ventanas del navegador.
+- Asistente y herramientas adicionales: implementados asistente de primera ejecución, editor visual
+  semanal y perfiles/escalamiento de alarmas, con 153 pruebas en verde; modo ensayo excluido a
+  propósito; pendiente validación manual del usuario.
 - Siguiente fase: bitácora de eventos operativos con filtrado y retención.
 - Rama activa: `feature/redisenio-ui`.
 - Integración a `main`: aplazada hasta la aprobación final.

@@ -2,8 +2,13 @@ package co.monitorsiae.notificacion;
 
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -56,6 +61,46 @@ class CentralAlertasTest {
         central.reconocerTodas();
 
         assertTrue(recibidas.isEmpty());
+    }
+
+    @Test
+    void reportaElTiempoTranscurridoDesdeQueLaAlertaQuedoActiva() {
+        AtomicReference<Instant> ahora = new AtomicReference<>(Instant.parse("2024-01-01T00:00:00Z"));
+        Clock reloj = Clock.fixed(ahora.get(), ZoneOffset.UTC);
+        CentralAlertas central = new CentralAlertas(List.of(), new Clock() {
+            @Override
+            public java.time.ZoneId getZone() {
+                return reloj.getZone();
+            }
+
+            @Override
+            public Clock withZone(java.time.ZoneId zone) {
+                return this;
+            }
+
+            @Override
+            public Instant instant() {
+                return ahora.get();
+            }
+        });
+
+        central.emitir(alerta("ana", "uno"));
+        ahora.set(ahora.get().plus(Duration.ofMinutes(5)));
+
+        assertEquals(Duration.ofMinutes(5), central.tiempoActivo("ana"));
+    }
+
+    @Test
+    void unClienteSinAlertaActivaReportaTiempoCero() {
+        assertEquals(Duration.ZERO, central.tiempoActivo("nadie"));
+    }
+
+    @Test
+    void reconocerReiniciaElTiempoActivo() {
+        central.emitir(alerta("ana", "uno"));
+        central.reconocer("ana");
+
+        assertEquals(Duration.ZERO, central.tiempoActivo("ana"));
     }
 
     private static Alerta alerta(String clienteId, String titulo) {

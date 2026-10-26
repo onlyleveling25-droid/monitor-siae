@@ -80,6 +80,15 @@ public final class ServicioAplicacion {
         guardarConfiguracion(nueva);
     }
 
+    /**
+     * Guarda la configuración que deja el asistente de primera ejecución, sin exigir que esté
+     * completa: a propósito crea un cliente con los datos mínimos (nombre) para que la persona
+     * termine de llenarlos luego en Configuración. Nunca se usa para guardar cambios normales.
+     */
+    public synchronized void guardarConfiguracionInicial(Configuracion nueva) {
+        guardarConfiguracion(nueva);
+    }
+
     public synchronized void validar(Configuracion nueva) {
         List<String> problemas = validador.validar(nueva).stream().map(Object::toString).toList();
         if (!problemas.isEmpty()) {

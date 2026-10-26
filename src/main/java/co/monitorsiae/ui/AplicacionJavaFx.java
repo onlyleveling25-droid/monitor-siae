@@ -2,6 +2,7 @@ package co.monitorsiae.ui;
 
 import co.monitorsiae.acceso.CifradorPbkdf2;
 import co.monitorsiae.acceso.ServicioAcceso;
+import co.monitorsiae.app.AsistentePrimeraEjecucion;
 import co.monitorsiae.app.CoordinadorMonitores;
 import co.monitorsiae.app.ServicioAplicacion;
 import co.monitorsiae.dominio.Configuracion;
@@ -49,13 +50,15 @@ public final class AplicacionJavaFx extends Application {
             RepositorioConfiguracionJson repositorio =
                     new RepositorioConfiguracionJson(ubicacion.archivoConfiguracion());
             servicio = crearServicio(repositorio);
+            ejecutarAsistentePrimeraEjecucionSiHaceFalta(stage);
 
             CanalAlertaJavaFx canalVentana = new CanalAlertaJavaFx(stage,
                     id -> centralAlertas.reconocer(id), this::enfocarCliente);
             centralAlertas = new CentralAlertas(List.of(
                     canalVentana,
-                    new CanalSonido(servicio::configuracion),
-                    new CanalVoz(new LocutorWindows(), Pausa.real(), servicio::configuracion)));
+                    new CanalSonido(servicio::configuracion, id -> centralAlertas.tiempoActivo(id)),
+                    new CanalVoz(new LocutorWindows(), Pausa.real(), servicio::configuracion,
+                            id -> centralAlertas.tiempoActivo(id))));
             Function<co.monitorsiae.dominio.Cliente, PortalDriver> fabricaPortales = cliente ->
                     switch (servicio.configuracion().entornoPortal()) {
                         case SIMULADOR -> new FabricaPortalSimulada().apply(cliente);
@@ -112,6 +115,14 @@ public final class AplicacionJavaFx extends Application {
             return new ServicioAplicacion(repositorio,
                     new ServicioAcceso(new CifradorPbkdf2()), new ValidadorConfiguracion());
         }
+    }
+
+    private void ejecutarAsistentePrimeraEjecucionSiHaceFalta(Stage stage) {
+        if (!AsistentePrimeraEjecucion.esNecesario(servicio.configuracion())) {
+            return;
+        }
+        AsistentePrimeraEjecucionDialogo.mostrar(stage, servicio.configuracion())
+                .ifPresent(servicio::guardarConfiguracionInicial);
     }
 
     private void actualizarConfiguracion(Configuracion configuracion) {

@@ -3,12 +3,17 @@ package co.monitorsiae.notificacion;
 import co.monitorsiae.monitoreo.Pausa;
 
 import co.monitorsiae.dominio.Configuracion;
+import co.monitorsiae.dominio.PerfilEscalamiento;
 import java.time.Duration;
 import java.util.List;
 import java.util.function.Supplier;
 
 /**
  * Repite en voz alta cada alerta activa, una tras otra, hasta que todas se reconozcan.
+ *
+ * <p>Si la voz esta deshabilitada en general, el perfil de escalamiento puede forzarla igual para
+ * una alerta que lleve activa lo suficiente (ver {@link PerfilEscalamiento}); por defecto el
+ * escalamiento esta deshabilitado y el comportamiento es identico al previo.
  */
 public final class CanalVoz implements CanalAlerta {
 
@@ -17,6 +22,7 @@ public final class CanalVoz implements CanalAlerta {
     private final Locutor locutor;
     private final Pausa pausa;
     private final Supplier<Configuracion> configuracion;
+    private final MedidorTiempoActivo tiempoActivo;
 
     private volatile List<Alerta> activas = List.of();
     private Thread hilo;
@@ -26,16 +32,30 @@ public final class CanalVoz implements CanalAlerta {
     }
 
     public CanalVoz(Locutor locutor, Pausa pausa, Supplier<Configuracion> configuracion) {
+        this(locutor, pausa, configuracion, MedidorTiempoActivo.SIN_TIEMPO);
+    }
+
+    public CanalVoz(Locutor locutor, Pausa pausa, Supplier<Configuracion> configuracion,
+                     MedidorTiempoActivo tiempoActivo) {
         this.locutor = locutor;
         this.pausa = pausa;
         this.configuracion = configuracion;
+        this.tiempoActivo = tiempoActivo;
     }
 
     @Override
     public synchronized void mostrar(List<Alerta> nuevas) {
-        activas = configuracion.get().preferenciasAlertas().vozHabilitada()
-                ? List.copyOf(nuevas)
-                : List.of();
+        Configuracion actual = configuracion.get();
+        if (actual.preferenciasAlertas().vozHabilitada()) {
+            activas = List.copyOf(nuevas);
+        } else {
+            PerfilEscalamiento perfil = actual.preferenciasAlertas().perfilEscalamiento();
+            activas = nuevas.stream()
+                    .filter(alerta -> perfil.nivelVigente(tiempoActivo.tiempoActivo(alerta.clienteId()))
+                            .map(nivel -> nivel.forzarVoz())
+                            .orElse(false))
+                    .toList();
+        }
         if (!activas.isEmpty() && hilo == null) {
             hilo = Thread.ofPlatform().daemon().name("alarma-voz").start(this::repetir);
         }

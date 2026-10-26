@@ -98,6 +98,15 @@ sesión** inicia Chrome o Edge con un perfil local aislado por cliente y abre el
 debe iniciar sesión y resolver el captcha. Las credenciales del portal no se solicitan ni se guardan
 en Monitor SIAE.
 
+La barra lateral también ofrece dos páginas de solo lectura:
+
+- **Bitácora**: eventos operativos por cliente, tipo y periodo (inicio y detención del monitoreo,
+  oportunidades, armas apartadas, apartados fallidos, sesión vencida y respuestas inesperadas). No
+  registra cada consulta sin novedad. Se guarda en `bitacora.json`, dentro de la carpeta de datos, y
+  se conservan como máximo 1000 eventos de los últimos 30 días.
+- **Diagnóstico**: revisa configuración, navegador, almacenamiento, audio/voz y horario, y propone
+  qué hacer. No abre el portal ni cambia nada.
+
 La integración real está en etapa de validación; las comprobaciones pendientes se documentan en
 `docs/PORTAL.md`. Al cambiar el entorno global, detén primero los monitores en ejecución.
 Los perfiles persistentes y sus cookies viven en `%APPDATA%\MonitorSIAE\perfiles`; son datos

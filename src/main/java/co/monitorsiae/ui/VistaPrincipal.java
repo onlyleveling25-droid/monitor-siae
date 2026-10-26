@@ -10,6 +10,7 @@ import java.util.function.Consumer;
 
 import co.monitorsiae.app.CoordinadorMonitores;
 import co.monitorsiae.app.ServicioAplicacion;
+import co.monitorsiae.app.ServicioDiagnostico;
 import co.monitorsiae.dominio.Cliente;
 import co.monitorsiae.dominio.Configuracion;
 import co.monitorsiae.dominio.EntornoPortal;
@@ -61,6 +62,13 @@ public final class VistaPrincipal extends BorderPane {
     private EditorConfiguracion editorConfiguracion;
     private Button navPanel;
     private Button navAjustes;
+    private Button navBitacora;
+    private Button navDiagnostico;
+    private PaginaBitacora paginaBitacora;
+    private PaginaDiagnostico paginaDiagnostico;
+    private final ServicioDiagnostico diagnostico;
+
+    private enum Pagina { PANEL, BITACORA, DIAGNOSTICO, AJUSTES }
     private final VBox avisos = new VBox(8);
     private final Label avisoHistorial = new Label(
             "No se pudo leer el historial de inventarios. El archivo se conserva sin cambios; "
@@ -91,7 +99,8 @@ public final class VistaPrincipal extends BorderPane {
 
 
     VistaPrincipal(Window propietario, ServicioAplicacion servicio, CoordinadorMonitores monitores,
-                   CentralAlertas alertas, Consumer<Configuracion> alGuardar) {
+                   CentralAlertas alertas, ServicioDiagnostico diagnostico, Consumer<Configuracion> alGuardar) {
+        this.diagnostico = diagnostico;
         this.propietario = propietario;
         this.servicio = servicio;
         this.monitores = monitores;
@@ -120,12 +129,14 @@ public final class VistaPrincipal extends BorderPane {
         insignia.getChildren().add(IconoSvg.crear("monitor", 22, "#1D4ED8"));
         insignia.setAccessibleText("Monitor SIAE");
         navPanel = botonNavegacion("dashboard", "Panel", true, this::solicitarVolverAlPanel);
+        navBitacora = botonNavegacion("activity", "Bitácora", false, this::abrirBitacora);
+        navDiagnostico = botonNavegacion("diagnostics", "Diagnóstico", false, this::abrirDiagnostico);
         navAjustes = botonNavegacion("settings", "Ajustes", false, this::abrirConfiguracion);
         Region separador = new Region();
         VBox.setVgrow(separador, Priority.ALWAYS);
         Label version = new Label("SIAE");
         version.getStyleClass().add("sidebar-caption");
-        barraLateral.getChildren().addAll(insignia, navPanel, navAjustes, separador, version);
+        barraLateral.getChildren().addAll(insignia, navPanel, navBitacora, navDiagnostico, navAjustes, separador, version);
         setLeft(barraLateral);
     }
 
@@ -662,7 +673,7 @@ public final class VistaPrincipal extends BorderPane {
         if (editorConfiguracion != null) {
             if (getCenter() != editorConfiguracion) {
                 setCenter(editorConfiguracion);
-                actualizarNavegacion(true);
+                actualizarNavegacion(Pagina.AJUSTES);
             }
             if (clienteId != null) {
                 editorConfiguracion.seleccionarCliente(clienteId);
@@ -679,7 +690,33 @@ public final class VistaPrincipal extends BorderPane {
             editorConfiguracion.seleccionarCliente(clienteId);
         }
         setCenter(editorConfiguracion);
-        actualizarNavegacion(true);
+        actualizarNavegacion(Pagina.AJUSTES);
+    }
+
+    private void abrirBitacora() {
+        if (!confirmarDescarteCambios()) {
+            return;
+        }
+        editorConfiguracion = null;
+        if (paginaBitacora == null) {
+            paginaBitacora = new PaginaBitacora(monitores::eventosBitacora,
+                    () -> servicio.configuracion().clientes());
+        }
+        paginaBitacora.actualizar();
+        setCenter(paginaBitacora);
+        actualizarNavegacion(Pagina.BITACORA);
+    }
+
+    private void abrirDiagnostico() {
+        if (!confirmarDescarteCambios()) {
+            return;
+        }
+        editorConfiguracion = null;
+        if (paginaDiagnostico == null) {
+            paginaDiagnostico = new PaginaDiagnostico(diagnostico::ejecutar);
+        }
+        setCenter(paginaDiagnostico);
+        actualizarNavegacion(Pagina.DIAGNOSTICO);
     }
 
     private void solicitarVolverAlPanel() {
@@ -709,12 +746,14 @@ public final class VistaPrincipal extends BorderPane {
 
     private void mostrarPanel() {
         setCenter(panelPrincipal);
-        actualizarNavegacion(false);
+        actualizarNavegacion(Pagina.PANEL);
     }
 
-    private void actualizarNavegacion(boolean configuracionActiva) {
-        establecerEstiloNavegacion(navPanel, "dashboard", "Panel", !configuracionActiva);
-        establecerEstiloNavegacion(navAjustes, "settings", "Ajustes", configuracionActiva);
+    private void actualizarNavegacion(Pagina activa) {
+        establecerEstiloNavegacion(navPanel, "dashboard", "Panel", activa == Pagina.PANEL);
+        establecerEstiloNavegacion(navBitacora, "activity", "Bitácora", activa == Pagina.BITACORA);
+        establecerEstiloNavegacion(navDiagnostico, "diagnostics", "Diagnóstico", activa == Pagina.DIAGNOSTICO);
+        establecerEstiloNavegacion(navAjustes, "settings", "Ajustes", activa == Pagina.AJUSTES);
     }
 
     private boolean autorizarEdicion() {

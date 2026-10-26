@@ -20,6 +20,8 @@ import co.monitorsiae.dominio.Configuracion;
 import co.monitorsiae.dominio.EntornoPortal;
 import co.monitorsiae.monitoreo.CicloMonitoreo;
 import co.monitorsiae.monitoreo.MonitorCliente;
+import co.monitorsiae.monitoreo.EventoOperativo;
+import co.monitorsiae.monitoreo.OyenteBitacora;
 import co.monitorsiae.monitoreo.OyenteMonitoreo;
 import co.monitorsiae.monitoreo.OyenteRegistro;
 import co.monitorsiae.monitoreo.Pausa;
@@ -31,6 +33,8 @@ import co.monitorsiae.monitoreo.VentanaHoraria;
 import co.monitorsiae.notificacion.CentralAlertas;
 import co.monitorsiae.notificacion.OyenteAlertas;
 import co.monitorsiae.notificacion.TraductorAlertas;
+import co.monitorsiae.persistencia.RepositorioBitacora;
+import co.monitorsiae.persistencia.RepositorioBitacoraMemoria;
 import co.monitorsiae.persistencia.RepositorioSnapshots;
 import co.monitorsiae.persistencia.RepositorioSnapshotsMemoria;
 import co.monitorsiae.portal.PortalDriver;
@@ -62,6 +66,7 @@ public final class CoordinadorMonitores implements AutoCloseable {
     private final CentralAlertas alertas;
     private final Function<Cliente, PortalDriver> fabricaPortal;
     private final RepositorioSnapshots snapshots;
+    private final RepositorioBitacora bitacora;
     private volatile Configuracion configuracion;
     private volatile boolean cerrado;
 
@@ -75,6 +80,15 @@ public final class CoordinadorMonitores implements AutoCloseable {
             Function<Cliente, PortalDriver> fabricaPortal,
             BiConsumer<String, Estado> alCambiarEstado,
             RepositorioSnapshots snapshots) {
+        this(configuracion, alertas, fabricaPortal, alCambiarEstado, snapshots, new RepositorioBitacoraMemoria());
+    }
+
+    public CoordinadorMonitores(Configuracion configuracion, CentralAlertas alertas,
+            Function<Cliente, PortalDriver> fabricaPortal,
+            BiConsumer<String, Estado> alCambiarEstado,
+            RepositorioSnapshots snapshots,
+            RepositorioBitacora bitacora) {
+        this.bitacora = Objects.requireNonNull(bitacora);
         this.configuracion = Objects.requireNonNull(configuracion);
         this.alertas = Objects.requireNonNull(alertas);
         this.fabricaPortal = Objects.requireNonNull(fabricaPortal);
@@ -143,6 +157,11 @@ public final class CoordinadorMonitores implements AutoCloseable {
             }
         }
         return resultado;
+    }
+
+    /** Eventos operativos conservados, del más reciente al más antiguo. */
+    public List<EventoOperativo> eventosBitacora() {
+        return bitacora.eventos();
     }
 
     public Optional<SnapshotInventario> ultimoSnapshot(String clienteId) {
@@ -270,6 +289,7 @@ public final class CoordinadorMonitores implements AutoCloseable {
             OyenteMonitoreo oyente = new OyenteMonitoreo() {
                 private final OyenteRegistro registro = new OyenteRegistro();
                 private final OyenteAlertas oyenteAlertas = new OyenteAlertas(new TraductorAlertas(), alertas);
+                private final OyenteBitacora oyenteBitacora = new OyenteBitacora(bitacora, Clock.systemUTC());
 
                 @Override
                 public void alIniciar(Cliente iniciado) {
@@ -279,6 +299,7 @@ public final class CoordinadorMonitores implements AutoCloseable {
                     }
                     notificar(sesion.id, sesion.estado);
                     registro.alIniciar(iniciado);
+                    oyenteBitacora.alIniciar(iniciado);
                     oyenteAlertas.alIniciar(iniciado);
                 }
 
@@ -318,12 +339,14 @@ public final class CoordinadorMonitores implements AutoCloseable {
                     }
                     notificar(sesion.id, sesion.estado);
                     registro.alTerminarCiclo(iniciado, resultado);
+                    oyenteBitacora.alTerminarCiclo(iniciado, resultado);
                     oyenteAlertas.alTerminarCiclo(iniciado, resultado);
                 }
 
                 @Override
                 public void alDetenerse(Cliente iniciado, co.monitorsiae.monitoreo.MotivoDetencion motivo) {
                     registro.alDetenerse(iniciado, motivo);
+                    oyenteBitacora.alDetenerse(iniciado, motivo);
                     oyenteAlertas.alDetenerse(iniciado, motivo);
                 }
             };

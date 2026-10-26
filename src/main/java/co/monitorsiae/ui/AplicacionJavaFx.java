@@ -5,6 +5,7 @@ import co.monitorsiae.acceso.ServicioAcceso;
 import co.monitorsiae.app.AsistentePrimeraEjecucion;
 import co.monitorsiae.app.CoordinadorMonitores;
 import co.monitorsiae.app.ServicioAplicacion;
+import co.monitorsiae.app.ServicioDiagnostico;
 import co.monitorsiae.dominio.Configuracion;
 import co.monitorsiae.dominio.EntornoPortal;
 import co.monitorsiae.dominio.ValidadorConfiguracion;
@@ -17,6 +18,7 @@ import co.monitorsiae.notificacion.LocutorWindows;
 import co.monitorsiae.portal.PortalDriver;
 import co.monitorsiae.portal.real.FabricaPortalPlaywright;
 import co.monitorsiae.portal.simulado.FabricaPortalSimulada;
+import co.monitorsiae.persistencia.RepositorioBitacoraJson;
 import co.monitorsiae.persistencia.RepositorioConfiguracionJson;
 import co.monitorsiae.persistencia.RepositorioSnapshotsJson;
 import co.monitorsiae.persistencia.ConfiguracionIlegibleException;
@@ -52,12 +54,13 @@ public final class AplicacionJavaFx extends Application {
             servicio = crearServicio(repositorio);
             ejecutarAsistentePrimeraEjecucionSiHaceFalta(stage);
 
+            LocutorWindows locutorVoz = new LocutorWindows();
             CanalAlertaJavaFx canalVentana = new CanalAlertaJavaFx(stage,
                     id -> centralAlertas.reconocer(id), this::enfocarCliente);
             centralAlertas = new CentralAlertas(List.of(
                     canalVentana,
                     new CanalSonido(servicio::configuracion, id -> centralAlertas.tiempoActivo(id)),
-                    new CanalVoz(new LocutorWindows(), Pausa.real(), servicio::configuracion,
+                    new CanalVoz(locutorVoz, Pausa.real(), servicio::configuracion,
                             id -> centralAlertas.tiempoActivo(id))));
             Function<co.monitorsiae.dominio.Cliente, PortalDriver> fabricaPortales = cliente ->
                     switch (servicio.configuracion().entornoPortal()) {
@@ -71,9 +74,23 @@ public final class AplicacionJavaFx extends Application {
                         if (!cerrando) {
                             Platform.runLater(() -> vista.actualizarEstado(id, monitores.estado(id)));
                         }
-                    }, new RepositorioSnapshotsJson(ubicacion.archivoHistorialInventarios()));
+                    }, new RepositorioSnapshotsJson(ubicacion.archivoHistorialInventarios()),
+                    new RepositorioBitacoraJson(ubicacion.archivoBitacora()));
 
-            vista = new VistaPrincipal(ventana, servicio, monitores, centralAlertas, this::actualizarConfiguracion);
+            LocutorWindows locutor = locutorVoz;
+            ServicioDiagnostico diagnostico = new ServicioDiagnostico(servicio::configuracion,
+                    new ValidadorConfiguracion(), ubicacion.raiz(), java.time.Clock.systemUTC(),
+                    ServicioDiagnostico.navegadorEnEquipo(), ServicioDiagnostico::audioEnEquipo,
+                    () -> {
+                        try {
+                            return locutor.vozEnEspanol();
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            return java.util.Optional.empty();
+                        }
+                    });
+            vista = new VistaPrincipal(ventana, servicio, monitores, centralAlertas, diagnostico,
+                    this::actualizarConfiguracion);
             Scene escena = new Scene(vista, 1100, 720);
             EstilosJavaFx.aplicar(vista);
             stage.setTitle("Monitor SIAE | Centro de monitoreo");

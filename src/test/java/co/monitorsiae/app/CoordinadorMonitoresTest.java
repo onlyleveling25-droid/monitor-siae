@@ -198,6 +198,35 @@ class CoordinadorMonitoresTest {
     }
 
     @Test
+    void registraEnLaBitacoraElInicioYLaDetencionSinRuidoDeCiclos() throws InterruptedException {
+        Cliente cliente = ClientesDePrueba.valido("Ana");
+        Configuracion configuracion = Configuracion.porDefecto().conClientes(List.of(cliente));
+        BlockingQueue<Actualizacion> cambios = new LinkedBlockingQueue<>();
+        co.monitorsiae.persistencia.RepositorioBitacoraMemoria bitacora =
+                new co.monitorsiae.persistencia.RepositorioBitacoraMemoria();
+        CoordinadorMonitores coordinador = new CoordinadorMonitores(configuracion,
+                new CentralAlertas(List.of()),
+                perfil -> PortalSimulado.con(Escena.abiertasSinInventario(
+                        perfil.tramite().seccionales().getFirst())),
+                (id, estado) -> cambios.add(new Actualizacion(id, estado)),
+                new co.monitorsiae.persistencia.RepositorioSnapshotsMemoria(), bitacora);
+        try {
+            coordinador.iniciar(cliente);
+            esperar(cambios, CoordinadorMonitores.Estado.MONITOREANDO);
+            esperarResultado(coordinador, cliente.id());
+            coordinador.detener(cliente.id());
+            esperar(cambios, CoordinadorMonitores.Estado.DETENIDO);
+
+            assertEquals(List.of(co.monitorsiae.monitoreo.TipoEvento.MONITOREO_DETENIDO,
+                            co.monitorsiae.monitoreo.TipoEvento.MONITOREO_INICIADO),
+                    coordinador.eventosBitacora().stream()
+                            .map(co.monitorsiae.monitoreo.EventoOperativo::tipo).toList());
+        } finally {
+            coordinador.close();
+        }
+    }
+
+    @Test
     void detieneYReanudaElMonitorEnElTrabajadorDelCliente() throws InterruptedException {
         Cliente cliente = ClientesDePrueba.valido("Ana");
         Configuracion configuracion = Configuracion.porDefecto().conClientes(List.of(cliente));
@@ -216,6 +245,7 @@ class CoordinadorMonitoresTest {
 
             coordinador.iniciar(cliente);
             esperar(cambios, CoordinadorMonitores.Estado.MONITOREANDO);
+            esperarResultado(coordinador, cliente.id());
             coordinador.detener(cliente.id());
             esperar(cambios, CoordinadorMonitores.Estado.DETENIDO);
 

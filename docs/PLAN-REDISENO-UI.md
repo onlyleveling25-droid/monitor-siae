@@ -89,21 +89,40 @@ El objetivo es mejorar claridad, eficiencia y consistencia visual sin alterar re
 
 **Validación manual pendiente:** probar con dos clientes abiertos, confirmar que se enfoca el correcto mientras monitorea, restaurar una ventana minimizada, verificar la alerta de sesión cerrada y asegurar que solo esa alerta se silencia al intentar ir a un navegador inexistente.
 
-### 6. Bitácora
+### 6. Bitácora — implementada, validación manual pendiente
 
 - Mostrar eventos operativos útiles por cliente, tipo y periodo.
 - Incluir marcas de tiempo y detalle accionable; evitar registrar cada ciclo como ruido.
 - Definir límite/retención para que los datos locales no crezcan indefinidamente.
 
-**Validación:** orden temporal, filtros, límites, cierre/reinicio de aplicación y protección de datos sensibles.
+**Implementación:** `EventoOperativo`/`TipoEvento`, `OyenteBitacora` (conectado en el coordinador junto al
+registro y las alarmas), `RepositorioBitacoraJson` (escritura atómica en `bitacora.json`, archivo
+independiente de la configuración) y la página `PaginaBitacora` con filtros de cliente, tipo y periodo.
+Solo se registran inicio y detención del monitoreo, oportunidades, armas apartadas, apartados fallidos,
+sesión vencida y respuestas inesperadas; un mismo hallazgo repetido se anota una vez. Retención:
+1000 eventos y 30 días. El detalle se limita a 300 caracteres y solo usa las descripciones de
+resultado, nunca credenciales ni datos de sesión. Un fallo al escribir se registra en el log y no
+interrumpe el monitoreo.
 
-### 7. Diagnóstico
+**Validación:** orden temporal, filtros, límites, cierre/reinicio de aplicación y protección de datos sensibles.
+Automatizada: `FiltroBitacoraTest`, `OyenteBitacoraTest`, `RepositorioBitacoraJsonTest` y la prueba de
+coordinador (persistencia entre reinicios, retención, límite, archivo dañado sin sobrescribir, deduplicación
+y fallo de escritura). Pendiente validación visual de la página.
+
+### 7. Diagnóstico — implementado, validación manual pendiente
 
 - Mostrar veredicto general y comprobaciones independientes de configuración, navegador, almacenamiento, audio/voz y horario.
 - Ofrecer acciones seguras y concretas cuando aplique.
 - No abrir ni automatizar sesiones del portal como efecto secundario de un diagnóstico.
 
+**Implementación:** `ServicioDiagnostico` (comprobaciones aisladas: la falla de una no oculta las demás),
+`Comprobacion`/`Diagnostico` (veredicto = peor nivel) y la página `PaginaDiagnostico`, que ejecuta fuera del
+hilo de la interfaz. Solo lee: no abre navegadores ni sesiones, no escribe archivos y no usa Playwright.
+
 **Validación:** fallas simuladas de cada comprobación, textos de remedio, funcionamiento sin permisos y ausencia de efectos en Playwright.
+Automatizada: `ServicioDiagnosticoTest` (todo en orden, configuración inválida o vacía, navegador ausente con
+simulador y portal real, carpeta no escribible, audio/voz, horario dentro/fuera/inválido y aislamiento de
+una comprobación que falla). Pendiente validación visual y con un equipo sin voz en español.
 
 ### 8. Asistente y herramientas adicionales — implementada (sin modo ensayo), validación manual pendiente
 
@@ -172,6 +191,10 @@ usuario.
 - Asistente y herramientas adicionales: implementados asistente de primera ejecución, editor visual
   semanal y perfiles/escalamiento de alarmas, con 153 pruebas en verde; modo ensayo excluido a
   propósito; pendiente validación manual del usuario.
-- Siguiente fase: bitácora de eventos operativos con filtrado y retención.
-- Rama activa: `feature/redisenio-ui`.
+- Bitácora y Diagnóstico: implementados con pruebas; pendiente validación visual del usuario.
+- Cierre (fase 9), parte automatizable: compilación limpia y 175 pruebas en verde con JDK 21 (ejecutadas tres veces
+  seguidas); el JSON de configuración no cambió de formato. Faltan la prueba guiada de todos los flujos, las
+  validaciones manuales pendientes de cada fase y la aprobación explícita.
+- Fuera de alcance por decisión previa: modo ensayo.
+- Rama activa: `feature/redisenio-ui-reconocimiento` (el plan original nombraba `feature/redisenio-ui`).
 - Integración a `main`: aplazada hasta la aprobación final.

@@ -37,6 +37,10 @@ public final class UbicacionDatos {
         return raiz.resolve("inventarios.json");
     }
 
+    public Path archivoBitacora() {
+        return raiz.resolve("bitacora.json");
+    }
+
     public Path perfilesNavegador() {
         return raiz.resolve("perfiles");
     }

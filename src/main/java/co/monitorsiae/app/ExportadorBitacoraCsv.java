@@ -23,7 +23,7 @@ public final class ExportadorBitacoraCsv {
     private static final String SEPARADOR = ";";
     private static final DateTimeFormatter FECHA = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final List<String> ENCABEZADO =
-            List.of("Fecha y hora", "Cliente", "Tipo", "Seccional", "Arma", "Duración", "Detalle");
+            List.of("Fecha y hora", "Cliente", "Tipo", "Seccional", "Arma", "Duración", "Captura", "Detalle");
 
     private ExportadorBitacoraCsv() {
     }
@@ -31,7 +31,7 @@ public final class ExportadorBitacoraCsv {
     public static String generar(List<EventoOperativo> eventos, ZoneId zona) {
         String filas = eventos.stream()
                 .map(e -> fila(List.of(FECHA.format(e.momento().atZone(zona)), e.clienteNombre(),
-                        e.tipo().etiqueta(), e.seccional(), e.arma(), e.duracionTexto(), e.detalle())))
+                        e.tipo().etiqueta(), e.seccional(), e.arma(), e.duracionTexto(), e.captura(), e.detalle())))
                 .collect(Collectors.joining("\r\n"));
         return fila(ENCABEZADO) + "\r\n" + filas + (filas.isEmpty() ? "" : "\r\n");
     }

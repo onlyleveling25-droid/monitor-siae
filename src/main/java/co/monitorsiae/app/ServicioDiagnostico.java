@@ -173,16 +173,46 @@ public final class ServicioDiagnostico {
     }
 
     private static List<Path> rutasDe(NavegadorPreferido navegador) {
-        String relativa = switch (navegador) {
-            case CHROME -> "Google\\Chrome\\Application\\chrome.exe";
-            case EDGE -> "Microsoft\\Edge\\Application\\msedge.exe";
-        };
+        return rutasCandidatas(navegador, System.getProperty("os.name", ""), System.getProperty("user.home", ""),
+                System::getenv);
+    }
+
+    /**
+     * Lugares donde suele estar el navegador según el sistema operativo; la automatización lo abre por su
+     * canal ("chrome" o "msedge"), que Playwright resuelve en esas mismas rutas.
+     */
+    static List<Path> rutasCandidatas(NavegadorPreferido navegador, String sistema, String hogar,
+                                      Function<String, String> entorno) {
+        String os = sistema.toLowerCase(java.util.Locale.ROOT);
         List<Path> rutas = new ArrayList<>();
-        for (String variable : List.of("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA")) {
-            String base = System.getenv(variable);
-            if (base != null && !base.isBlank()) {
-                rutas.add(Path.of(base, relativa.split("\\\\")));
+        if (os.contains("mac")) {
+            String aplicacion = switch (navegador) {
+                case CHROME -> "Google Chrome.app/Contents/MacOS/Google Chrome";
+                case EDGE -> "Microsoft Edge.app/Contents/MacOS/Microsoft Edge";
+            };
+            rutas.add(Path.of("/Applications", aplicacion.split("/")));
+            if (!hogar.isBlank()) {
+                rutas.add(Path.of(hogar, "Applications").resolve(Path.of(aplicacion)));
             }
+        } else if (os.contains("win")) {
+            String relativa = switch (navegador) {
+                case CHROME -> "Google\\Chrome\\Application\\chrome.exe";
+                case EDGE -> "Microsoft\\Edge\\Application\\msedge.exe";
+            };
+            for (String variable : List.of("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA")) {
+                String base = entorno.apply(variable);
+                if (base != null && !base.isBlank()) {
+                    rutas.add(Path.of(base, relativa.split("\\\\")));
+                }
+            }
+        } else {
+            List<String> linux = switch (navegador) {
+                case CHROME -> List.of("/usr/bin/google-chrome", "/usr/bin/google-chrome-stable",
+                        "/opt/google/chrome/chrome");
+                case EDGE -> List.of("/usr/bin/microsoft-edge", "/usr/bin/microsoft-edge-stable",
+                        "/opt/microsoft/msedge/msedge");
+            };
+            linux.forEach(ruta -> rutas.add(Path.of(ruta)));
         }
         return rutas;
     }

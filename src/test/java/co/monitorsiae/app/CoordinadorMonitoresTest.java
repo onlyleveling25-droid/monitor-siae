@@ -411,6 +411,33 @@ class CoordinadorMonitoresTest {
         throw new AssertionError("No se recibió el estado " + estado + " dentro del plazo.");
     }
 
+    @Test
+    void detenerTodosDetieneSoloLosMonitoreosEnCurso() throws InterruptedException {
+        Cliente ana = ClientesDePrueba.valido("Ana");
+        Cliente luis = ClientesDePrueba.valido("Luis");
+        Configuracion configuracion = Configuracion.porDefecto().conClientes(List.of(ana, luis));
+        BlockingQueue<Actualizacion> cambios = new LinkedBlockingQueue<>();
+        CoordinadorMonitores coordinador = new CoordinadorMonitores(configuracion,
+                new CentralAlertas(List.of()),
+                perfil -> PortalSimulado.con(Escena.abiertasSinInventario(
+                        perfil.tramite().seccionales().getFirst())),
+                (id, estado) -> cambios.add(new Actualizacion(id, estado)));
+        try {
+            assertEquals(List.of(), coordinador.detenerTodos());
+
+            coordinador.iniciar(ana);
+            esperar(cambios, CoordinadorMonitores.Estado.MONITOREANDO);
+            assertEquals(List.of(ana.id()), coordinador.monitoreosActivos());
+
+            assertEquals(List.of(ana.id()), coordinador.detenerTodos());
+            esperar(cambios, CoordinadorMonitores.Estado.DETENIDO);
+            assertEquals(List.of(), coordinador.monitoreosActivos());
+            assertEquals(CoordinadorMonitores.Estado.LISTO, coordinador.estado(luis.id()));
+        } finally {
+            coordinador.close();
+        }
+    }
+
     private static void esperarResultado(CoordinadorMonitores coordinador, String clienteId)
             throws InterruptedException {
         long limite = System.nanoTime() + Duration.ofSeconds(2).toNanos();

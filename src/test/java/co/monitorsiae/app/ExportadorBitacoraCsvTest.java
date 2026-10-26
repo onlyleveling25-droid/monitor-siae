@@ -32,8 +32,8 @@ class ExportadorBitacoraCsvTest {
 
         List<String> lineas = ExportadorBitacoraCsv.generar(List.of(evento), BOGOTA).lines().toList();
 
-        assertEquals("Fecha y hora;Cliente;Tipo;Seccional;Arma;Duración;Detalle", lineas.get(0));
-        assertEquals("2026-10-26 10:00:00;Ana;Monitoreo detenido;;;5 min 12 s;Monitoreo detenido.", lineas.get(1));
+        assertEquals("Fecha y hora;Cliente;Tipo;Seccional;Arma;Duración;Captura;Detalle", lineas.get(0));
+        assertEquals("2026-10-26 10:00:00;Ana;Monitoreo detenido;;;5 min 12 s;;Monitoreo detenido.", lineas.get(1));
         assertEquals(2, lineas.size());
     }
 

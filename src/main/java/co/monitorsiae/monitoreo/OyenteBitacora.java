@@ -39,7 +39,7 @@ public final class OyenteBitacora implements OyenteMonitoreo {
         anotar(cliente, TipoEvento.MONITOREO_INICIADO,
                 seccionales.isEmpty() ? "Se inició el monitoreo."
                         : "Se inició el monitoreo. Seccionales que busca: " + seccionales + ".",
-                seccionales, "", null);
+                seccionales, "", null, "");
     }
 
     @Override
@@ -71,7 +71,8 @@ public final class OyenteBitacora implements OyenteMonitoreo {
             case ResultadoCiclo.ApartadoFallido f -> f.eleccion().arma().descripcion();
             default -> "";
         };
-        anotar(cliente, tipo, resultado.descripcion(), seccional, arma, null);
+        anotar(cliente, tipo, resultado.descripcion(), seccional, arma, null,
+                EventoOperativo.capturaEn(resultado.descripcion()));
     }
 
     @Override
@@ -83,14 +84,14 @@ public final class OyenteBitacora implements OyenteMonitoreo {
                 TipoEvento.MONITOREO_DETENIDO, "", "", "", duracion);
         String duro = duracion == null ? "" : " Duró " + conDuracion.duracionTexto() + ".";
         anotar(cliente, TipoEvento.MONITOREO_DETENIDO,
-                "Monitoreo detenido: " + texto(motivo) + "." + duro, "", "", duracion);
+                "Monitoreo detenido: " + texto(motivo) + "." + duro, "", "", duracion, "");
     }
 
     private void anotar(Cliente cliente, TipoEvento tipo, String detalle, String seccional, String arma,
-                        Duration duracion) {
+                        Duration duracion, String captura) {
         try {
             bitacora.registrar(new EventoOperativo(reloj.instant(), cliente.id(), cliente.nombre(), tipo, detalle,
-                    seccional, arma, duracion));
+                    seccional, arma, duracion, captura));
         } catch (RuntimeException e) {
             REGISTRO.warn("No se pudo escribir en la bitácora; el monitoreo continúa.", e);
         }

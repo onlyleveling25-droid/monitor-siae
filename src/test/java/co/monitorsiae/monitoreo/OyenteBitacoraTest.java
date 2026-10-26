@@ -138,4 +138,26 @@ class OyenteBitacoraTest {
         assertTrue(new FiltroBitacora(null, null, null, "medellin").aplicar(bitacora.eventos(),
                 Clock.fixed(Instant.parse("2026-10-26T12:00:00Z"), ZoneOffset.UTC)).contains(inicio));
     }
+
+    @Test
+    void laRespuestaInesperadaGuardaElNombreDeLaCaptura() {
+        oyente.alTerminarCiclo(ana, new ResultadoCiclo.Inesperado(
+                "No se abrió el formulario del paso 1. (captura: fallo-20261026-140348.png)"));
+
+        EventoOperativo evento = bitacora.eventos().getFirst();
+        assertEquals(TipoEvento.RESPUESTA_INESPERADA, evento.tipo());
+        assertEquals("fallo-20261026-140348.png", evento.captura());
+    }
+
+    @Test
+    void soloSeAceptaElNombreExactoDeUnaCapturaDelPortal() {
+        assertEquals("", EventoOperativo.capturaEn("sin captura"));
+        assertEquals("", EventoOperativo.capturaEn("(captura: ../../etc/passwd)"));
+        assertEquals("", EventoOperativo.capturaEn("(captura: fallo-1.png)"));
+        assertEquals("", EventoOperativo.capturaEn(null));
+        assertEquals("", new EventoOperativo(Instant.now(), "c", "Ana", TipoEvento.RESPUESTA_INESPERADA, "d",
+                "", "", null, "../fallo-20261026-140348.png").captura());
+        assertEquals("", new EventoOperativo(Instant.now(), "c", "Ana", TipoEvento.RESPUESTA_INESPERADA, "d",
+                "", "", null, "C:\\Windows\\fallo-20261026-140348.png").captura());
+    }
 }

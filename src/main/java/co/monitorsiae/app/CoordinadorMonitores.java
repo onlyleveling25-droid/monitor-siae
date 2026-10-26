@@ -245,6 +245,26 @@ public final class CoordinadorMonitores implements AutoCloseable {
         }
     }
 
+    /** Clientes con el monitoreo en curso: iniciando, consultando o esperando su horario. */
+    public List<String> monitoreosActivos() {
+        return sesiones.values().stream()
+                .filter(sesion -> sesion.estado == Estado.INICIANDO || sesion.estado == Estado.MONITOREANDO
+                        || sesion.estado == Estado.FUERA_DE_HORARIO)
+                .map(sesion -> sesion.id)
+                .toList();
+    }
+
+    /**
+     * Detiene el monitoreo de todos los clientes que lo tienen en curso, sin cerrar sus navegadores.
+     *
+     * @return los clientes a los que se pidió detenerse
+     */
+    public List<String> detenerTodos() {
+        List<String> activos = monitoreosActivos();
+        activos.forEach(this::detener);
+        return activos;
+    }
+
     public void detener(String clienteId) {
         SesionCliente sesion = sesiones.get(clienteId);
         if (sesion == null) {

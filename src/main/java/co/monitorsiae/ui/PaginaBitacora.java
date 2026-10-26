@@ -14,6 +14,8 @@ import javafx.beans.property.SimpleStringProperty;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Alert;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
@@ -53,6 +55,8 @@ final class PaginaBitacora extends VBox {
     private final Supplier<List<EventoOperativo>> eventos;
     private final Supplier<List<Cliente>> clientes;
     private final Consumer<EventoOperativo> verInventario;
+    private final Path carpetaCapturas;
+    private final Consumer<Path> abrirArchivo;
     private final Clock reloj = Clock.systemUTC();
     private final ZoneId zona = ZoneId.systemDefault();
     private final ComboBox<Cliente> filtroCliente = new ComboBox<>();
@@ -71,8 +75,10 @@ final class PaginaBitacora extends VBox {
     private boolean actualizando;
 
     PaginaBitacora(Supplier<List<EventoOperativo>> eventos, Supplier<List<Cliente>> clientes,
-                   Consumer<EventoOperativo> verInventario) {
+                   Consumer<EventoOperativo> verInventario, Path carpetaCapturas, Consumer<Path> abrirArchivo) {
         super(16);
+        this.carpetaCapturas = carpetaCapturas;
+        this.abrirArchivo = abrirArchivo;
         this.eventos = eventos;
         this.clientes = clientes;
         this.verInventario = verInventario;
@@ -247,7 +253,25 @@ final class PaginaBitacora extends VBox {
         tabla.getColumns().add(texto("Cliente", 150, EventoOperativo::clienteNombre));
         tabla.getColumns().add(tipo);
         tabla.getColumns().add(texto("Seccional", 140, EventoOperativo::seccional));
-        tabla.getColumns().add(texto("Detalle", 420, EventoOperativo::detalle));
+        TableColumn<EventoOperativo, EventoOperativo> detalle = new TableColumn<>("Detalle");
+        detalle.setPrefWidth(420);
+        detalle.setSortable(false);
+        detalle.setCellValueFactory(celda -> new ReadOnlyObjectWrapper<>(celda.getValue()));
+        detalle.setCellFactory(columna -> new TableCell<>() {
+            @Override
+            protected void updateItem(EventoOperativo evento, boolean vacio) {
+                super.updateItem(evento, vacio);
+                boolean hayEvento = !vacio && evento != null;
+                setText(hayEvento ? evento.detalle() : null);
+                setGraphic(hayEvento && !evento.captura().isEmpty()
+                        ? IconoSvg.crear("image", 14, "#64748B") : null);
+                setTooltip(hayEvento && !evento.captura().isEmpty()
+                        ? new Tooltip("Tiene captura de pantalla: haz doble clic para verla") : null);
+                setContentDisplay(javafx.scene.control.ContentDisplay.RIGHT);
+                setGraphicTextGap(8);
+            }
+        });
+        tabla.getColumns().add(detalle);
         tabla.setRowFactory(t -> {
             TableRow<EventoOperativo> fila = new TableRow<>() {
                 @Override
@@ -330,6 +354,9 @@ final class PaginaBitacora extends VBox {
         texto.setPrefRowCount(4);
         texto.setPrefWidth(460);
         VBox contenido = new VBox(12, datos, new Label("Detalle completo"), texto);
+        if (!evento.captura().isEmpty()) {
+            contenido.getChildren().add(seccionCaptura(evento.captura()));
+        }
         contenido.setPadding(new Insets(18, 20, 6, 20));
         dialogo.getDialogPane().setContent(contenido);
         ButtonType cerrar = new ButtonType("Cerrar", ButtonBar.ButtonData.CANCEL_CLOSE);
@@ -340,6 +367,38 @@ final class PaginaBitacora extends VBox {
             dialogo.getButtonTypes().setAll(cerrar);
         }
         dialogo.showAndWait().filter(boton -> boton == inventario).ifPresent(boton -> verInventario.accept(evento));
+    }
+
+    /** La captura se resuelve siempre dentro de la carpeta de capturas: el evento solo guarda el nombre. */
+    private javafx.scene.Node seccionCaptura(String nombre) {
+        Label titulo = new Label("Captura de pantalla del fallo");
+        Path archivo = carpetaCapturas.resolve(nombre).normalize();
+        if (!archivo.startsWith(carpetaCapturas.normalize()) || !java.nio.file.Files.isRegularFile(archivo)) {
+            Label ausente = new Label("La captura " + nombre + " ya no está en la carpeta de capturas.");
+            ausente.getStyleClass().add("muted");
+            ausente.setWrapText(true);
+            return new VBox(6, titulo, ausente);
+        }
+        Image imagen = new Image(archivo.toUri().toString(), 560, 0, true, true);
+        if (imagen.isError()) {
+            Label ilegible = new Label("No se pudo abrir la captura " + nombre + ".");
+            ilegible.getStyleClass().add("muted");
+            return new VBox(6, titulo, ilegible);
+        }
+        ImageView vista = new ImageView(imagen);
+        vista.setFitWidth(560);
+        vista.setPreserveRatio(true);
+        vista.setSmooth(true);
+        javafx.scene.control.ScrollPane desplazamiento = new javafx.scene.control.ScrollPane(vista);
+        desplazamiento.setPrefViewportHeight(300);
+        desplazamiento.setFitToWidth(true);
+        desplazamiento.getStyleClass().add("transparent-scroll");
+        Button abrir = new Button("Abrir imagen completa");
+        abrir.getStyleClass().add("secondary-button");
+        abrir.setOnAction(e -> abrirArchivo.accept(archivo));
+        Label archivoNombre = new Label(nombre);
+        archivoNombre.getStyleClass().add("muted");
+        return new VBox(8, titulo, desplazamiento, new HBox(12, abrir, archivoNombre));
     }
 
     private static int dato(GridPane rejilla, int fila, String nombre, String valor, javafx.scene.Node nodo) {

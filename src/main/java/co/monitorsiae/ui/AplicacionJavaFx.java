@@ -20,6 +20,7 @@ import co.monitorsiae.portal.real.FabricaPortalPlaywright;
 import co.monitorsiae.portal.simulado.FabricaPortalSimulada;
 import co.monitorsiae.persistencia.RepositorioBitacoraJson;
 import co.monitorsiae.persistencia.RepositorioConfiguracionJson;
+import co.monitorsiae.persistencia.RetencionCapturas;
 import co.monitorsiae.persistencia.RepositorioSnapshotsJson;
 import co.monitorsiae.persistencia.ConfiguracionIlegibleException;
 import co.monitorsiae.persistencia.UbicacionDatos;
@@ -43,12 +44,14 @@ public final class AplicacionJavaFx extends Application {
     private VistaPrincipal vista;
     private Stage ventana;
     private volatile boolean cerrando;
+    private java.util.concurrent.ScheduledExecutorService limpieza;
 
     @Override
     public void start(Stage stage) {
         ventana = stage;
         try {
             UbicacionDatos ubicacion = UbicacionDatos.delUsuario();
+            iniciarRetencionDeCapturas(ubicacion);
             RepositorioConfiguracionJson repositorio =
                     new RepositorioConfiguracionJson(ubicacion.archivoConfiguracion());
             servicio = crearServicio(repositorio);
@@ -90,6 +93,7 @@ public final class AplicacionJavaFx extends Application {
                         }
                     });
             vista = new VistaPrincipal(ventana, servicio, monitores, centralAlertas, diagnostico,
+                    ubicacion.capturas(), ruta -> getHostServices().showDocument(ruta.toUri().toString()),
                     this::actualizarConfiguracion);
             Scene escena = new Scene(vista, 1100, 720);
             EstilosJavaFx.aplicar(vista);
@@ -152,11 +156,26 @@ public final class AplicacionJavaFx extends Application {
         return monitores.enfocarVentana(clienteId);
     }
 
+    /** Borra las capturas de fallos vencidas al arrancar y, si la aplicación sigue abierta, una vez al día. */
+    private void iniciarRetencionDeCapturas(UbicacionDatos ubicacion) {
+        RetencionCapturas retencion = new RetencionCapturas(ubicacion.capturas(),
+                RepositorioBitacoraJson.RETENCION, java.time.Clock.systemUTC());
+        limpieza = java.util.concurrent.Executors.newSingleThreadScheduledExecutor(tarea -> {
+            Thread hilo = new Thread(tarea, "retencion-capturas");
+            hilo.setDaemon(true);
+            return hilo;
+        });
+        limpieza.scheduleWithFixedDelay(retencion::limpiar, 0, 24, java.util.concurrent.TimeUnit.HOURS);
+    }
+
     private void cerrar() {
         if (cerrando) {
             return;
         }
         cerrando = true;
+        if (limpieza != null) {
+            limpieza.shutdownNow();
+        }
         if (monitores != null) {
             monitores.close();
         }

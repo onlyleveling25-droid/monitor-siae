@@ -101,4 +101,16 @@ class RepositorioBitacoraJsonTest {
 
         assertEquals(evento, new RepositorioBitacoraJson(archivo, reloj).eventos().getFirst());
     }
+
+    @Test
+    void conservaElNombreDeLaCaptura() {
+        Path archivo = carpeta.resolve("c.json");
+        EventoOperativo evento = new EventoOperativo(AHORA.minusSeconds(5), "c1", "Ana",
+                TipoEvento.RESPUESTA_INESPERADA, "No se abrió (captura: fallo-20261026-140348.png)", "", "", null,
+                "fallo-20261026-140348.png");
+        new RepositorioBitacoraJson(archivo, reloj).registrar(evento);
+
+        assertEquals("fallo-20261026-140348.png",
+                new RepositorioBitacoraJson(archivo, reloj).eventos().getFirst().captura());
+    }
 }

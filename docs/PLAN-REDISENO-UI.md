@@ -105,7 +105,9 @@ en las detenciones, la duración del monitoreo (los archivos anteriores siguen l
 muestra un resumen de las últimas 24 horas, etiquetas de color por tipo, hora relativa, filas
 destacadas para oportunidades y armas apartadas, búsqueda de texto, botón Quitar filtros, detalle con
 doble clic (con acceso al inventario guardado en ese momento) y exportación a CSV para Excel, con las
-celdas neutralizadas frente a fórmulas. El detalle se limita a 300 caracteres y solo usa las descripciones de
+celdas neutralizadas frente a fórmulas. Los eventos con captura de pantalla (respuestas inesperadas) la muestran en el detalle; las capturas se
+borran a los 30 días (`RetencionCapturas`, al arrancar y una vez al día) y solo se tocan archivos con el nombre
+exacto `fallo-AAAAMMDD-HHMMSS.png` dentro de su carpeta. El detalle se limita a 300 caracteres y solo usa las descripciones de
 resultado, nunca credenciales ni datos de sesión. Un fallo al escribir se registra en el log y no
 interrumpe el monitoreo.
 

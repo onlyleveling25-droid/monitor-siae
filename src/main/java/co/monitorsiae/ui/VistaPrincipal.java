@@ -68,6 +68,8 @@ public final class VistaPrincipal extends BorderPane {
     private PaginaBitacora paginaBitacora;
     private PaginaDiagnostico paginaDiagnostico;
     private final ServicioDiagnostico diagnostico;
+    private final java.nio.file.Path carpetaCapturas;
+    private final Consumer<java.nio.file.Path> abrirArchivo;
 
     private enum Pagina { PANEL, BITACORA, DIAGNOSTICO, AJUSTES }
     private final VBox avisos = new VBox(8);
@@ -78,6 +80,7 @@ public final class VistaPrincipal extends BorderPane {
     private final Label iconoAviso = new Label();
     private final Label textoAviso = new Label();
     private final Label resumen = new Label();
+    private final Button detenerTodos = new Button();
     private final Label modoTexto = new Label();
     private final Label confirmacionReconocimiento = new Label();
     private final Map<String, Label> estados = new HashMap<>();
@@ -100,7 +103,10 @@ public final class VistaPrincipal extends BorderPane {
 
 
     VistaPrincipal(Window propietario, ServicioAplicacion servicio, CoordinadorMonitores monitores,
-                   CentralAlertas alertas, ServicioDiagnostico diagnostico, Consumer<Configuracion> alGuardar) {
+                   CentralAlertas alertas, ServicioDiagnostico diagnostico, java.nio.file.Path carpetaCapturas,
+                   Consumer<java.nio.file.Path> abrirArchivo, Consumer<Configuracion> alGuardar) {
+        this.carpetaCapturas = carpetaCapturas;
+        this.abrirArchivo = abrirArchivo;
         this.diagnostico = diagnostico;
         this.propietario = propietario;
         this.servicio = servicio;
@@ -179,10 +185,16 @@ public final class VistaPrincipal extends BorderPane {
         reconocerTodas.setTooltip(new Tooltip(
                 "Silencia y cierra todas las notificaciones activas; no detiene el monitoreo."));
         reconocerTodas.setOnAction(event -> reconocerTodas());
+        detenerTodos.setText("Detener todos");
+        detenerTodos.getStyleClass().add("danger-button");
+        detenerTodos.setGraphic(IconoSvg.crear("close", 16, "#B91C1C"));
+        detenerTodos.setTooltip(new Tooltip(
+                "Detiene el monitoreo de todos los clientes que lo tienen en curso; pide confirmación."));
+        detenerTodos.setOnAction(event -> detenerTodosConConfirmacion());
         Button probar = new Button("Probar alarma");
         probar.getStyleClass().add("text-button");
         probar.setOnAction(event -> probarAlarma());
-        encabezado.getChildren().addAll(titulos, reconocerTodas, probar);
+        encabezado.getChildren().addAll(titulos, reconocerTodas, detenerTodos, probar);
 
         HBox modo = new HBox(10);
         modo.getStyleClass().add("environment-banner");
@@ -484,6 +496,7 @@ public final class VistaPrincipal extends BorderPane {
         clientesMonitoreados.setText(Long.toString(monitoreando));
         sesionesAbiertas.setText(Long.toString(sesiones));
         alertasActivas.setText(Integer.toString(alertas.activas().size()));
+        detenerTodos.setDisable(monitores.monitoreosActivos().isEmpty());
     }
 
     private void actualizarTiemposRelativos() {
@@ -705,7 +718,8 @@ public final class VistaPrincipal extends BorderPane {
         editorConfiguracion = null;
         if (paginaBitacora == null) {
             paginaBitacora = new PaginaBitacora(monitores::eventosBitacora,
-                    () -> servicio.configuracion().clientes(), this::verInventarioDelEvento);
+                    () -> servicio.configuracion().clientes(), this::verInventarioDelEvento,
+                    carpetaCapturas, abrirArchivo);
         }
         paginaBitacora.actualizar();
         setCenter(paginaBitacora);
@@ -816,6 +830,38 @@ public final class VistaPrincipal extends BorderPane {
         alertas.emitir(new Alerta("monitor-siae-prueba", Gravedad.OPORTUNIDAD,
                 "Alarma de prueba", "Si escuchas la sirena o la voz, los canales locales están activos.",
                 "Prueba de alarma de Monitor SIAE."));
+    }
+
+    private void detenerTodosConConfirmacion() {
+        List<String> activos = monitores.monitoreosActivos();
+        if (activos.isEmpty()) {
+            mostrarConfirmacionReconocimiento("No hay monitoreos en curso.");
+            return;
+        }
+        String nombres = activos.stream()
+                .map(id -> clientesPorId.containsKey(id) ? clientesPorId.get(id).nombre() : id)
+                .collect(java.util.stream.Collectors.joining(", "));
+        ButtonType detener = new ButtonType("Detener todos", ButtonBar.ButtonData.OK_DONE);
+        ButtonType cancelar = new ButtonType("Cancelar", ButtonBar.ButtonData.CANCEL_CLOSE);
+        Alert confirmacion = new Alert(Alert.AlertType.CONFIRMATION,
+                "Se detendrá el monitoreo de " + activos.size() + (activos.size() == 1 ? " cliente: " : " clientes: ")
+                        + nombres + ".\n\nLas sesiones de los navegadores seguirán abiertas y podrás reanudar "
+                        + "cada monitoreo con Iniciar.", detener, cancelar);
+        confirmacion.initOwner(propietario);
+        EstilosJavaFx.aplicar(confirmacion.getDialogPane());
+        confirmacion.setTitle("Detener monitoreo");
+        confirmacion.setHeaderText("¿Detener el monitoreo de todos los clientes?");
+        // Cancelar es la opción por defecto: pulsar Enter sin pensar no debe detener nada.
+        ((Button) confirmacion.getDialogPane().lookupButton(detener)).setDefaultButton(false);
+        ((Button) confirmacion.getDialogPane().lookupButton(cancelar)).setDefaultButton(true);
+        if (confirmacion.showAndWait().orElse(cancelar) != detener) {
+            return;
+        }
+        List<String> detenidos = monitores.detenerTodos();
+        mostrarConfirmacionReconocimiento("Se pidió detener el monitoreo de " + detenidos.size()
+                + (detenidos.size() == 1 ? " cliente." : " clientes.")
+                + " Las sesiones del navegador siguen abiertas.");
+        actualizarMetricas();
     }
 
     private void reconocerTodas() {

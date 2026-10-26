@@ -164,4 +164,22 @@ class ServicioDiagnosticoTest {
 
         assertEquals(PROBLEMA, de(ejecutar(), "Horario").nivel());
     }
+
+    @Test
+    void buscaElNavegadorEnLasRutasDeCadaSistema() {
+        var mac = ServicioDiagnostico.rutasCandidatas(NavegadorPreferido.CHROME, "Mac OS X", "/Users/ana", n -> null);
+        assertTrue(mac.contains(Path.of("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")));
+        assertTrue(mac.contains(Path.of("/Users/ana/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")));
+
+        var macEdge = ServicioDiagnostico.rutasCandidatas(NavegadorPreferido.EDGE, "Mac OS X", "/Users/ana", n -> null);
+        assertTrue(macEdge.contains(Path.of("/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge")));
+
+        var windows = ServicioDiagnostico.rutasCandidatas(NavegadorPreferido.CHROME, "Windows 11", "C:\\Users\\ana",
+                nombre -> nombre.equals("PROGRAMFILES") ? "C:\\Program Files" : null);
+        assertEquals(1, windows.size());
+        assertTrue(windows.getFirst().toString().endsWith("chrome.exe"));
+
+        var linux = ServicioDiagnostico.rutasCandidatas(NavegadorPreferido.CHROME, "Linux", "/home/ana", n -> null);
+        assertTrue(linux.contains(Path.of("/usr/bin/google-chrome")));
+    }
 }

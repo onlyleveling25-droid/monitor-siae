@@ -9,6 +9,7 @@ import co.monitorsiae.dominio.Configuracion;
 import co.monitorsiae.dominio.CriterioArma;
 import co.monitorsiae.dominio.DireccionTenencia;
 import co.monitorsiae.dominio.EntornoPortal;
+import co.monitorsiae.monitoreo.TextoDuracion;
 import co.monitorsiae.dominio.EscenarioSimulador;
 import co.monitorsiae.dominio.FranjaHoraria;
 import co.monitorsiae.dominio.HorarioOperacion;
@@ -82,6 +83,7 @@ final class EditorConfiguracion extends BorderPane {
     private final Spinner<Integer> variacion = new Spinner<>(0, Configuracion.VARIACION_MAXIMA_PORCENTAJE,
             Configuracion.VARIACION_POR_DEFECTO_PORCENTAJE, 5);
     private final Label ayudaVariacion = new Label();
+    private final Label equivalenciaIntervalo = new Label();
     private final CheckBox restringirHorario = new CheckBox("Limitar el monitoreo a un horario");
     private final Label estadoHorario = new Label();
     private EditorHorarioSemanal horarioSemanal;
@@ -286,7 +288,10 @@ final class EditorConfiguracion extends BorderPane {
         ayudaVariacion.setWrapText(true);
         intervalo.getEditor().textProperty().addListener((observable, antes, ahora) -> actualizarAyudaVariacion());
         variacion.getEditor().textProperty().addListener((observable, antes, ahora) -> actualizarAyudaVariacion());
-        addRow(formulario, 5, "Intervalo entre consultas", new VBox(8, intervalo, filaVariacion, ayudaVariacion));
+        HBox filaIntervalo = new HBox(8, intervalo, new Label("segundos"), equivalenciaIntervalo);
+        filaIntervalo.setAlignment(Pos.CENTER_LEFT);
+        equivalenciaIntervalo.getStyleClass().add("field-help");
+        addRow(formulario, 5, "Intervalo entre consultas", new VBox(8, filaIntervalo, filaVariacion, ayudaVariacion));
         restringirHorario.setText(null);
         restringirHorario.setAccessibleText("Limitar el monitoreo a un horario");
         Label nombreInterruptor = new Label("Limitar el monitoreo a un horario");
@@ -558,18 +563,21 @@ final class EditorConfiguracion extends BorderPane {
     private void actualizarAyudaVariacion() {
         try {
             int segundos = Integer.parseInt(intervalo.getEditor().getText().strip());
+            equivalenciaIntervalo.setText(segundos >= 60 ? "= " + TextoDuracion.texto(segundos) : "");
             int porcentaje = Integer.parseInt(variacion.getEditor().getText().strip());
             if (porcentaje <= 0) {
-                ayudaVariacion.setText("Sin variación: cada espera dura exactamente " + segundos + " s. Un ritmo fijo "
-                        + "es fácil de distinguir del de una persona; se recomienda 20 %.");
+                ayudaVariacion.setText("Sin variación: cada espera dura exactamente "
+                        + TextoDuracion.conEquivalencia(segundos) + ". Un ritmo fijo es fácil de distinguir del de "
+                        + "una persona; se recomienda 20 %.");
                 return;
             }
-            double minimo = segundos * (1 - porcentaje / 100.0);
-            double maximo = segundos * (1 + porcentaje / 100.0);
-            ayudaVariacion.setText(String.format(java.util.Locale.forLanguageTag("es"),
-                    "Cada espera dura al azar entre %.0f y %.0f s (promedio %d s). Evita un ritmo fijo de consultas; "
-                            + "se recomienda 20 %%. Con 0 se desactiva.", minimo, maximo, segundos));
+            long minimo = Math.round(segundos * (1 - porcentaje / 100.0));
+            long maximo = Math.round(segundos * (1 + porcentaje / 100.0));
+            ayudaVariacion.setText("Cada espera dura al azar entre " + TextoDuracion.conEquivalencia(minimo) + " y "
+                    + TextoDuracion.conEquivalencia(maximo) + " (promedio " + TextoDuracion.conEquivalencia(segundos)
+                    + "). Evita un ritmo fijo de consultas; se recomienda 20 %. Con 0 se desactiva.");
         } catch (NumberFormatException e) {
+            equivalenciaIntervalo.setText("");
             ayudaVariacion.setText("Escribe números enteros para ver el rango de la espera.");
         }
     }

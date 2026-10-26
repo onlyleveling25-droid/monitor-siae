@@ -66,14 +66,7 @@ public record EventoOperativo(Instant momento, String clienteId, String clienteN
         if (duracion == null) {
             return "";
         }
-        long total = Math.max(0, duracion.toSeconds());
-        long horas = total / 3600;
-        long minutos = (total % 3600) / 60;
-        long segundos = total % 60;
-        if (horas > 0) {
-            return horas + " h " + minutos + " min";
-        }
-        return minutos > 0 ? minutos + " min " + segundos + " s" : segundos + " s";
+        return TextoDuracion.texto(duracion.toSeconds());
     }
 
     private static String acortar(String texto) {

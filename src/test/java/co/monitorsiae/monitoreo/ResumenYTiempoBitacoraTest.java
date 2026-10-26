@@ -67,4 +67,16 @@ class ResumenYTiempoBitacoraTest {
     private EventoOperativo conDuracion(Duration duracion) {
         return new EventoOperativo(AHORA, "c1", "Ana", TipoEvento.MONITOREO_DETENIDO, "d", "", "", duracion);
     }
+
+    @Test
+    void textoDuracionAgregaLaEquivalenciaEnMinutos() {
+        assertEquals("45 s", TextoDuracion.texto(45));
+        assertEquals("3 min", TextoDuracion.texto(180));
+        assertEquals("2 min 24 s", TextoDuracion.texto(144));
+        assertEquals("1 h 5 min", TextoDuracion.texto(3900));
+        assertEquals("0 s", TextoDuracion.texto(-5));
+        assertEquals("30 s", TextoDuracion.conEquivalencia(30));
+        assertEquals("180 s (3 min)", TextoDuracion.conEquivalencia(180));
+        assertEquals("144 s (2 min 24 s)", TextoDuracion.conEquivalencia(144));
+    }
 }

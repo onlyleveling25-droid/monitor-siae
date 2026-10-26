@@ -9,6 +9,9 @@ periódica mientras no haya inventario y, cuando el listado del paso 2 trae las 
 aparta el arma según las reglas del cliente y lanza una alarma imposible de ignorar para que la
 persona termine el proceso.
 
+> **Para usar el programa**, lee el [manual de usuario](docs/MANUAL-DE-USUARIO.md): explica cada pantalla, cada
+> opción de configuración y cada mensaje.
+
 > Estado: rediseño de interfaz en `feature/redisenio-ui`, con las fases 1 a 5 implementadas y
 > validaciones manuales pendientes. El estado detallado está en
 > [el plan de rediseño](docs/PLAN-REDISENO-UI.md). El instalador sigue pendiente.

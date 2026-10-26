@@ -75,4 +75,30 @@ class RepositorioBitacoraJsonTest {
     private EventoOperativo evento(Duration antiguedad, String detalle) {
         return new EventoOperativo(AHORA.minus(antiguedad), "c1", "Ana", TipoEvento.OPORTUNIDAD, detalle);
     }
+
+    @Test
+    void leeEventosGuardadosAntesDeSeccionalArmaYDuracion() throws Exception {
+        Path archivo = carpeta.resolve("bitacora.json");
+        Files.writeString(archivo, """
+                [ { "momento": "2026-10-26T11:00:00Z", "clienteId": "c1", "clienteNombre": "Ana",
+                    "tipo": "OPORTUNIDAD", "detalle": "Arma disponible" } ]
+                """);
+
+        EventoOperativo leido = new RepositorioBitacoraJson(archivo, reloj).eventos().getFirst();
+
+        assertEquals("Arma disponible", leido.detalle());
+        assertEquals("", leido.seccional());
+        assertEquals("", leido.arma());
+        assertEquals(null, leido.duracion());
+    }
+
+    @Test
+    void conservaSeccionalArmaYDuracion() {
+        Path archivo = carpeta.resolve("b.json");
+        EventoOperativo evento = new EventoOperativo(AHORA.minusSeconds(5), "c1", "Ana",
+                TipoEvento.MONITOREO_DETENIDO, "Detenido", "05 - Medellín", "Glock G-43", Duration.ofSeconds(312));
+        new RepositorioBitacoraJson(archivo, reloj).registrar(evento);
+
+        assertEquals(evento, new RepositorioBitacoraJson(archivo, reloj).eventos().getFirst());
+    }
 }

@@ -22,4 +22,19 @@ public enum TipoEvento {
     public String etiqueta() {
         return etiqueta;
     }
+
+    /** Hallazgos que la persona no debería perderse entre los demás eventos. */
+    public boolean importante() {
+        return this == OPORTUNIDAD || this == ARMA_APARTADA;
+    }
+
+    /** Eventos que indican que algo falló o necesita atención. */
+    public boolean problema() {
+        return this == APARTADO_FALLIDO || this == SESION_VENCIDA || this == RESPUESTA_INESPERADA;
+    }
+
+    /** Eventos cuyo inventario puede haberse guardado en el historial del cliente. */
+    public boolean conInventario() {
+        return this == OPORTUNIDAD || this == ARMA_APARTADA || this == APARTADO_FALLIDO;
+    }
 }

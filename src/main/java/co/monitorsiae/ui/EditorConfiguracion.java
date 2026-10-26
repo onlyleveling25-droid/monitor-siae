@@ -79,6 +79,8 @@ final class EditorConfiguracion extends BorderPane {
     private final ComboBox<EntornoPortal> entornoPortal = new ComboBox<>();
     private final Spinner<Integer> intervalo = new Spinner<>(2, 3600, 5);
     private final CheckBox restringirHorario = new CheckBox("Limitar el monitoreo a un horario");
+    private final Label estadoHorario = new Label();
+    private EditorHorarioSemanal horarioSemanal;
     private final Map<DayOfWeek, CheckBox> dias = new EnumMap<>(DayOfWeek.class);
     private final Map<DayOfWeek, TextField> desdePorDia = new EnumMap<>(DayOfWeek.class);
     private final Map<DayOfWeek, TextField> hastaPorDia = new EnumMap<>(DayOfWeek.class);
@@ -106,6 +108,12 @@ final class EditorConfiguracion extends BorderPane {
     private final TextArea descripcion = area("Descripción del trámite (150–500 caracteres)");
     private final Label contadorDescripcion = new Label();
     private final ComboBox<ModoReaccion> modo = new ComboBox<>();
+    private final Label ayudaReaccion = new Label();
+    private final Label ayudaSecuencia = new Label();
+    private VBox campoAlternativas;
+    private VBox campoComodin;
+    /** Modalidad, dirección de tenencia, reintentos y paso 2: solo aplican si se aparta el arma. */
+    private final List<Node> camposApartar = new ArrayList<>();
     private final ComboBox<Modalidad> modalidad = new ComboBox<>();
     private final ComboBox<AlcancePaso2> alcancePaso2 = new ComboBox<>();
     private final ListaEditable objetivos = new ListaEditable(
@@ -197,12 +205,7 @@ final class EditorConfiguracion extends BorderPane {
                 cambio.getControlNewText().length() <= ParametrosTramite.DESCRIPCION_MAXIMA ? cambio : null));
         descripcion.textProperty().addListener((observable, antes, ahora) ->
                 contadorDescripcion.setText(ahora.length() + " / 500 caracteres"));
-        restringirHorario.selectedProperty().addListener((observable, antes, ahora) -> {
-            boolean habilitado = ahora;
-            dias.values().forEach(check -> check.setDisable(!habilitado));
-            desdePorDia.values().forEach(campo -> campo.setDisable(!habilitado));
-            hastaPorDia.values().forEach(campo -> campo.setDisable(!habilitado));
-        });
+        restringirHorario.selectedProperty().addListener((observable, antes, ahora) -> aplicarEstadoHorario());
     }
 
     void seleccionarCliente(String clienteId) {
@@ -259,14 +262,24 @@ final class EditorConfiguracion extends BorderPane {
         intervalo.setEditable(true);
         agregarSeccion(formulario, 4, "Frecuencia y disponibilidad");
         addRow(formulario, 5, "Intervalo entre consultas", intervalo);
-        formulario.add(restringirHorario, 0, 6, 2, 1);
+        restringirHorario.setText(null);
+        restringirHorario.setAccessibleText("Limitar el monitoreo a un horario");
+        Label nombreInterruptor = new Label("Limitar el monitoreo a un horario");
+        nombreInterruptor.getStyleClass().add("field-label");
+        nombreInterruptor.setOnMouseClicked(evento -> restringirHorario.setSelected(!restringirHorario.isSelected()));
+        estadoHorario.getStyleClass().add("field-help");
+        estadoHorario.setWrapText(true);
+        VBox interruptorHorario = new VBox(4, new HBox(8, restringirHorario, nombreInterruptor), estadoHorario);
+        addRow(formulario, 6, "Horario de consulta", interruptorHorario);
         for (DayOfWeek dia : DayOfWeek.values()) {
             dias.put(dia, new CheckBox(DIAS.get(dia)));
             desdePorDia.put(dia, campoHora("08:00"));
             hastaPorDia.put(dia, campoHora("16:00"));
         }
         EditorHorarioSemanal horarioSemanal = new EditorHorarioSemanal(dias, desdePorDia, hastaPorDia);
-        addRow(formulario, 7, "Horario semanal", horarioSemanal);
+        this.horarioSemanal = horarioSemanal;
+        aplicarEstadoHorario();
+        addRow(formulario, 7, "Días y horas", horarioSemanal);
         Label notaHorario = new Label(
                 "El horario está desactivado por defecto. Actívalo solo si deseas limitar la actividad. Cada día "
                         + "marcado tiene su propio rango de horas (formato HH:mm); un día sin marcar no se consulta.");
@@ -431,6 +444,29 @@ final class EditorConfiguracion extends BorderPane {
         detallePreferenciaSonido.setWrapText(true);
         preferenciaSonido.valueProperty().addListener((observable, anterior, nuevo) ->
                 actualizarAyudaPreferenciaSonido());
+        ayudaSecuencia.getStyleClass().add("field-help");
+        ayudaSecuencia.setWrapText(true);
+        Label ayudaComodin = new Label("Se toma cualquier arma de este tipo, sea cual sea su modelo (por ejemplo: "
+                + "Pistola). Déjalo vacío si no quieres usar comodín.");
+        ayudaComodin.getStyleClass().add("field-help");
+        ayudaComodin.setWrapText(true);
+        campoAlternativas = campo("2 · Alternativas (se prueban en este orden)", alternativas);
+        campoComodin = campo("3 · Tipo comodín: cualquier arma de este tipo (último recurso)",
+                new VBox(5, tipoComodin, ayudaComodin));
+        politica.valueProperty().addListener((observable, antes, ahora) -> actualizarSecuencia());
+        camposApartar.addAll(List.of(
+                campo("Modalidad (botón que se pulsa en el portal)", modalidad),
+                campo("Departamento", departamento),
+                campo("Ciudad", ciudad),
+                campo("Dirección completa", direccion),
+                campo("Reintentos al apartar", reintentos),
+                seccion("Paso 2 · Pre-asignación y cierre del trámite"),
+                campo("Alcance del paso 2", alcancePaso2)));
+        ayudaReaccion.getStyleClass().add("field-help");
+        ayudaReaccion.setWrapText(true);
+        textosDe(modo, EditorConfiguracion::textoModo);
+        modo.valueProperty().addListener((observable, antes, ahora) -> actualizarCamposSegunReaccion());
+        modalidad.valueProperty().addListener((observable, antes, ahora) -> actualizarCamposSegunReaccion());
         editor.getChildren().addAll(encabezado, campo("Nombre para mostrar", nombre), activo,
                 campo("Sonido de alertas", new VBox(5, preferenciaSonido, detallePreferenciaSonido)),
                 seccion("Paso 1 · Datos del trámite"),
@@ -439,15 +475,15 @@ final class EditorConfiguracion extends BorderPane {
                 campo("Seccionales preferidas (de mayor a menor prioridad)", seccionales),
                 descripcionConContador(),
                 seccion("Selección del arma"),
-                campo("Reacción", modo), campo("Modalidad", modalidad),
-                campo("Departamento (solo TENENCIA)", departamento),
-                campo("Ciudad (solo TENENCIA)", ciudad),
-                campo("Dirección completa (solo TENENCIA)", direccion),
-                campo("Objetivos prioritarios", objetivos), campo("Si no aparece ningún objetivo", politica),
-                campo("Alternativas", alternativas), campo("Tipo comodín (último recurso)", tipoComodin),
-                campo("Excluir", excluir), campo("Reintentos al apartar", reintentos),
-                seccion("Paso 2 · Pre-asignación y cierre del trámite"),
-                campo("Alcance del paso 2", alcancePaso2));
+                campo("Reacción al encontrar un arma", new VBox(5, modo, ayudaReaccion)),
+                camposApartar.get(0),
+                camposApartar.get(1), camposApartar.get(2), camposApartar.get(3),
+                campo("1 · Objetivos prioritarios (se prueban en este orden)", objetivos),
+                campo("Si no aparece ningún objetivo, ¿qué hacer?", new VBox(5, politica, ayudaSecuencia)),
+                campoAlternativas, campoComodin,
+                campo("Excluir", excluir), camposApartar.get(4),
+                camposApartar.get(5),
+                camposApartar.get(6));
         ScrollPaneFormulario scroll = new ScrollPaneFormulario(editor);
         BorderPane cuerpo = new BorderPane(scroll);
         cuerpo.setLeft(columnaLista);
@@ -468,6 +504,19 @@ final class EditorConfiguracion extends BorderPane {
             case ACTIVADO -> "Fuerza el sonido para este cliente, aunque el ajuste general esté desactivado.";
             case DESACTIVADO -> "Silencia solo a este cliente; los avisos visuales y los demás clientes no cambian.";
         });
+    }
+
+    /** Refleja en la grilla y en el texto de ayuda si el horario se está aplicando o no. */
+    private void aplicarEstadoHorario() {
+        boolean activo = restringirHorario.isSelected();
+        if (horarioSemanal != null) {
+            horarioSemanal.setDisable(!activo);
+            horarioSemanal.setOpacity(activo ? 1.0 : 0.45);
+        }
+        estadoHorario.setText(activo
+                ? "Activado: el monitor solo consulta dentro de las horas de cada día marcado."
+                : "Desactivado: el monitor consulta a cualquier hora y los días y horas de abajo no se aplican. "
+                        + "Marca la casilla para usarlos.");
     }
 
     private static TextField campoHora(String ejemplo) {
@@ -500,6 +549,7 @@ final class EditorConfiguracion extends BorderPane {
             desdePorDia.get(dia).setText(franja == null ? "08:00" : franja.desde().toString());
             hastaPorDia.get(dia).setText(franja == null ? "16:00" : franja.hasta().toString());
         }
+        aplicarEstadoHorario();
         proteger.setSelected(configuracion.acceso().requerirContrasena());
         sonidoHabilitado.setSelected(configuracion.preferenciasAlertas().sonidoHabilitado());
         vozHabilitada.setSelected(configuracion.preferenciasAlertas().vozHabilitada());
@@ -699,6 +749,7 @@ final class EditorConfiguracion extends BorderPane {
             }
         });
         alcancePaso2.setValue(cliente.alcancePaso2());
+        actualizarCamposSegunReaccion();
         objetivos.setValues(formatearCriterios(cliente.seleccion().objetivos()));
         politica.setItems(FXCollections.observableArrayList(PoliticaSinObjetivo.values()));
         politica.setCellFactory(ignorado -> new ListCell<>() {
@@ -716,6 +767,7 @@ final class EditorConfiguracion extends BorderPane {
             }
         });
         politica.setValue(cliente.seleccion().siNoHayObjetivo());
+        actualizarSecuencia();
         alternativas.setValues(formatearCriterios(cliente.seleccion().alternativas()));
         tipoComodin.setText(cliente.seleccion().tipoComodin());
         departamento.setText(cliente.seleccion().direccionTenencia().departamento());
@@ -740,6 +792,49 @@ final class EditorConfiguracion extends BorderPane {
                 alcancePaso2.getValue() == null
                         ? AlcancePaso2.SELLAR_TRAMITE_COMPLETO
                         : alcancePaso2.getValue());
+    }
+
+    private static String textoModo(ModoReaccion modo) {
+        return switch (modo) {
+            case APARTAR -> "Apartar el arma automáticamente";
+            case ALERTA -> "Solo alertar (yo selecciono el arma)";
+        };
+    }
+
+    private static <T> void textosDe(ComboBox<T> combo, java.util.function.Function<T, String> texto) {
+        combo.setCellFactory(ignorado -> new ListCell<>() {
+            @Override
+            protected void updateItem(T item, boolean vacio) {
+                super.updateItem(item, vacio);
+                setText(vacio || item == null ? null : texto.apply(item));
+            }
+        });
+        combo.setButtonCell(new ListCell<>() {
+            @Override
+            protected void updateItem(T item, boolean vacio) {
+                super.updateItem(item, vacio);
+                setText(vacio || item == null ? null : texto.apply(item));
+            }
+        });
+    }
+
+    /**
+     * Muestra solo lo que aplica a la reacción elegida: la modalidad, los reintentos y el paso 2 existen
+     * únicamente cuando se aparta el arma, y la dirección únicamente si además la modalidad es TENENCIA.
+     */
+    private void actualizarCamposSegunReaccion() {
+        boolean apartar = modo.getValue() != ModoReaccion.ALERTA;
+        boolean tenencia = apartar && modalidad.getValue() == Modalidad.TENENCIA;
+        for (int i = 0; i < camposApartar.size(); i++) {
+            boolean direccionTenencia = i >= 1 && i <= 3;
+            boolean visible = direccionTenencia ? tenencia : apartar;
+            camposApartar.get(i).setVisible(visible);
+            camposApartar.get(i).setManaged(visible);
+        }
+        ayudaReaccion.setText(apartar
+                ? "Al encontrar un arma que cumpla, el sistema la aparta (paso 2) y después avisa."
+                : "Solo avisa cuando hay un arma que cumple; tú la seleccionas manualmente en el portal, "
+                        + "así que no hay modalidad, reintentos ni paso 2 que configurar.");
     }
 
     private static String textoAlcancePaso2(AlcancePaso2 alcance) {
@@ -781,12 +876,44 @@ final class EditorConfiguracion extends BorderPane {
 
     private static String textoPolitica(PoliticaSinObjetivo politica) {
         return switch (politica) {
-            case SEGUIR_ESPERANDO -> "Seguir esperando solo los objetivos";
-            case USAR_ALTERNATIVAS -> "Probar alternativas; si ninguna coincide, seguir esperando";
-            case CUALQUIERA_DEL_TIPO -> "Tomar la primera arma del tipo indicado";
-            case USAR_ALTERNATIVAS_LUEGO_TIPO ->
-                    "Probar alternativas y, si ninguna coincide, tomar la primera del tipo";
+            case SEGUIR_ESPERANDO -> "Solo objetivos: si no hay ninguno, seguir esperando";
+            case USAR_ALTERNATIVAS -> "Objetivos → alternativas (sin comodín)";
+            case CUALQUIERA_DEL_TIPO -> "Objetivos → comodín (sin alternativas)";
+            case USAR_ALTERNATIVAS_LUEGO_TIPO -> "Objetivos → alternativas → comodín";
         };
+    }
+
+    private static String secuencia(PoliticaSinObjetivo politica) {
+        String descartar = "Antes de todo se descartan las armas de la lista Excluir. ";
+        return descartar + switch (politica) {
+            case SEGUIR_ESPERANDO -> "Orden: 1) Objetivos. Si ninguno aparece no se toma nada y se sigue consultando; "
+                    + "las alternativas y el comodín no se usan.";
+            case USAR_ALTERNATIVAS -> "Orden: 1) Objetivos → 2) Alternativas. Si ninguna aparece no se toma nada; "
+                    + "el comodín no se usa.";
+            case CUALQUIERA_DEL_TIPO -> "Orden: 1) Objetivos → 2) Comodín (cualquier arma del tipo indicado). "
+                    + "Las alternativas no se usan.";
+            case USAR_ALTERNATIVAS_LUEGO_TIPO -> "Orden: 1) Objetivos → 2) Alternativas → 3) Comodín (cualquier "
+                    + "arma del tipo indicado). Si nada coincide no se toma nada.";
+        };
+    }
+
+    /** Explica la secuencia elegida y atenúa las listas que esa opción no utiliza. */
+    private void actualizarSecuencia() {
+        PoliticaSinObjetivo elegida = politica.getValue() == null
+                ? PoliticaSinObjetivo.SEGUIR_ESPERANDO : politica.getValue();
+        ayudaSecuencia.setText(secuencia(elegida));
+        boolean usaAlternativas = elegida == PoliticaSinObjetivo.USAR_ALTERNATIVAS
+                || elegida == PoliticaSinObjetivo.USAR_ALTERNATIVAS_LUEGO_TIPO;
+        boolean usaComodin = elegida == PoliticaSinObjetivo.CUALQUIERA_DEL_TIPO
+                || elegida == PoliticaSinObjetivo.USAR_ALTERNATIVAS_LUEGO_TIPO;
+        if (campoAlternativas != null) {
+            campoAlternativas.setDisable(!usaAlternativas);
+            campoAlternativas.setOpacity(usaAlternativas ? 1.0 : 0.45);
+        }
+        if (campoComodin != null) {
+            campoComodin.setDisable(!usaComodin);
+            campoComodin.setOpacity(usaComodin ? 1.0 : 0.45);
+        }
     }
 
     private Node descripcionConContador() {
@@ -907,7 +1034,8 @@ final class EditorConfiguracion extends BorderPane {
         private EditorNivelesEscalamiento() {
             super(7);
             Label nota = new Label(
-                    "Cada fila entra en vigor cuando la alerta lleva, al menos, el tiempo indicado sin reconocerse.");
+                    "Define qué se vuelve más insistente cuando una alerta lleva mucho tiempo sin reconocerse. "
+                            + "Elige el tiempo y las acciones, y pulsa Agregar nivel.");
             nota.getStyleClass().add("muted");
             nota.setWrapText(true);
             tonoNuevo.setItems(FXCollections.observableArrayList(TonoAlarma.values()));
@@ -926,12 +1054,25 @@ final class EditorConfiguracion extends BorderPane {
                 }
             });
             tonoNuevo.setValue(TonoAlarma.SIRENA);
-            Label etiquetaMinutos = new Label("Minutos de espera:");
+            minutosEspera.setEditable(true);
+            minutosEspera.setPrefWidth(84);
+            Label etiquetaMinutos = new Label("Cuando lleve");
+            Label unidadMinutos = new Label("minutos sin reconocer:");
+            forzarSonidoNuevo.setText("Forzar sonido");
+            forzarVozNuevo.setText("Forzar voz");
+            forzarSonidoNuevo.setTooltip(new Tooltip("Suena aunque el sonido esté silenciado"));
+            forzarVozNuevo.setTooltip(new Tooltip("Habla aunque la voz esté desactivada"));
+            Label etiquetaTono = new Label("Tono:");
             Button agregar = new Button("Agregar nivel");
             agregar.getStyleClass().add("secondary-button");
             agregar.setOnAction(event -> agregar());
-            HBox filaAgregar = new HBox(8, etiquetaMinutos, minutosEspera, forzarSonidoNuevo, forzarVozNuevo,
-                    tonoNuevo, agregar);
+            HBox condicion = new HBox(8, etiquetaMinutos, minutosEspera, unidadMinutos);
+            condicion.setAlignment(Pos.CENTER_LEFT);
+            HBox acciones = new HBox(14, forzarSonidoNuevo, forzarVozNuevo);
+            acciones.setAlignment(Pos.CENTER_LEFT);
+            HBox tono = new HBox(8, etiquetaTono, tonoNuevo, agregar);
+            tono.setAlignment(Pos.CENTER_LEFT);
+            VBox filaAgregar = new VBox(8, condicion, acciones, tono);
             lista.setPrefHeight(110);
             lista.setPlaceholder(new Label("Todavía no hay niveles configurados."));
             lista.setCellFactory(ignorado -> new ListCell<>() {
@@ -949,8 +1090,10 @@ final class EditorConfiguracion extends BorderPane {
                     niveles.remove(indice);
                 }
             });
-            HBox acciones = new HBox(7, quitar);
-            getChildren().addAll(nota, filaAgregar, lista, acciones);
+            HBox accionesLista = new HBox(7, quitar);
+            Label tituloLista = new Label("Niveles configurados (cada uno entra en vigor a partir de su tiempo):");
+            tituloLista.getStyleClass().add("muted");
+            getChildren().addAll(nota, filaAgregar, tituloLista, lista, accionesLista);
         }
 
         private static String textoNivel(NivelEscalamiento nivel) {

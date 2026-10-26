@@ -5,6 +5,11 @@
     -fx-text-fill: #0F172A;
 }
 
+/* Sin esto, el texto de casillas y etiquetas sin estilo propio sale en blanco sobre fondo claro. */
+.label, .check-box, .radio-button {
+    -fx-text-fill: #0F172A;
+}
+
 .app-root {
     -fx-background-color: #F8FAFC;
 }
@@ -868,4 +873,23 @@
 
 .dialog-pane > .content {
     -fx-padding: 14px;
+}
+
+/* Bitácora: hallazgos importantes (oportunidades y armas apartadas) destacados en la tabla. */
+.table-row-cell.bitacora-importante {
+    -fx-background-color: #FFF7ED;
+}
+
+.table-row-cell.bitacora-importante .table-cell {
+    -fx-font-weight: bold;
+}
+
+.table-view .column-header, .table-view .filler {
+    -fx-background-color: #F1F5F9;
+    -fx-border-color: transparent transparent #E2E8F0 transparent;
+}
+
+.table-view .column-header .label {
+    -fx-text-fill: #475569;
+    -fx-font-weight: bold;
 }

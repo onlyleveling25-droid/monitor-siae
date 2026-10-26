@@ -38,4 +38,44 @@ class FiltroBitacoraTest {
     private static EventoOperativo evento(String cliente, TipoEvento tipo, Duration antiguedad) {
         return new EventoOperativo(AHORA.minus(antiguedad), cliente, cliente, tipo, "detalle");
     }
+
+    @Test
+    void buscaPorTextoSinImportarTildesMayusculasNiGuiones() {
+        EventoOperativo glock = new EventoOperativo(AHORA.minusSeconds(10), "a", "Ana", TipoEvento.OPORTUNIDAD,
+                "Arma disponible", "05 - Medellín", "Pistola Glock G-43", null);
+        EventoOperativo cz = new EventoOperativo(AHORA.minusSeconds(20), "b", "Luis", TipoEvento.ARMA_APARTADA,
+                "Arma apartada", "16 - Bogotá", "Pistola CZ P10", null);
+        List<EventoOperativo> todos = List.of(glock, cz, viejo);
+
+        assertEquals(List.of(glock), new FiltroBitacora(null, null, null, "GLOCK g43").aplicar(todos, reloj));
+        assertEquals(List.of(cz), new FiltroBitacora(null, null, null, "bogota").aplicar(todos, reloj));
+        assertEquals(List.of(cz), new FiltroBitacora(null, null, null, "luis apartada").aplicar(todos, reloj));
+        assertEquals(List.of(), new FiltroBitacora(null, null, null, "glock cz").aplicar(todos, reloj));
+        assertEquals(3, new FiltroBitacora(null, null, null, "   ").aplicar(todos, reloj).size());
+    }
+
+    @Test
+    void indicaSiHayAlgunCriterioActivo() {
+        assertEquals(false, FiltroBitacora.TODO.activo());
+        assertEquals(true, new FiltroBitacora("a", null, null).activo());
+        assertEquals(true, new FiltroBitacora(null, null, null, "glock").activo());
+        assertEquals(false, new FiltroBitacora(null, null, null, " - ").activo());
+    }
+
+    @Test
+    void variasAlternativasSeSeparanConOComaOBarra() {
+        EventoOperativo medellin = new EventoOperativo(AHORA.minusSeconds(10), "a", "Ana", TipoEvento.OPORTUNIDAD,
+                "Arma disponible", "05 - Medellín", "Pistola Glock G-43", null);
+        EventoOperativo bogota = new EventoOperativo(AHORA.minusSeconds(20), "b", "Luis", TipoEvento.ARMA_APARTADA,
+                "Arma apartada", "16 - Bogotá", "Pistola CZ P10", null);
+        EventoOperativo cali = new EventoOperativo(AHORA.minusSeconds(30), "b", "Luis", TipoEvento.OPORTUNIDAD,
+                "Arma disponible", "76 - Cali", "Revólver", null);
+        List<EventoOperativo> todos = List.of(medellin, bogota, cali);
+
+        assertEquals(List.of(medellin, bogota), new FiltroBitacora(null, null, null, "medellin o bogota").aplicar(todos, reloj));
+        assertEquals(List.of(medellin, bogota), new FiltroBitacora(null, null, null, "Medellín, Bogotá").aplicar(todos, reloj));
+        assertEquals(List.of(medellin, bogota), new FiltroBitacora(null, null, null, "medellin | bogota").aplicar(todos, reloj));
+        assertEquals(List.of(bogota), new FiltroBitacora(null, null, null, "cz o glock luis").aplicar(todos, reloj));
+        assertEquals(List.of(), new FiltroBitacora(null, null, null, "pereira o").aplicar(todos, reloj));
+    }
 }

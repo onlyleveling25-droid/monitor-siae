@@ -104,7 +104,8 @@ La barra lateral también ofrece dos páginas de solo lectura:
 - **Bitácora**: eventos operativos por cliente, tipo y periodo (inicio y detención del monitoreo,
   oportunidades, armas apartadas, apartados fallidos, sesión vencida y respuestas inesperadas). No
   registra cada consulta sin novedad. Se guarda en `bitacora.json`, dentro de la carpeta de datos, y
-  se conservan como máximo 1000 eventos de los últimos 30 días.
+  se conservan como máximo 1000 eventos de los últimos 30 días. Permite buscar por texto, filtrar,
+  ver el detalle de cada evento (doble clic), abrir el inventario guardado y exportar a CSV (Excel).
 - **Diagnóstico**: revisa configuración, navegador, almacenamiento, audio/voz y horario, y propone
   qué hacer. No abre el portal ni cambia nada.
 

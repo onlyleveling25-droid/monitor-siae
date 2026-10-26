@@ -10,6 +10,7 @@ import java.time.LocalTime;
 import java.time.ZoneOffset;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -62,7 +63,36 @@ class VentanaHorariaTest {
         assertTrue(sabado10.permiteAhora());
         assertFalse(sabado13.permiteAhora());
         assertFalse(martes10.permiteAhora());
-        assertTrue(sabado13.motivoFueraDeHorario().contains("sáb 09:00 a 12:00"));
-        assertTrue(sabado13.motivoFueraDeHorario().contains("lun 08:00 a 16:00"));
+        assertTrue(sabado13.motivoFueraDeHorario().contains("hoy sábado: 09:00 a 12:00"));
+        assertTrue(sabado13.motivoFueraDeHorario().contains("el lunes a las 08:00"));
+        assertTrue(martes10.motivoFueraDeHorario().contains("hoy martes: sin consulta"));
+    }
+
+    @Test
+    void anunciaCuandoSeRetomaLaConsulta() {
+        HorarioOperacion horario = new HorarioOperacion(true, java.util.Map.of(
+                DayOfWeek.MONDAY, new co.monitorsiae.dominio.FranjaHoraria(LocalTime.of(7, 0), LocalTime.of(10, 0)),
+                DayOfWeek.TUESDAY, new co.monitorsiae.dominio.FranjaHoraria(LocalTime.of(7, 0), LocalTime.of(19, 0))),
+                HorarioOperacion.ZONA_COLOMBIA);
+        // Lunes 2026-10-26 10:30 en Colombia = 15:30 UTC; a las 05:00 (10:00 UTC) aún no abre.
+        VentanaHoraria despuesDeCerrar = new VentanaHoraria(horario,
+                Clock.fixed(Instant.parse("2026-10-26T15:30:00Z"), ZoneOffset.UTC));
+        VentanaHoraria antesDeAbrir = new VentanaHoraria(horario,
+                Clock.fixed(Instant.parse("2026-10-26T10:00:00Z"), ZoneOffset.UTC));
+
+        assertFalse(despuesDeCerrar.permiteAhora());
+        assertTrue(despuesDeCerrar.motivoFueraDeHorario().contains("mañana a las 07:00"));
+        assertTrue(antesDeAbrir.motivoFueraDeHorario().contains("hoy a las 07:00"));
+        assertEquals(java.time.LocalTime.of(7, 0), despuesDeCerrar.proximaApertura().orElseThrow().toLocalTime());
+    }
+
+    @Test
+    void sinNingunDiaConfiguradoNoHayProximaApertura() {
+        VentanaHoraria vacia = new VentanaHoraria(
+                new HorarioOperacion(true, java.util.Map.of(), HorarioOperacion.ZONA_COLOMBIA),
+                Clock.fixed(Instant.parse("2026-10-26T15:30:00Z"), ZoneOffset.UTC));
+
+        assertTrue(vacia.proximaApertura().isEmpty());
+        assertTrue(vacia.motivoFueraDeHorario().contains("Ningún día tiene horario"));
     }
 }

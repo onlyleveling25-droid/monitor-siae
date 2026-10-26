@@ -100,7 +100,12 @@ registro y las alarmas), `RepositorioBitacoraJson` (escritura atómica en `bitac
 independiente de la configuración) y la página `PaginaBitacora` con filtros de cliente, tipo y periodo.
 Solo se registran inicio y detención del monitoreo, oportunidades, armas apartadas, apartados fallidos,
 sesión vencida y respuestas inesperadas; un mismo hallazgo repetido se anota una vez. Retención:
-1000 eventos y 30 días. El detalle se limita a 300 caracteres y solo usa las descripciones de
+1000 eventos y 30 días. Mejoras posteriores (2026-10-26): cada evento guarda además seccional, arma y,
+en las detenciones, la duración del monitoreo (los archivos anteriores siguen leyéndose); la página
+muestra un resumen de las últimas 24 horas, etiquetas de color por tipo, hora relativa, filas
+destacadas para oportunidades y armas apartadas, búsqueda de texto, botón Quitar filtros, detalle con
+doble clic (con acceso al inventario guardado en ese momento) y exportación a CSV para Excel, con las
+celdas neutralizadas frente a fórmulas. El detalle se limita a 300 caracteres y solo usa las descripciones de
 resultado, nunca credenciales ni datos de sesión. Un fallo al escribir se registra en el log y no
 interrumpe el monitoreo.
 

@@ -111,4 +111,18 @@ class ValidadorConfiguracionTest {
 
         assertEquals(1, validador.validar(Configuracion.porDefecto().conHorario(vacio)).size());
     }
+
+    @Test
+    void laDireccionDeTenenciaSoloSeExigeAlApartar() {
+        ReglasSeleccion base = ClientesDePrueba.valido("Ana").seleccion();
+        ReglasSeleccion tenenciaSinDireccion = new ReglasSeleccion(Modalidad.TENENCIA, base.objetivos(),
+                base.siNoHayObjetivo(), base.alternativas(), base.tipoComodin(), base.excluir(), base.reintentos());
+        Cliente apartando = ClientesDePrueba.conReglas("Ana", tenenciaSinDireccion);
+        Cliente soloAlerta = new Cliente(apartando.id(), apartando.nombre(), true, apartando.tramite(),
+                ModoReaccion.ALERTA, tenenciaSinDireccion);
+
+        assertTrue(validador.validar(conCliente(apartando)).stream()
+                .anyMatch(p -> p.mensaje().contains("TENENCIA")));
+        assertTrue(validador.validar(conCliente(soloAlerta)).isEmpty());
+    }
 }

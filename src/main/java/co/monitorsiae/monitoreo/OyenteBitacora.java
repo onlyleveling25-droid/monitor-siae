@@ -6,6 +6,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -22,6 +24,7 @@ public final class OyenteBitacora implements OyenteMonitoreo {
     private final RepositorioBitacora bitacora;
     private final Clock reloj;
     private final Map<String, String> ultimoPorCliente = new ConcurrentHashMap<>();
+    private final Map<String, Instant> inicioPorCliente = new ConcurrentHashMap<>();
 
     public OyenteBitacora(RepositorioBitacora bitacora, Clock reloj) {
         this.bitacora = Objects.requireNonNull(bitacora);
@@ -31,7 +34,12 @@ public final class OyenteBitacora implements OyenteMonitoreo {
     @Override
     public void alIniciar(Cliente cliente) {
         ultimoPorCliente.remove(cliente.id());
-        anotar(cliente, TipoEvento.MONITOREO_INICIADO, "Se inició el monitoreo.");
+        inicioPorCliente.put(cliente.id(), reloj.instant());
+        String seccionales = String.join(", ", cliente.tramite().seccionales());
+        anotar(cliente, TipoEvento.MONITOREO_INICIADO,
+                seccionales.isEmpty() ? "Se inició el monitoreo."
+                        : "Se inició el monitoreo. Seccionales que busca: " + seccionales + ".",
+                seccionales, "", null);
     }
 
     @Override
@@ -51,18 +59,38 @@ public final class OyenteBitacora implements OyenteMonitoreo {
         if (clave.equals(ultimoPorCliente.put(cliente.id(), clave))) {
             return;
         }
-        anotar(cliente, tipo, resultado.descripcion());
+        String seccional = switch (resultado) {
+            case ResultadoCiclo.ArmaEncontrada e -> e.seccional();
+            case ResultadoCiclo.ArmaApartada a -> a.seccional();
+            case ResultadoCiclo.ApartadoFallido f -> f.seccional();
+            default -> "";
+        };
+        String arma = switch (resultado) {
+            case ResultadoCiclo.ArmaEncontrada e -> e.eleccion().arma().descripcion();
+            case ResultadoCiclo.ArmaApartada a -> a.eleccion().arma().descripcion();
+            case ResultadoCiclo.ApartadoFallido f -> f.eleccion().arma().descripcion();
+            default -> "";
+        };
+        anotar(cliente, tipo, resultado.descripcion(), seccional, arma, null);
     }
 
     @Override
     public void alDetenerse(Cliente cliente, MotivoDetencion motivo) {
         ultimoPorCliente.remove(cliente.id());
-        anotar(cliente, TipoEvento.MONITOREO_DETENIDO, "Monitoreo detenido: " + texto(motivo) + ".");
+        Instant inicio = inicioPorCliente.remove(cliente.id());
+        Duration duracion = inicio == null ? null : Duration.between(inicio, reloj.instant());
+        EventoOperativo conDuracion = new EventoOperativo(reloj.instant(), cliente.id(), cliente.nombre(),
+                TipoEvento.MONITOREO_DETENIDO, "", "", "", duracion);
+        String duro = duracion == null ? "" : " Duró " + conDuracion.duracionTexto() + ".";
+        anotar(cliente, TipoEvento.MONITOREO_DETENIDO,
+                "Monitoreo detenido: " + texto(motivo) + "." + duro, "", "", duracion);
     }
 
-    private void anotar(Cliente cliente, TipoEvento tipo, String detalle) {
+    private void anotar(Cliente cliente, TipoEvento tipo, String detalle, String seccional, String arma,
+                        Duration duracion) {
         try {
-            bitacora.registrar(new EventoOperativo(reloj.instant(), cliente.id(), cliente.nombre(), tipo, detalle));
+            bitacora.registrar(new EventoOperativo(reloj.instant(), cliente.id(), cliente.nombre(), tipo, detalle,
+                    seccional, arma, duracion));
         } catch (RuntimeException e) {
             REGISTRO.warn("No se pudo escribir en la bitácora; el monitoreo continúa.", e);
         }

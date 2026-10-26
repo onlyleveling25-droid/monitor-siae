@@ -1,62 +1,116 @@
 package co.monitorsiae.ui;
 
+import co.monitorsiae.app.ExportadorBitacoraCsv;
 import co.monitorsiae.dominio.Cliente;
 import co.monitorsiae.monitoreo.EventoOperativo;
 import co.monitorsiae.monitoreo.FiltroBitacora;
+import co.monitorsiae.monitoreo.ResumenBitacora;
+import co.monitorsiae.monitoreo.TiempoRelativo;
 import co.monitorsiae.monitoreo.TipoEvento;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
+import javafx.beans.property.ReadOnlyObjectWrapper;
+import javafx.beans.property.SimpleStringProperty;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonBar;
+import javafx.scene.control.ButtonType;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
+import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableRow;
 import javafx.scene.control.TableView;
+import javafx.scene.control.TextArea;
+import javafx.scene.control.TextField;
+import javafx.scene.control.Tooltip;
+import javafx.scene.input.KeyCode;
+import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
+import javafx.stage.FileChooser;
+import javafx.util.Duration;
 import javafx.util.StringConverter;
 
+import java.nio.file.Path;
 import java.time.Clock;
-import java.time.Duration;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
-/** Eventos operativos por cliente, tipo y periodo. Solo lee; no cambia el monitoreo. */
+/** Eventos operativos por cliente, tipo, periodo y texto. Solo lee; no cambia el monitoreo. */
 final class PaginaBitacora extends VBox {
 
-    private static final DateTimeFormatter FORMATO = DateTimeFormatter.ofPattern("dd/MM HH:mm:ss");
+    private static final java.time.Duration PERIODO_RESUMEN = java.time.Duration.ofHours(24);
 
     private final Supplier<List<EventoOperativo>> eventos;
     private final Supplier<List<Cliente>> clientes;
+    private final Consumer<EventoOperativo> verInventario;
     private final Clock reloj = Clock.systemUTC();
+    private final ZoneId zona = ZoneId.systemDefault();
     private final ComboBox<Cliente> filtroCliente = new ComboBox<>();
     private final ComboBox<TipoEvento> filtroTipo = new ComboBox<>();
-    private final ComboBox<Duration> filtroPeriodo = new ComboBox<>();
+    private final ComboBox<java.time.Duration> filtroPeriodo = new ComboBox<>();
+    private final TextField busqueda = new TextField();
+    private final Button quitarFiltros = new Button("Quitar filtros");
     private final TableView<EventoOperativo> tabla = new TableView<>();
     private final Label cuenta = new Label();
     private final Label aviso = new Label();
+    private final Label oportunidades = new Label("0");
+    private final Label apartadas = new Label("0");
+    private final Label problemas = new Label("0");
+    private List<EventoOperativo> visibles = List.of();
+    /** Evita que cambiar la lista del selector (que borra su valor) vuelva a disparar la actualización. */
+    private boolean actualizando;
 
-    PaginaBitacora(Supplier<List<EventoOperativo>> eventos, Supplier<List<Cliente>> clientes) {
-        super(18);
+    PaginaBitacora(Supplier<List<EventoOperativo>> eventos, Supplier<List<Cliente>> clientes,
+                   Consumer<EventoOperativo> verInventario) {
+        super(16);
         this.eventos = eventos;
         this.clientes = clientes;
+        this.verInventario = verInventario;
         setPadding(new Insets(28, 32, 28, 32));
         Label titulo = new Label("Bitácora");
         titulo.getStyleClass().add("page-title");
         Label subtitulo = new Label("Hechos relevantes de cada cliente. Los ciclos sin novedad no se registran; "
-                + "se conservan los últimos 30 días.");
+                + "se conservan los últimos 30 días. Haz doble clic en un evento para ver su detalle.");
         subtitulo.getStyleClass().add("muted");
         subtitulo.setWrapText(true);
-        VBox encabezado = new VBox(4, titulo, subtitulo);
+        VBox titulos = new VBox(4, titulo, subtitulo);
+        HBox.setHgrow(titulos, Priority.ALWAYS);
+        Button exportar = new Button("Exportar CSV");
+        exportar.getStyleClass().add("secondary-button");
+        exportar.setTooltip(new Tooltip("Guarda los eventos que ves ahora (con los filtros) en un archivo para Excel"));
+        exportar.setOnAction(e -> exportar());
+        HBox encabezado = new HBox(14, titulos, exportar);
+        encabezado.setAlignment(Pos.CENTER_LEFT);
         encabezado.getStyleClass().add("page-header");
+
+        HBox resumen = new HBox(12,
+                tarjeta("Oportunidades · 24 h", oportunidades, "bell", "#EA580C"),
+                tarjeta("Armas apartadas · 24 h", apartadas, "check", "#15803D"),
+                tarjeta("Problemas · 24 h", problemas, "alert", "#B91C1C"));
 
         configurarFiltros();
         Button actualizar = new Button("Actualizar");
         actualizar.getStyleClass().add("secondary-button");
         actualizar.setOnAction(e -> actualizar());
-        HBox filtros = new HBox(10, filtroCliente, filtroTipo, filtroPeriodo, actualizar);
+        quitarFiltros.getStyleClass().add("text-button");
+        quitarFiltros.setTooltip(new Tooltip("Vuelve a mostrar todos los eventos"));
+        quitarFiltros.setOnAction(e -> {
+            filtroCliente.setValue(null);
+            filtroTipo.setValue(null);
+            filtroPeriodo.setValue(null);
+            busqueda.clear();
+        });
+        HBox filtros = new HBox(10, busqueda, filtroCliente, filtroTipo, filtroPeriodo, quitarFiltros, actualizar);
         filtros.setAlignment(Pos.CENTER_LEFT);
 
         aviso.getStyleClass().add("validation-banner");
@@ -65,26 +119,56 @@ final class PaginaBitacora extends VBox {
         cuenta.getStyleClass().add("muted");
         configurarTabla();
         VBox.setVgrow(tabla, Priority.ALWAYS);
-        getChildren().addAll(encabezado, filtros, aviso, tabla, cuenta);
+        getChildren().addAll(encabezado, resumen, filtros, aviso, tabla, cuenta);
+        Timeline reloj = new Timeline(new KeyFrame(Duration.seconds(30), e -> {
+            if (getScene() != null) {
+                tabla.refresh();
+            }
+        }));
+        reloj.setCycleCount(Timeline.INDEFINITE);
+        reloj.play();
         actualizar();
     }
 
     /** Vuelve a leer los clientes y los eventos; lo llama la navegación al mostrar la página. */
     void actualizar() {
+        if (actualizando) {
+            return;
+        }
+        actualizando = true;
+        try {
+            refrescar();
+        } finally {
+            actualizando = false;
+        }
+    }
+
+    private void refrescar() {
         Cliente elegido = filtroCliente.getValue();
         List<Cliente> lista = clientes.get();
-        filtroCliente.getItems().setAll(lista);
+        if (!lista.equals(filtroCliente.getItems())) {
+            filtroCliente.getItems().setAll(lista);
+        }
         filtroCliente.setValue(elegido == null ? null
                 : lista.stream().filter(c -> c.id().equals(elegido.id())).findFirst().orElse(null));
         try {
+            List<EventoOperativo> todos = eventos.get();
             FiltroBitacora filtro = new FiltroBitacora(
                     filtroCliente.getValue() == null ? null : filtroCliente.getValue().id(),
-                    filtroTipo.getValue(), filtroPeriodo.getValue());
-            List<EventoOperativo> visibles = filtro.aplicar(eventos.get(), reloj);
+                    filtroTipo.getValue(), filtroPeriodo.getValue(), busqueda.getText());
+            visibles = filtro.aplicar(todos, reloj);
             tabla.getItems().setAll(visibles);
-            cuenta.setText(visibles.size() + " evento(s)");
+            quitarFiltros.setDisable(!filtro.activo());
+            cuenta.setText(filtro.activo()
+                    ? visibles.size() + " de " + todos.size() + " evento(s) con los filtros actuales"
+                    : todos.size() + " evento(s) en total");
+            ResumenBitacora conteo = ResumenBitacora.de(todos, reloj, PERIODO_RESUMEN);
+            oportunidades.setText(String.valueOf(conteo.oportunidades()));
+            apartadas.setText(String.valueOf(conteo.apartadas()));
+            problemas.setText(String.valueOf(conteo.problemas()));
             ocultarAviso();
         } catch (RuntimeException e) {
+            visibles = List.of();
             tabla.getItems().clear();
             cuenta.setText("");
             aviso.setText("No se pudo leer la bitácora: " + e.getMessage()
@@ -94,40 +178,214 @@ final class PaginaBitacora extends VBox {
         }
     }
 
+    private static VBox tarjeta(String titulo, Label valor, String icono, String color) {
+        HBox encabezado = new HBox(8, IconoSvg.crear(icono, 16, color), new Label(titulo));
+        encabezado.setAlignment(Pos.CENTER_LEFT);
+        encabezado.getStyleClass().add("metric-heading");
+        valor.getStyleClass().add("metric-value");
+        VBox tarjeta = new VBox(8, encabezado, valor);
+        tarjeta.getStyleClass().add("metric-card");
+        HBox.setHgrow(tarjeta, Priority.ALWAYS);
+        tarjeta.setMaxWidth(Double.MAX_VALUE);
+        return tarjeta;
+    }
+
     private void configurarFiltros() {
+        busqueda.setPromptText("Buscar: glock, bogotá o medellín…");
+        busqueda.setTooltip(new Tooltip("Busca en cliente, tipo, detalle, seccional y arma. Usa \"o\" o coma para ver varias opciones."));
+        busqueda.setPrefColumnCount(18);
+        busqueda.textProperty().addListener((obs, antes, ahora) -> actualizar());
         filtroCliente.setPromptText("Todos los clientes");
         filtroCliente.setConverter(convertidor(Cliente::nombre));
         filtroTipo.setPromptText("Todos los tipos");
         filtroTipo.getItems().setAll(TipoEvento.values());
         filtroTipo.setConverter(convertidor(TipoEvento::etiqueta));
         filtroPeriodo.setPromptText("Todo el periodo");
-        filtroPeriodo.getItems().setAll(Duration.ofHours(1), Duration.ofDays(1), Duration.ofDays(7));
+        filtroPeriodo.getItems().setAll(java.time.Duration.ofHours(1), java.time.Duration.ofDays(1),
+                java.time.Duration.ofDays(7));
         filtroPeriodo.setConverter(convertidor(PaginaBitacora::etiquetaPeriodo));
         for (ComboBox<?> combo : List.of(filtroCliente, filtroTipo, filtroPeriodo)) {
             combo.valueProperty().addListener((obs, antes, ahora) -> actualizar());
-            combo.setMinWidth(180);
+            combo.setMinWidth(170);
         }
     }
 
     private void configurarTabla() {
         tabla.getStyleClass().add("client-list");
         tabla.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
-        tabla.setPlaceholder(new Label("Aún no hay eventos con estos filtros."));
-        tabla.getColumns().add(columna("Hora", 120,
-                e -> FORMATO.format(e.momento().atZone(ZoneId.systemDefault()))));
-        tabla.getColumns().add(columna("Cliente", 160, EventoOperativo::clienteNombre));
-        tabla.getColumns().add(columna("Tipo", 170, e -> e.tipo().etiqueta()));
-        tabla.getColumns().add(columna("Detalle", 400, EventoOperativo::detalle));
+        tabla.setPlaceholder(new Label("No hay eventos con estos filtros."));
+        TableColumn<EventoOperativo, EventoOperativo> hora = new TableColumn<>("Hora");
+        hora.setPrefWidth(130);
+        hora.setSortable(false);
+        hora.setCellValueFactory(celda -> new ReadOnlyObjectWrapper<>(celda.getValue()));
+        hora.setCellFactory(columna -> new TableCell<>() {
+            @Override
+            protected void updateItem(EventoOperativo evento, boolean vacio) {
+                super.updateItem(evento, vacio);
+                if (vacio || evento == null) {
+                    setText(null);
+                    setTooltip(null);
+                    return;
+                }
+                setText(TiempoRelativo.texto(evento.momento(), reloj, zona));
+                setTooltip(new Tooltip(TiempoRelativo.completo(evento.momento(), zona)));
+            }
+        });
+        TableColumn<EventoOperativo, EventoOperativo> tipo = new TableColumn<>("Tipo");
+        tipo.setPrefWidth(190);
+        tipo.setSortable(false);
+        tipo.setCellValueFactory(celda -> new ReadOnlyObjectWrapper<>(celda.getValue()));
+        tipo.setCellFactory(columna -> new TableCell<>() {
+            @Override
+            protected void updateItem(EventoOperativo evento, boolean vacio) {
+                super.updateItem(evento, vacio);
+                setGraphic(vacio || evento == null ? null : etiquetaTipo(evento.tipo()));
+                setText(null);
+            }
+        });
+        tabla.getColumns().add(hora);
+        tabla.getColumns().add(texto("Cliente", 150, EventoOperativo::clienteNombre));
+        tabla.getColumns().add(tipo);
+        tabla.getColumns().add(texto("Seccional", 140, EventoOperativo::seccional));
+        tabla.getColumns().add(texto("Detalle", 420, EventoOperativo::detalle));
+        tabla.setRowFactory(t -> {
+            TableRow<EventoOperativo> fila = new TableRow<>() {
+                @Override
+                protected void updateItem(EventoOperativo evento, boolean vacio) {
+                    super.updateItem(evento, vacio);
+                    getStyleClass().remove("bitacora-importante");
+                    if (!vacio && evento != null && evento.tipo().importante()) {
+                        getStyleClass().add("bitacora-importante");
+                    }
+                }
+            };
+            fila.setOnMouseClicked(e -> {
+                if (e.getClickCount() == 2 && !fila.isEmpty()) {
+                    mostrarDetalle(fila.getItem());
+                }
+            });
+            return fila;
+        });
+        tabla.setOnKeyPressed(e -> {
+            if (e.getCode() == KeyCode.ENTER && tabla.getSelectionModel().getSelectedItem() != null) {
+                mostrarDetalle(tabla.getSelectionModel().getSelectedItem());
+            }
+        });
     }
 
-    private static TableColumn<EventoOperativo, String> columna(String titulo, double ancho,
-            java.util.function.Function<EventoOperativo, String> valor) {
+    private static TableColumn<EventoOperativo, String> texto(String titulo, double ancho,
+            Function<EventoOperativo, String> valor) {
         TableColumn<EventoOperativo, String> columna = new TableColumn<>(titulo);
         columna.setPrefWidth(ancho);
         columna.setSortable(false);
-        columna.setCellValueFactory(celda ->
-                new javafx.beans.property.SimpleStringProperty(valor.apply(celda.getValue())));
+        columna.setCellValueFactory(celda -> new SimpleStringProperty(valor.apply(celda.getValue())));
         return columna;
+    }
+
+    /** Etiqueta de color e icono por tipo de evento. */
+    private static Label etiquetaTipo(TipoEvento tipo) {
+        String clase;
+        String icono;
+        String color;
+        switch (tipo) {
+            case OPORTUNIDAD -> { clase = "status-alert"; icono = "bell"; color = "#C2410C"; }
+            case ARMA_APARTADA -> { clase = "status-success"; icono = "check"; color = "#15803D"; }
+            case APARTADO_FALLIDO, SESION_VENCIDA -> { clase = "status-error"; icono = "alert"; color = "#B91C1C"; }
+            case RESPUESTA_INESPERADA -> { clase = "status-waiting"; icono = "diagnostics"; color = "#B45309"; }
+            case MONITOREO_INICIADO -> { clase = "status-running"; icono = "activity"; color = "#1D4ED8"; }
+            default -> { clase = "status-ready"; icono = "info"; color = "#64748B"; }
+        }
+        Label etiqueta = new Label(tipo.etiqueta(), IconoSvg.crear(icono, 13, color));
+        etiqueta.setGraphicTextGap(6);
+        etiqueta.getStyleClass().addAll("status-pill", clase);
+        return etiqueta;
+    }
+
+    private void mostrarDetalle(EventoOperativo evento) {
+        Alert dialogo = new Alert(Alert.AlertType.NONE);
+        if (getScene() != null) {
+            dialogo.initOwner(getScene().getWindow());
+        }
+        EstilosJavaFx.aplicar(dialogo.getDialogPane());
+        dialogo.setTitle("Detalle del evento");
+        GridPane datos = new GridPane();
+        datos.setHgap(14);
+        datos.setVgap(8);
+        int fila = 0;
+        fila = dato(datos, fila, "Tipo", null, etiquetaTipo(evento.tipo()));
+        fila = dato(datos, fila, "Cuándo", TiempoRelativo.completo(evento.momento(), zona), null);
+        fila = dato(datos, fila, "Cliente", evento.clienteNombre(), null);
+        if (!evento.seccional().isEmpty()) {
+            fila = dato(datos, fila, "Seccional", evento.seccional(), null);
+        }
+        if (!evento.arma().isEmpty()) {
+            fila = dato(datos, fila, "Arma", evento.arma(), null);
+        }
+        if (evento.duracion() != null) {
+            fila = dato(datos, fila, "Duración", evento.duracionTexto(), null);
+        }
+        TextArea texto = new TextArea(evento.detalle());
+        texto.setEditable(false);
+        texto.setWrapText(true);
+        texto.setPrefRowCount(4);
+        texto.setPrefWidth(460);
+        VBox contenido = new VBox(12, datos, new Label("Detalle completo"), texto);
+        contenido.setPadding(new Insets(18, 20, 6, 20));
+        dialogo.getDialogPane().setContent(contenido);
+        ButtonType cerrar = new ButtonType("Cerrar", ButtonBar.ButtonData.CANCEL_CLOSE);
+        ButtonType inventario = new ButtonType("Ver inventario guardado", ButtonBar.ButtonData.OK_DONE);
+        if (evento.tipo().conInventario()) {
+            dialogo.getButtonTypes().setAll(inventario, cerrar);
+        } else {
+            dialogo.getButtonTypes().setAll(cerrar);
+        }
+        dialogo.showAndWait().filter(boton -> boton == inventario).ifPresent(boton -> verInventario.accept(evento));
+    }
+
+    private static int dato(GridPane rejilla, int fila, String nombre, String valor, javafx.scene.Node nodo) {
+        Label etiqueta = new Label(nombre);
+        etiqueta.getStyleClass().add("muted");
+        rejilla.add(etiqueta, 0, fila);
+        if (nodo != null) {
+            rejilla.add(nodo, 1, fila);
+        } else {
+            Label contenido = new Label(valor);
+            contenido.setWrapText(true);
+            rejilla.add(contenido, 1, fila);
+        }
+        return fila + 1;
+    }
+
+    private void exportar() {
+        if (visibles.isEmpty()) {
+            mostrarAviso(Alert.AlertType.INFORMATION, "No hay eventos para exportar con los filtros actuales.");
+            return;
+        }
+        FileChooser selector = new FileChooser();
+        selector.setTitle("Exportar bitácora");
+        selector.getExtensionFilters().add(new FileChooser.ExtensionFilter("Archivo CSV (Excel)", "*.csv"));
+        selector.setInitialFileName("bitacora-monitor-siae-"
+                + DateTimeFormatter.ofPattern("yyyyMMdd-HHmm").format(LocalDateTime.now()) + ".csv");
+        java.io.File archivo = selector.showSaveDialog(getScene() == null ? null : getScene().getWindow());
+        if (archivo == null) {
+            return;
+        }
+        try {
+            ExportadorBitacoraCsv.escribir(Path.of(archivo.getPath()), visibles, zona);
+            mostrarAviso(Alert.AlertType.INFORMATION, visibles.size() + " evento(s) guardados en " + archivo.getName());
+        } catch (java.io.IOException | RuntimeException e) {
+            mostrarAviso(Alert.AlertType.ERROR, "No se pudo guardar el archivo: " + e.getMessage());
+        }
+    }
+
+    private void mostrarAviso(Alert.AlertType tipo, String mensaje) {
+        Alert alerta = new Alert(tipo, mensaje);
+        if (getScene() != null) {
+            alerta.initOwner(getScene().getWindow());
+        }
+        EstilosJavaFx.aplicar(alerta.getDialogPane());
+        alerta.setHeaderText(null);
+        alerta.showAndWait();
     }
 
     private void ocultarAviso() {
@@ -135,14 +393,14 @@ final class PaginaBitacora extends VBox {
         aviso.setManaged(false);
     }
 
-    private static String etiquetaPeriodo(Duration periodo) {
+    private static String etiquetaPeriodo(java.time.Duration periodo) {
         if (periodo.toHours() < 24) {
             return "Última hora";
         }
         return periodo.toDays() == 1 ? "Últimas 24 horas" : "Últimos " + periodo.toDays() + " días";
     }
 
-    private static <T> StringConverter<T> convertidor(java.util.function.Function<T, String> texto) {
+    private static <T> StringConverter<T> convertidor(Function<T, String> texto) {
         return new StringConverter<>() {
             @Override
             public String toString(T valor) {

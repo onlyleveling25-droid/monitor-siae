@@ -58,7 +58,7 @@ public final class ValidadorConfiguracion {
             problemas.add(new ProblemaConfiguracion(ubicacion, "Falta el nombre."));
         }
         validarTramite(ubicacion, cliente.tramite(), problemas);
-        validarSeleccion(ubicacion, cliente.seleccion(), problemas);
+        validarSeleccion(ubicacion, cliente.seleccion(), cliente.modo(), problemas);
     }
 
     private void validarTramite(String ubicacion, ParametrosTramite tramite, List<ProblemaConfiguracion> problemas) {
@@ -80,7 +80,8 @@ public final class ValidadorConfiguracion {
         }
     }
 
-    private void validarSeleccion(String ubicacion, ReglasSeleccion reglas, List<ProblemaConfiguracion> problemas) {
+    private void validarSeleccion(String ubicacion, ReglasSeleccion reglas, ModoReaccion modo,
+                                  List<ProblemaConfiguracion> problemas) {
         if (reglas.objetivos().stream().anyMatch(criterio -> criterio.palabrasClave().isEmpty())
                 || reglas.alternativas().stream().anyMatch(criterio -> criterio.palabrasClave().isEmpty())) {
             problemas.add(new ProblemaConfiguracion(ubicacion, "Hay un arma sin palabras clave."));
@@ -118,7 +119,9 @@ public final class ValidadorConfiguracion {
                     "Los reintentos no pueden ser más de " + REINTENTOS_MAXIMOS + "."));
         }
 
-        if (reglas.modalidad() == Modalidad.TENENCIA && !reglas.direccionTenencia().completa()) {
+        // La dirección solo se usa al apartar: en modo ALERTA la modalidad no se ejecuta.
+        if (modo == ModoReaccion.APARTAR && reglas.modalidad() == Modalidad.TENENCIA
+                && !reglas.direccionTenencia().completa()) {
             problemas.add(new ProblemaConfiguracion(ubicacion,
                     "La modalidad es TENENCIA: complete departamento, ciudad y dirección."));
         }

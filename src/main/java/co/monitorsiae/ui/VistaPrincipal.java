@@ -14,6 +14,7 @@ import co.monitorsiae.app.ServicioDiagnostico;
 import co.monitorsiae.dominio.Cliente;
 import co.monitorsiae.dominio.Configuracion;
 import co.monitorsiae.dominio.EntornoPortal;
+import co.monitorsiae.monitoreo.EventoOperativo;
 import co.monitorsiae.monitoreo.SnapshotInventario;
 import co.monitorsiae.notificacion.Alerta;
 import co.monitorsiae.notificacion.CentralAlertas;
@@ -320,6 +321,10 @@ public final class VistaPrincipal extends BorderPane {
             transicion.setFromValue(0.95);
             transicion.setToValue(0.3);
             transicion.playFromStart();
+        }
+        if (cliente != null && estado == CoordinadorMonitores.Estado.FUERA_DE_HORARIO
+                && !estadoAnterior.equals(textoEstado(estado))) {
+            mostrarAvisoVisual(cliente.nombre() + ": " + monitores.ultimoResultado(clienteId), TipoAviso.INFO);
         }
         if (cliente != null && servicio.configuracion().entornoPortal() == EntornoPortal.PORTAL_REAL) {
             switch (estado) {
@@ -700,11 +705,27 @@ public final class VistaPrincipal extends BorderPane {
         editorConfiguracion = null;
         if (paginaBitacora == null) {
             paginaBitacora = new PaginaBitacora(monitores::eventosBitacora,
-                    () -> servicio.configuracion().clientes());
+                    () -> servicio.configuracion().clientes(), this::verInventarioDelEvento);
         }
         paginaBitacora.actualizar();
         setCenter(paginaBitacora);
         actualizarNavegacion(Pagina.BITACORA);
+    }
+
+    /** Abre el inventario que se guardó al momento del evento, si el historial todavía lo conserva. */
+    private void verInventarioDelEvento(EventoOperativo evento) {
+        java.time.Duration tolerancia = java.time.Duration.ofMinutes(2);
+        java.util.Optional<SnapshotInventario> cercano = consultarHistorial(evento.clienteId()).stream()
+                .filter(s -> java.time.Duration.between(s.registradoEn(), evento.momento()).abs()
+                        .compareTo(tolerancia) <= 0)
+                .min(java.util.Comparator.comparing(s ->
+                        java.time.Duration.between(s.registradoEn(), evento.momento()).abs()));
+        if (cercano.isPresent()) {
+            mostrarSnapshot(cercano.get());
+        } else {
+            mostrar(Alert.AlertType.INFORMATION, "Inventario no disponible",
+                    "No se conserva el inventario de ese momento: el historial guarda solo los 100 más recientes.");
+        }
     }
 
     private void abrirDiagnostico() {

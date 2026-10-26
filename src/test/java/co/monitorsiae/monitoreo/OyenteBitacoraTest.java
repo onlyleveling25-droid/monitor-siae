@@ -88,4 +88,54 @@ class OyenteBitacoraTest {
         assertTrue(detalle.length() <= EventoOperativo.LARGO_MAXIMO_DETALLE);
         assertTrue(!detalle.contains("\n"));
     }
+
+    @Test
+    void elHallazgoGuardaSeccionalYArmaPorSeparado() {
+        ArmaInventario arma = new ArmaInventario(1, "Pistola Glock G-43", "Pistola");
+        oyente.alTerminarCiclo(ana, new ResultadoCiclo.ArmaApartada("05 - Medellín",
+                new EleccionArma(arma, MotivoEleccion.OBJETIVO, 0), 1));
+
+        EventoOperativo evento = bitacora.eventos().getFirst();
+        assertEquals("05 - Medellín", evento.seccional());
+        assertEquals("Pistola Glock G-43", evento.arma());
+        assertEquals(TipoEvento.ARMA_APARTADA, evento.tipo());
+    }
+
+    @Test
+    void laDetencionRegistraCuantoDuroElMonitoreo() {
+        java.util.concurrent.atomic.AtomicReference<Instant> ahora =
+                new java.util.concurrent.atomic.AtomicReference<>(Instant.parse("2026-10-26T12:00:00Z"));
+        Clock reloj = new Clock() {
+            public java.time.ZoneId getZone() { return ZoneOffset.UTC; }
+            public Clock withZone(java.time.ZoneId zona) { return this; }
+            public Instant instant() { return ahora.get(); }
+        };
+        OyenteBitacora conReloj = new OyenteBitacora(bitacora, reloj);
+
+        conReloj.alIniciar(ana);
+        ahora.set(Instant.parse("2026-10-26T12:05:12Z"));
+        conReloj.alDetenerse(ana, MotivoDetencion.SOLICITADO_POR_USUARIO);
+
+        EventoOperativo detenido = bitacora.eventos().getFirst();
+        assertEquals(java.time.Duration.ofSeconds(312), detenido.duracion());
+        assertTrue(detenido.detalle().contains("Duró 5 min 12 s"));
+    }
+
+    @Test
+    void unaDetencionSinInicioPrevioNoInventaDuracion() {
+        oyente.alDetenerse(ana, MotivoDetencion.ERROR_INESPERADO);
+
+        assertEquals(null, bitacora.eventos().getFirst().duracion());
+    }
+
+    @Test
+    void elInicioRegistraLasSeccionalesQueBuscaElCliente() {
+        oyente.alIniciar(ana);
+
+        EventoOperativo inicio = bitacora.eventos().getFirst();
+        assertEquals("Medellín, Bogotá", inicio.seccional());
+        assertTrue(inicio.detalle().contains("Seccionales que busca: Medellín, Bogotá"));
+        assertTrue(new FiltroBitacora(null, null, null, "medellin").aplicar(bitacora.eventos(),
+                Clock.fixed(Instant.parse("2026-10-26T12:00:00Z"), ZoneOffset.UTC)).contains(inicio));
+    }
 }

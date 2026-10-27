@@ -142,7 +142,8 @@ public final class Reconocimiento {
                 ? "(todas las que ofrezca el portal)" : String.join(", ", seccionalesAMonitorear)));
         System.out.println("Espera: " + SEGUNDOS_BASE + "s base + 0.." + JITTER_MAXIMO_SEGUNDOS + "s jitter");
 
-        try (Playwright playwright = Playwright.create()) {
+        try (Playwright playwright = Playwright.create(new Playwright.CreateOptions()
+                .setEnv(java.util.Map.of("PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD", "1")))) {
             contexto = playwright.chromium().launchPersistentContext(perfil,
                     new BrowserType.LaunchPersistentContextOptions()
                             .setChannel(canal)

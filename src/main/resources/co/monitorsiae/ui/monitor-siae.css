@@ -24,14 +24,10 @@
 }
 
 .app-mark {
-    -fx-min-width: 42px;
-    -fx-min-height: 42px;
-    -fx-max-width: 42px;
-    -fx-max-height: 42px;
-    -fx-background-color: #EFF6FF;
-    -fx-background-radius: 13px;
-    -fx-border-color: #DBEAFE;
-    -fx-border-radius: 13px;
+    -fx-min-width: 46px;
+    -fx-min-height: 46px;
+    -fx-max-width: 46px;
+    -fx-max-height: 46px;
 }
 
 .sidebar-caption {

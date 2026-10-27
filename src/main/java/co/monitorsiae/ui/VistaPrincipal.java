@@ -40,6 +40,8 @@ import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
@@ -133,7 +135,16 @@ public final class VistaPrincipal extends BorderPane {
         barraLateral.setAlignment(Pos.TOP_CENTER);
         StackPane insignia = new StackPane();
         insignia.getStyleClass().add("app-mark");
-        insignia.getChildren().add(IconoSvg.crear("monitor", 22, "#1D4ED8"));
+        var logo = getClass().getResource("icono-aplicacion.png");
+        if (logo != null) {
+            ImageView imagen = new ImageView(new Image(logo.toExternalForm(), 92, 92, true, true));
+            imagen.setFitWidth(46);
+            imagen.setFitHeight(46);
+            imagen.setSmooth(true);
+            insignia.getChildren().add(imagen);
+        } else {
+            insignia.getChildren().add(IconoSvg.crear("monitor", 22, "#1D4ED8"));
+        }
         insignia.setAccessibleText("Monitor SIAE");
         navPanel = botonNavegacion("dashboard", "Panel", true, this::solicitarVolverAlPanel);
         navBitacora = botonNavegacion("activity", "Bitácora", false, this::abrirBitacora);

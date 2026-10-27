@@ -57,7 +57,11 @@ final class AsistentePrimeraEjecucionDialogo {
         mensajeError.setVisible(false);
         mensajeError.setManaged(false);
 
-        dialogo.initOwner(propietario);
+        // En la primera ejecucion la ventana principal aun no tiene escena y JavaFX no admite
+        // un propietario asi (NullPointerException); el asistente se abre entonces sin propietario.
+        if (propietario != null && propietario.getScene() != null) {
+            dialogo.initOwner(propietario);
+        }
         dialogo.setTitle("Bienvenido a Monitor SIAE");
         dialogo.setResizable(false);
         EstilosJavaFx.aplicar(dialogo.getDialogPane());

@@ -99,6 +99,13 @@ public final class AplicacionJavaFx extends Application {
             Scene escena = new Scene(vista, 1100, 720);
             EstilosJavaFx.aplicar(vista);
             stage.setTitle("Monitor SIAE | Centro de monitoreo");
+            try (java.io.InputStream icono = getClass().getResourceAsStream("icono-aplicacion.png")) {
+                if (icono != null) {
+                    stage.getIcons().add(new javafx.scene.image.Image(icono));
+                }
+            } catch (java.io.IOException e) {
+                // sin icono la ventana sigue funcionando; solo se ve el de Java
+            }
             stage.setMinWidth(900);
             stage.setMinHeight(620);
             stage.setScene(escena);

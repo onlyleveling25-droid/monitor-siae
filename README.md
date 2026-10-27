@@ -42,7 +42,8 @@ persona termine el proceso.
 ## Requisitos
 
 - Windows 10 u 11.
-- JDK 21 (para desarrollar). El instalador final incluye su propio Java.
+- JDK 21 (para desarrollar). El paquete incluye su propio Java; para generarlo e instalarlo, ver
+  [la guía de instalación](docs/GUIA-INSTALACION.md).
 - Google Chrome o Microsoft Edge instalado.
 - No hace falta instalar Maven: el proyecto trae su propio wrapper.
 
@@ -243,7 +244,7 @@ de `acceso` y volver a abrir la aplicación, que pedirá crear una nueva.
 6. Interfaz JavaFX. **(rediseño en progreso; ver `docs/PLAN-REDISENO-UI.md`)**
 7. Integración con el portal real. **(implementada parcialmente; validación pendiente según
    `docs/PORTAL.md`)**
-8. Instalador con `jpackage`.
+8. Instalador con `jpackage`. **(script y guía listos; falta ejecutarlo en Windows: ver `docs/GUIA-INSTALACION.md`)**
 
 ## Límites conocidos y responsabilidad
 

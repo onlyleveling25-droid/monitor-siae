@@ -34,6 +34,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -60,7 +61,10 @@ public final class PlaywrightPortalDriver implements PortalDriver {
 
     public PlaywrightPortalDriver(Path perfil, NavegadorPreferido navegador, Path capturas) {
         this.capturas = capturas;
-        Playwright runtime = Playwright.create();
+        // Se usa el Chrome o Edge ya instalado (canal): no hace falta que Playwright descargue
+        // su propio Chromium (~170 MB) la primera vez, y asi funciona sin acceso a su CDN.
+        Playwright runtime = Playwright.create(new Playwright.CreateOptions()
+                .setEnv(Map.of("PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD", "1")));
         BrowserContext contextoCreado;
         Page paginaCreada;
         try {

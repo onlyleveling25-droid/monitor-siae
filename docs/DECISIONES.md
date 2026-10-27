@@ -289,6 +289,12 @@ oficial, que no se pudo generar desde el entorno de desarrollo.
 **Decisión:** instalador `.msi` o `.exe` para Windows que incluye su propio Java. Se genera en
 Windows, porque `jpackage` solo produce instaladores para el sistema donde se ejecuta.
 
+**Detalles (2026-10-27):** `herramientas/empaquetar.ps1` genera una versión portable (`app-image`, sin
+herramientas extra) o un `.msi`/`.exe` (requiere WiX 3.x). Va en modo *classpath* con el JDK 21 completo
+como runtime (sin `jlink`, para no arriesgar módulos faltantes) y se instala por usuario, sin
+administrador. Playwright se crea con `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1`: la app siempre usa el Chrome o
+Edge del equipo y no debe descargar su Chromium. Ver `docs/GUIA-INSTALACION.md`.
+
 ## D17. Fuera de alcance por ahora
 
 - Venta o distribución a terceros, licencias y activación.

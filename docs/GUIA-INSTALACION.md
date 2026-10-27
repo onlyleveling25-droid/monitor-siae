@@ -6,11 +6,11 @@ Esta guía tiene dos partes:
 - **Parte B – Instalar en el equipo donde se va a usar.** Ese equipo **no necesita JDK**: el paquete
   trae su propio Java.
 
-> **Estado de verificación.** El paquete se probó generando una versión de macOS con el mismo
-> procedimiento: arranca sin errores desde cero. El script de Windows
-> ([herramientas/empaquetar.ps1](../herramientas/empaquetar.ps1)) y los instaladores `.msi`/`.exe`
-> **todavía no se han ejecutado en Windows**. Si algo falla en el primer intento, el mensaje del script
-> indica el paso; la sección 10 lista los problemas previsibles.
+> **Estado de verificación.** El script de Windows
+> ([herramientas/empaquetar.ps1](../herramientas/empaquetar.ps1)) ya generó el instalador `.msi` en
+> Windows 11 con JDK 21 y WiX 3.14 (unos 270 MB). Falta registrar la primera instalación en un equipo
+> destino. Si algo falla, el mensaje del script indica el paso; la sección 10 lista los problemas
+> previsibles.
 
 ---
 
@@ -96,19 +96,61 @@ El `.zip` es lo que llevas al equipo destino.
 El instalador agrega acceso directo, entrada en el menú Inicio y permite actualizar versiones. Se
 instala **solo para el usuario actual**, así que no pide permisos de administrador.
 
-1. Instala **WiX Toolset 3.14** (wixtoolset.org; el `jpackage` de JDK 21 trabaja con la serie 3.x).
-   Cierra y abre PowerShell para que `candle.exe` y `light.exe` queden en el PATH.
-2. Ejecuta:
+1. Instala **WiX Toolset 3.14**. El `jpackage` de JDK 21 solo trabaja con la serie 3.x: WiX 4, 5 o
+   posteriores no le sirven. WiX solo hace falta **en este equipo**, no en el equipo destino.
+
+   La forma más simple, sin permisos de administrador, es usar los binarios oficiales. Pega esto en
+   PowerShell:
+
+   ```powershell
+   $dest = "$env:LOCALAPPDATA\Programs\WiX314"
+   $zip  = "$env:TEMP\wix314-binaries.zip"
+   Invoke-WebRequest 'https://github.com/wixtoolset/wix3/releases/download/wix3141rtm/wix314-binaries.zip' -OutFile $zip -UseBasicParsing
+   Expand-Archive $zip -DestinationPath $dest -Force
+   Remove-Item $zip
+   # Agregar la carpeta al PATH del usuario
+   $p = [Environment]::GetEnvironmentVariable('Path', 'User')
+   if ($p -notlike "*$dest*") { [Environment]::SetEnvironmentVariable('Path', ($p.TrimEnd(';') + ";$dest"), 'User') }
+   ```
+
+   (Con `winget install WiXToolset.WiXToolset` también se puede, pero pide administrador y activar
+   .NET Framework 3.5 en Windows.)
+
+   Cierra y abre PowerShell (o VS Code) y comprueba que se encuentran:
+
+   ```powershell
+   Get-Command candle.exe, light.exe
+   ```
+
+2. Genera el instalador indicando la versión:
 
    ```powershell
    powershell -NoProfile -ExecutionPolicy Bypass -File .\herramientas\empaquetar.ps1 -Tipo msi -Version 1.0.1
    ```
 
-3. El instalador queda en `target\instalador\salida\`.
+   Si las pruebas ya pasaron y solo quieres repetir el paquete, añade `-SinPruebas`.
 
-Cada versión nueva debe llevar un número **mayor** (`1.0.1`, `1.1.0`…) y el primero no puede ser 0.
-Todas comparten el mismo identificador de actualización, así que Windows las trata como el mismo
-programa y la nueva reemplaza a la anterior.
+3. El instalador queda en `target\instalador\salida\Monitor SIAE-<versión>.msi`.
+
+#### Qué se lleva al equipo destino
+
+**Solo el `.msi`.** Lleva dentro el programa, todas sus librerías y su propio Java.
+
+- `target\instalador\lib\` y `target\monitor-siae-*.jar` son material intermedio que el script usa para
+  armar el paquete. No se copian.
+- El `.jar` **no es un ejecutable por sí solo**: necesita Java y las librerías de `lib\`. Ya va dentro
+  del `.msi`.
+
+#### Versiones y actualizaciones
+
+- Cada versión nueva debe llevar un número **mayor** que la anterior (`1.0.1`, `1.1.0`, `2.0.0`…). El
+  primer número no puede ser 0. Si repites un número, Windows no lo toma como actualización.
+- Todas las versiones comparten un **identificador de actualización** fijo
+  (`$idActualizacion` en [empaquetar.ps1](../herramientas/empaquetar.ps1)). Gracias a él, Windows sabe
+  que es el mismo programa y la versión nueva **reemplaza** a la anterior, sin desinstalar.
+  - No hay que guardarlo aparte: ya está en el script y cada `.msi` lo lleva automáticamente.
+  - **No lo cambies nunca.** Si cambia, Windows lo trata como otro programa y quedan dos instalados.
+- Lleva un registro de qué versión instalaste en cada equipo (por ejemplo, en las notas del commit).
 
 ### Icono
 
@@ -144,7 +186,9 @@ conservan porque viven aparte (sección 8).
 2. Elige la carpeta (por defecto `%LOCALAPPDATA%\Monitor SIAE`) y confirma.
 3. Abre **Monitor SIAE** desde el menú Inicio o el acceso directo del escritorio.
 
-Para actualizar, ejecuta el instalador de la versión nueva encima.
+Para actualizar, cierra el programa y ejecuta el instalador de la versión nueva encima: reemplaza la
+anterior y conserva los datos. **No hace falta desinstalar antes**, y el equipo destino no necesita
+WiX ni Java.
 
 ### Advertencias de Windows en el primer arranque
 
@@ -233,7 +277,20 @@ En el equipo destino basta con **Probar alarma** en el Panel y el apartado de vo
 
 ## 8. Dónde quedan los datos
 
-Todo en `%APPDATA%\MonitorSIAE` (pega esa ruta en el Explorador):
+Todo en `%APPDATA%\MonitorSIAE`, que en la práctica es
+`C:\Users\<usuario>\AppData\Roaming\MonitorSIAE`.
+
+La carpeta `AppData` está **oculta**, así que no aparece al navegar por el Explorador. Para llegar a ella:
+
+- **La más rápida:** pulsa **Windows + R**, escribe `%APPDATA%\MonitorSIAE` y pulsa Enter. También
+  sirve pegar esa ruta en la barra de direcciones del Explorador.
+- **Desde PowerShell:** `explorer "$env:APPDATA\MonitorSIAE"` abre la carpeta en el Explorador, y
+  `Get-ChildItem "$env:APPDATA\MonitorSIAE"` lista su contenido. (`ls -a` es de Mac/Linux: en PowerShell
+  el equivalente para ver lo oculto es `ls -Force`, por ejemplo `ls -Force $env:USERPROFILE`.)
+- **Ver siempre las carpetas ocultas:** en el Explorador, **Ver → Mostrar → Elementos ocultos**
+  (Windows 11) o pestaña **Vista → Elementos ocultos** (Windows 10).
+
+Contenido:
 
 | Qué | Dónde |
 |---|---|
@@ -273,6 +330,9 @@ Todo en `%APPDATA%\MonitorSIAE` (pega esa ruta en el Explorador):
 | El script falla en las pruebas | Una prueba falló en ese equipo | Revisa el mensaje; para generar igual el paquete, `-SinPruebas`, y avísanos. |
 | El script dice que falta WiX | Pediste `msi`/`exe` sin WiX 3.x | Instala WiX 3.14 o usa la versión portable. |
 | `jpackage` rechaza la versión | Empieza en 0 o tiene letras | Usa `-Version 1.0.1`. |
+| `candle.exe` no se encuentra aunque WiX está instalado | La PowerShell se abrió antes de cambiar el PATH | Cierra y abre PowerShell o VS Code. |
+| Al instalar la versión nueva quedan **dos** Monitor SIAE | Se cambió `$idActualizacion` en el script | Restaura el identificador original, desinstala la copia sobrante desde Configuración → Aplicaciones. |
+| El instalador nuevo no actualiza nada | Se generó con el mismo número de versión | Genera de nuevo con un número mayor. |
 | El programa no abre y no muestra nada | Error al arrancar | Abre `%APPDATA%\MonitorSIAE\logs\monitor.log` y mira las últimas líneas. |
 | Al ejecutar desde consola sale *"Unsupported JavaFX configuration"* | Aviso informativo de JavaFX | Es normal; no afecta al funcionamiento. |
 | "No se pudo abrir el navegador o el portal SIAE" | Chrome/Edge no instalado, o distinto al elegido | Instala el navegador o cambia la elección en Ajustes → General. |
@@ -295,4 +355,6 @@ Todo en `%APPDATA%\MonitorSIAE` (pega esa ruta en el Explorador):
 - **Reloj:** el horario de operación usa la zona horaria del sistema.
 - **JavaFX por sistema:** las librerías se resuelven según el sistema donde se compila; por eso el
   paquete de Windows debe generarse en Windows.
+- **Ruta del JDK:** el script quita la barra final de `JAVA_HOME`. En PowerShell 5.1 una ruta con
+  espacios terminada en `\` llega a `jpackage` con una comilla suelta (*"Illegal char <\">"*).
 - **Pendiente:** firma digital del instalador y recorte del runtime con `jlink`.

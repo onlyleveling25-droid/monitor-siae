@@ -55,7 +55,10 @@ if ($Version -notmatch '^[1-9]\d*(\.\d+){0,2}$') {
 if (-not $env:JAVA_HOME) {
     Fallar 'JAVA_HOME no esta definido. Apunta a la carpeta de un JDK 21 (ver docs/GUIA-INSTALACION.md).'
 }
-$jpackage = Join-Path $env:JAVA_HOME 'bin\jpackage.exe'
+# Sin la barra final: en PowerShell 5.1 un '\' antes de la comilla de cierre la escapa al pasar
+# la ruta a jpackage, y jpackage recibe un '"' suelto.
+$jdk = $env:JAVA_HOME.TrimEnd('\', '/')
+$jpackage = Join-Path $jdk 'bin\jpackage.exe'
 if (-not (Test-Path $jpackage)) {
     Fallar "No hay jpackage.exe en '$env:JAVA_HOME\bin'. Necesitas un JDK 21 completo, no un JRE."
 }
@@ -106,7 +109,7 @@ $argumentos = @(
     '--main-jar', $jar.Name,
     '--main-class', $claseInicio,
     # Se incluye el JDK completo: pesa mas que un runtime recortado, pero evita que falte un modulo.
-    '--runtime-image', $env:JAVA_HOME,
+    '--runtime-image', $jdk,
     '--java-options', '-Dfile.encoding=UTF-8',
     '--dest', $salida
 )

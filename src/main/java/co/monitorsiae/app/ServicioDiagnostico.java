@@ -120,7 +120,8 @@ public final class ServicioDiagnostico {
         while (existente != null && Files.notExists(existente)) {
             existente = existente.getParent();
         }
-        if (existente == null || !Files.isWritable(existente)) {
+        // Si lo primero que existe es un archivo, ahí no se puede crear la carpeta.
+        if (existente == null || !Files.isDirectory(existente) || !Files.isWritable(existente)) {
             return Comprobacion.problema("Almacenamiento", "No se puede escribir en " + carpetaDatos + ".",
                     "Revisa los permisos de la carpeta o libera el acceso desde el antivirus.");
         }

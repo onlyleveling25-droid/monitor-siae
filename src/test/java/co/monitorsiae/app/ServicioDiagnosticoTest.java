@@ -11,6 +11,8 @@ import co.monitorsiae.dominio.ValidadorConfiguracion;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.time.DayOfWeek;
@@ -82,8 +84,10 @@ class ServicioDiagnosticoTest {
     }
 
     @Test
-    void carpetaDeDatosNoEscribibleEsProblema() {
-        carpetaDatos = Path.of("/dev/null/imposible");
+    void carpetaDeDatosNoEscribibleEsProblema() throws IOException {
+        // Un archivo no puede contener carpetas, en ningún sistema ni con ningún permiso.
+        Path archivo = Files.createFile(datos.resolve("soy-un-archivo"));
+        carpetaDatos = archivo.resolve("imposible");
 
         assertEquals(PROBLEMA, de(ejecutar(), "Almacenamiento").nivel());
     }

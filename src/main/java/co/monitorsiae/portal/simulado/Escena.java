@@ -28,7 +28,8 @@ public record Escena(
     public enum Falla {
         NINGUNA,
         SESION_VENCIDA,
-        ERROR_SERVIDOR
+        ERROR_SERVIDOR,
+        PORTAL_NO_RESPONDE
     }
 
     public Escena {

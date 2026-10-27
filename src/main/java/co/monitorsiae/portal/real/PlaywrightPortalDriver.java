@@ -11,6 +11,7 @@ import co.monitorsiae.portal.OpcionNoDisponibleException;
 import co.monitorsiae.portal.PortalDriver;
 import co.monitorsiae.portal.PortalException;
 import co.monitorsiae.portal.PortalInesperadoException;
+import co.monitorsiae.portal.PortalNoRespondeException;
 import co.monitorsiae.portal.ResultadoGuardar;
 import co.monitorsiae.portal.SesionPortalCerradaException;
 import co.monitorsiae.portal.SesionVencidaException;
@@ -54,6 +55,8 @@ public final class PlaywrightPortalDriver implements PortalDriver {
     private volatile boolean cerrado;
     private volatile boolean cerrando;
     private volatile Runnable accionAlCerrar = () -> { };
+    /** Motivo por el que el servidor no contesto al ultimo GUARDAR; nulo si respondio bien. */
+    private volatile String fallaAlGuardar;
 
     public PlaywrightPortalDriver(Path perfil, NavegadorPreferido navegador, Path capturas) {
         this.capturas = capturas;
@@ -86,6 +89,18 @@ public final class PlaywrightPortalDriver implements PortalDriver {
         playwright = runtime;
         contexto = contextoCreado;
         pagina = paginaCreada;
+        contextoCreado.onRequestFailed(peticion -> {
+            if (esGuardarPaso1(peticion.url())) {
+                fallaAlGuardar = "la petición no llegó a completarse";
+            }
+        });
+        contextoCreado.onResponse(respuesta -> {
+            if (!esGuardarPaso1(respuesta.url())) {
+                return;
+            }
+            // Un reintento de la pagina que si responde anula el fallo anterior.
+            fallaAlGuardar = respuesta.status() >= 500 ? "el servidor devolvió error " + respuesta.status() : null;
+        });
         contextoCreado.onClose(ignorado -> registrarCierre());
         paginaCreada.onClose(ignorado -> registrarCierre());
     }
@@ -122,8 +137,13 @@ public final class PlaywrightPortalDriver implements PortalDriver {
 
         Locator guardar = pagina.locator(SelectoresSiae.BOTON_GUARDAR).first();
         esperarGuardarHabilitado(guardar);
+        fallaAlGuardar = null;
         guardar.click();
         return esperarResultadoGuardar();
+    }
+
+    private static boolean esGuardarPaso1(String url) {
+        return url != null && url.contains(SelectoresSiae.RUTA_GUARDAR_PASO_1);
     }
 
     private void asegurarPaso1() {
@@ -264,6 +284,11 @@ public final class PlaywrightPortalDriver implements PortalDriver {
                 return ResultadoGuardar.AVANZO_PASO_2;
             }
             pagina.waitForTimeout(300);
+        }
+        String falla = fallaAlGuardar;
+        if (falla != null) {
+            // Es la plataforma la que no contesta (p. ej. 504 del gateway), no una pantalla nueva.
+            throw new PortalNoRespondeException("GUARDAR no tuvo respuesta: " + falla + ".");
         }
         throw inesperado("No se reconoció la respuesta del portal después de GUARDAR.", null);
     }

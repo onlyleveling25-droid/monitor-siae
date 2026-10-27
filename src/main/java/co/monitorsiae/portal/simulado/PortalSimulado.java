@@ -6,6 +6,7 @@ import co.monitorsiae.dominio.ParametrosTramite;
 import co.monitorsiae.portal.OpcionNoDisponibleException;
 import co.monitorsiae.portal.PortalDriver;
 import co.monitorsiae.portal.PortalInesperadoException;
+import co.monitorsiae.portal.PortalNoRespondeException;
 import co.monitorsiae.portal.ResultadoGuardar;
 import co.monitorsiae.portal.SesionVencidaException;
 
@@ -82,6 +83,8 @@ public final class PortalSimulado implements PortalDriver {
         switch (actual.falla()) {
             case SESION_VENCIDA -> throw new SesionVencidaException("La plataforma pidió iniciar sesión.");
             case ERROR_SERVIDOR -> throw new PortalInesperadoException("La plataforma respondió con error 503.");
+            case PORTAL_NO_RESPONDE -> throw new PortalNoRespondeException(
+                    "El servidor no contestó a GUARDAR (error 504).");
             case NINGUNA -> {
                 // respuesta normal
             }

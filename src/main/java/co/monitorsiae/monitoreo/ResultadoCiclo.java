@@ -101,6 +101,13 @@ public sealed interface ResultadoCiclo {
         }
     }
 
+    /** El servidor del portal no contesto (timeout o error 5xx). No cuenta para detener el monitor. */
+    record PortalNoResponde(String detalle) implements ResultadoCiclo {
+        public String descripcion() {
+            return "El portal no respondió: " + detalle;
+        }
+    }
+
     record Inesperado(String detalle) implements ResultadoCiclo {
         public String descripcion() {
             return "Respuesta inesperada de la plataforma: " + detalle;

@@ -50,6 +50,7 @@ public final class OyenteBitacora implements OyenteMonitoreo {
             case ResultadoCiclo.ApartadoFallido f -> TipoEvento.APARTADO_FALLIDO;
             case ResultadoCiclo.SesionVencida s -> TipoEvento.SESION_VENCIDA;
             case ResultadoCiclo.Inesperado i -> TipoEvento.RESPUESTA_INESPERADA;
+            case ResultadoCiclo.PortalNoResponde p -> TipoEvento.PORTAL_SIN_RESPUESTA;
             default -> null;
         };
         if (tipo == null) {

@@ -279,6 +279,7 @@ Esta línea cuenta qué pasó en la última consulta. Los más comunes:
 | *No se pudo apartar tras 2 intentos: …* | Había un arma, pero la plataforma no confirmó el apartado (probablemente otra persona la tomó). | Revisa el navegador de inmediato. El monitoreo **no** se detiene solo. |
 | *Sesión vencida: …* | La plataforma cerró la sesión. Se detiene el monitoreo. | Inicia sesión de nuevo en el navegador y reanuda. |
 | *Opción del trámite no disponible: …* | Alguno de los textos de "cómo obtener el permiso" o "tipo de trámite" no aparece en la plataforma. | Corrige esos textos en Ajustes → Clientes (deben ser iguales a los del portal). |
+| *El portal no respondió: GUARDAR no tuvo respuesta…* | El servidor del portal no contestó (por ejemplo un error 504). No es un fallo del programa. | No hagas nada: el monitoreo vuelve a intentarlo con la espera normal y **no se detiene** por esto. |
 | *Respuesta inesperada de la plataforma: … (captura: fallo-….png)* | La página no se comportó como se esperaba. Se guardó una captura. | Mira la captura en la Bitácora (sección 11). Tras **tres seguidas**, el monitoreo se detiene. |
 | *Monitoreo detenido. La sesión del navegador permanece abierta.* | Detuviste el monitoreo. | — |
 | *Abriendo el navegador del cliente.* | Se está abriendo la sesión. | Espera. |
@@ -661,6 +662,7 @@ llenaría la lista de ruido). Solo lee: nada de lo que hagas aquí cambia el mon
 | **Apartado fallido** (rojo) | Había arma pero no se pudo apartar. |
 | **Sesión vencida** (rojo) | La plataforma cerró la sesión. |
 | **Respuesta inesperada** (ámbar) | La plataforma respondió algo raro; guarda una captura de pantalla. |
+| **Portal sin respuesta** (ámbar) | El servidor del portal no contestó a GUARDAR (timeout o error 5xx). Se anota una vez mientras dure y el monitoreo sigue intentando. |
 
 Un mismo hallazgo repetido seguido se anota **una sola vez**. Las **oportunidades** y las **armas apartadas** se
 ven en **negrita con fondo naranja claro** para que no se pierdan.

@@ -116,6 +116,13 @@ public final class MonitorCliente implements Runnable {
                 return motivoDe(resultado);
             }
 
+            if (resultado instanceof ResultadoCiclo.PortalNoResponde) {
+                // El portal esta caido o lento: no es un fallo del programa. Se reintenta con la
+                // espera normal y sin acercar el monitor a la detencion por fallos repetidos.
+                esperar(intervalo);
+                continue;
+            }
+
             if (resultado instanceof ResultadoCiclo.Inesperado) {
                 fallosSeguidos++;
                 if (fallosSeguidos >= FALLOS_TOLERADOS) {

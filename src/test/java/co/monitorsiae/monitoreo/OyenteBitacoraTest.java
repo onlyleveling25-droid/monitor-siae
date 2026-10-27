@@ -48,6 +48,15 @@ class OyenteBitacoraTest {
     }
 
     @Test
+    void anotaQueElPortalNoRespondeUnaSolaVezMientrasDure() {
+        oyente.alTerminarCiclo(ana, new ResultadoCiclo.PortalNoResponde("GUARDAR no tuvo respuesta."));
+        oyente.alTerminarCiclo(ana, new ResultadoCiclo.PortalNoResponde("GUARDAR no tuvo respuesta."));
+
+        assertEquals(1, bitacora.eventos().size());
+        assertEquals(TipoEvento.PORTAL_SIN_RESPUESTA, bitacora.eventos().getFirst().tipo());
+    }
+
+    @Test
     void unMismoHallazgoRepetidoSeAnotaUnaSolaVezHastaQueCambieElContexto() {
         oyente.alTerminarCiclo(ana, new ResultadoCiclo.Inesperado("pantalla desconocida"));
         oyente.alTerminarCiclo(ana, new ResultadoCiclo.Inesperado("pantalla desconocida"));

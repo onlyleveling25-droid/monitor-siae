@@ -9,6 +9,7 @@ import co.monitorsiae.dominio.ReglasSeleccion;
 import co.monitorsiae.portal.OpcionNoDisponibleException;
 import co.monitorsiae.portal.PortalDriver;
 import co.monitorsiae.portal.PortalException;
+import co.monitorsiae.portal.PortalNoRespondeException;
 import co.monitorsiae.portal.ResultadoGuardar;
 import co.monitorsiae.portal.SesionVencidaException;
 
@@ -37,6 +38,8 @@ public final class CicloMonitoreo {
             return new ResultadoCiclo.TramiteNoDisponible(e.getMessage());
         } catch (SesionVencidaException e) {
             return new ResultadoCiclo.SesionVencida(e.getMessage());
+        } catch (PortalNoRespondeException e) {
+            return new ResultadoCiclo.PortalNoResponde(e.getMessage());
         } catch (PortalException e) {
             return new ResultadoCiclo.Inesperado(e.getMessage());
         }

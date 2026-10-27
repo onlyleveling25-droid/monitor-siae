@@ -147,6 +147,15 @@ class CicloMonitoreoTest {
     }
 
     @Test
+    void unPortalQueNoContestaNoSeReportaComoInesperado() {
+        ResultadoCiclo resultado = ciclo.ejecutar(cliente,
+                PortalSimulado.con(Escena.conFalla(Escena.Falla.PORTAL_NO_RESPONDE)));
+
+        assertInstanceOf(ResultadoCiclo.PortalNoResponde.class, resultado);
+        assertTrue(!resultado.detieneMonitoreo());
+    }
+
+    @Test
     void unaDescripcionInvalidaSeReportaComoInesperado() {
         Cliente sinDescripcion = ClientesDePrueba.conDescripcion("Ana", "corta");
 

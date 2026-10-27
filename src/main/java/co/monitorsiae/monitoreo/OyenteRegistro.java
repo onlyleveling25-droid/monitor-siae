@@ -28,6 +28,7 @@ public final class OyenteRegistro implements OyenteMonitoreo {
             case ResultadoCiclo.ArmaEncontrada e -> REGISTRO.warn("[{}] {}", cliente.nombre(), e.descripcion());
             case ResultadoCiclo.SesionVencida s -> REGISTRO.error("[{}] {}", cliente.nombre(), s.descripcion());
             case ResultadoCiclo.Inesperado i -> REGISTRO.error("[{}] {}", cliente.nombre(), i.descripcion());
+            case ResultadoCiclo.PortalNoResponde p -> REGISTRO.warn("[{}] {}", cliente.nombre(), p.descripcion());
             case ResultadoCiclo.ApartadoFallido f -> REGISTRO.warn("[{}] {}", cliente.nombre(), f.descripcion());
             default -> REGISTRO.info("[{}] {}", cliente.nombre(), resultado.descripcion());
         }

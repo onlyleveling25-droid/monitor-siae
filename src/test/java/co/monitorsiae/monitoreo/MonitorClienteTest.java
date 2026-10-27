@@ -66,6 +66,22 @@ class MonitorClienteTest {
     }
 
     @Test
+    void unPortalQueNoContestaNoDetieneElMonitorPorFallosRepetidos() {
+        PortalSimulado portal = PortalSimulado.con(
+                Escena.conFalla(Escena.Falla.PORTAL_NO_RESPONDE),
+                Escena.conFalla(Escena.Falla.PORTAL_NO_RESPONDE),
+                Escena.conFalla(Escena.Falla.PORTAL_NO_RESPONDE),
+                Escena.conFalla(Escena.Falla.PORTAL_NO_RESPONDE),
+                Escena.conFalla(Escena.Falla.PORTAL_NO_RESPONDE),
+                Escena.conInventario(MEDELLIN, "Pistola Glock Mod G-43 RAIL CAL 9mm 9T 2P GLOCK 9MM"));
+
+        monitor(portal, siempreAbierto()).run();
+
+        assertEquals(MotivoDetencion.ARMA_APARTADA, oyente.motivo);
+        assertEquals(List.of(INTERVALO, INTERVALO, INTERVALO, INTERVALO, INTERVALO), esperas);
+    }
+
+    @Test
     void unaFallaAisladaNoAcumulaSiLuegoSeRecupera() {
         PortalSimulado portal = PortalSimulado.con(
                 Escena.conFalla(Escena.Falla.ERROR_SERVIDOR),

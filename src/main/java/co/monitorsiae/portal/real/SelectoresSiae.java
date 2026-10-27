@@ -19,6 +19,9 @@ final class SelectoresSiae {
     static final String PLACEHOLDER_SECCIONAL =
             "Indique la seccional donde va a tramitar el permiso para porte o tenencia";
 
+    /** Peticion que dispara GUARDAR; si el servidor no la contesta, es una falla del portal. */
+    static final String RUTA_GUARDAR_PASO_1 = "/tramiteciu/initial/insert";
+
     static final String CAMPO_DESCRIPCION = "textarea[name='descripcion']";
     static final String CONTADOR_DESCRIPCION = "text=/restantes\\s*\\d+/";
     static final String BOTON_GUARDAR = "button:has-text('GUARDAR')";

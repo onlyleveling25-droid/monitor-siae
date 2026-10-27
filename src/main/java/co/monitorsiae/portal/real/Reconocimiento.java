@@ -52,7 +52,7 @@ public final class Reconocimiento {
      * Lista vacia = todas. Tambien por consola: {@code -Dexec.args="chrome Bogota,Medellin"}.
      * Si ninguna coincide, se usan todas las disponibles en vez de abortar.
      */
-    private static String[] seccionalesAMonitorear = {"Florencia"};
+    private static String[] seccionalesAMonitorear = {"Medellin", "Bogota"};
 
     // Pistas para localizar cada combo (por placeholder, texto o etiqueta). Se prueban en orden.
     private static final String[] PISTA_PERMISO = {"obtener el permiso", "como desea obtener", "permiso"};
@@ -121,6 +121,10 @@ public final class Reconocimiento {
     public static void main(String[] args) throws Exception {
         Files.createDirectories(SALIDA);
         String canal = args.length > 0 ? args[0] : "msedge";
+        if (args.length > 2) {
+            System.out.println(">>> AVISO: sobran argumentos " + List.of(args).subList(2, args.length)
+                    + ". Separa las seccionales con coma y sin espacios: chrome Medellin,Bogota");
+        }
         if (args.length > 1 && !args[1].isBlank()) {
             String[] pedidas = args[1].split(",");
             for (int i = 0; i < pedidas.length; i++) {

@@ -14,6 +14,7 @@ import co.monitorsiae.app.ServicioDiagnostico;
 import co.monitorsiae.dominio.Cliente;
 import co.monitorsiae.dominio.Configuracion;
 import co.monitorsiae.dominio.EntornoPortal;
+import co.monitorsiae.dominio.FormatoHora;
 import co.monitorsiae.monitoreo.EventoOperativo;
 import co.monitorsiae.monitoreo.SnapshotInventario;
 import co.monitorsiae.notificacion.Alerta;
@@ -25,6 +26,7 @@ import javafx.geometry.Pos;
 import javafx.animation.FadeTransition;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
+import javafx.scene.AccessibleRole;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonBar;
@@ -42,6 +44,8 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.MouseButton;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
@@ -942,13 +946,13 @@ public final class VistaPrincipal extends BorderPane {
         descripcion.setWrapText(true);
         VBox lista = new VBox(6);
         for (SnapshotInventario snapshot : snapshots) {
-            Button opcion = botonSnapshot(snapshot, dialogo);
-            lista.getChildren().add(opcion);
+            lista.getChildren().add(filaSnapshot(snapshot, dialogo));
         }
         ScrollPane desplazamiento = new ScrollPane(lista);
         desplazamiento.setFitToWidth(true);
         desplazamiento.getStyleClass().add("history-scroll");
-        desplazamiento.setPrefViewportHeight(Math.min(430, snapshots.size() * 52));
+        // Unos 52 px por fila más 6 de separación; con muchas consultas se desplaza.
+        desplazamiento.setPrefViewportHeight(Math.min(430, snapshots.size() * 58));
         contenido.getChildren().addAll(titulo, descripcion, desplazamiento);
         dialogo.getDialogPane().setContent(contenido);
         dialogo.getDialogPane().setPrefWidth(620);
@@ -969,7 +973,13 @@ public final class VistaPrincipal extends BorderPane {
         return consulta.snapshots();
     }
 
-    private static Button botonSnapshot(SnapshotInventario snapshot, Dialog<SnapshotInventario> dialogo) {
+    /**
+     * Fila clicable del historial. No es un {@code Button} a propósito: un botón con un texto que
+     * se parte en varias líneas dentro de su gráfico calcula su altura como si el texto tuviera casi
+     * ningún ancho, y cada fila quedaba enorme con espacio en blanco. Un contenedor normal mide el
+     * texto con el ancho real de la lista.
+     */
+    private static HBox filaSnapshot(SnapshotInventario snapshot, Dialog<SnapshotInventario> dialogo) {
         Label fecha = new Label(fechaSnapshot(snapshot));
         fecha.getStyleClass().add("history-date");
         Label seccional = new Label(snapshot.seccional());
@@ -980,20 +990,34 @@ public final class VistaPrincipal extends BorderPane {
         seleccion.getStyleClass().add("history-selection");
         seleccion.setWrapText(true);
         VBox textos = new VBox(2, resumen, seleccion);
-        HBox contenido = new HBox(12, IconoSvg.crear("activity", 18, "#1D4ED8"), textos);
-        contenido.setAlignment(Pos.CENTER_LEFT);
-        Button boton = new Button();
-        boton.setGraphic(contenido);
-        boton.setMaxWidth(Double.MAX_VALUE);
-        boton.setMinHeight(Region.USE_PREF_SIZE);
-        boton.setMaxHeight(Region.USE_PREF_SIZE);
-        boton.setAccessibleText("Ver inventario del " + fecha.getText() + ", " + seccional.getText());
-        boton.getStyleClass().add("history-entry");
-        boton.setOnAction(event -> {
+        textos.setAlignment(Pos.CENTER_LEFT);
+        HBox.setHgrow(textos, Priority.ALWAYS);
+
+        HBox fila = new HBox(12, IconoSvg.crear("activity", 18, "#1D4ED8"), textos);
+        fila.setAlignment(Pos.CENTER_LEFT);
+        fila.setMaxWidth(Double.MAX_VALUE);
+        fila.getStyleClass().add("history-entry");
+        fila.setFocusTraversable(true);
+        fila.setAccessibleRole(AccessibleRole.BUTTON);
+        fila.setAccessibleText("Ver inventario del " + fecha.getText() + ", " + seccional.getText());
+
+        Runnable elegir = () -> {
             dialogo.setResult(snapshot);
             dialogo.close();
+        };
+        fila.setOnMouseClicked(event -> {
+            if (event.getButton() == MouseButton.PRIMARY) {
+                elegir.run();
+            }
         });
-        return boton;
+        // Igual que un botón: se abre con Enter o Espacio cuando la fila tiene el foco.
+        fila.setOnKeyPressed(event -> {
+            if (event.getCode() == KeyCode.ENTER || event.getCode() == KeyCode.SPACE) {
+                event.consume();
+                elegir.run();
+            }
+        });
+        return fila;
     }
 
     private void mostrarSnapshot(SnapshotInventario snapshot) {
@@ -1092,9 +1116,8 @@ public final class VistaPrincipal extends BorderPane {
     }
 
     private static String fechaSnapshot(SnapshotInventario snapshot) {
-        return DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss z")
-                .withZone(ZoneId.systemDefault())
-                .format(snapshot.registradoEn());
+        var momento = snapshot.registradoEn().atZone(ZoneId.systemDefault());
+        return DateTimeFormatter.ofPattern("dd/MM/yyyy").format(momento) + " " + FormatoHora.horaConSegundos(momento);
     }
 
     private static String textoEstado(CoordinadorMonitores.Estado estado) {

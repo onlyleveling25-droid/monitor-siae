@@ -11,6 +11,7 @@ import co.monitorsiae.dominio.DireccionTenencia;
 import co.monitorsiae.dominio.EntornoPortal;
 import co.monitorsiae.monitoreo.TextoDuracion;
 import co.monitorsiae.dominio.EscenarioSimulador;
+import co.monitorsiae.dominio.FormatoHora;
 import co.monitorsiae.dominio.FranjaHoraria;
 import co.monitorsiae.dominio.HorarioOperacion;
 import co.monitorsiae.dominio.Modalidad;
@@ -303,8 +304,8 @@ final class EditorConfiguracion extends BorderPane {
         addRow(formulario, 6, "Horario de consulta", interruptorHorario);
         for (DayOfWeek dia : DayOfWeek.values()) {
             dias.put(dia, new CheckBox(DIAS.get(dia)));
-            desdePorDia.put(dia, campoHora("08:00"));
-            hastaPorDia.put(dia, campoHora("16:00"));
+            desdePorDia.put(dia, campoHora("08:00 a. m."));
+            hastaPorDia.put(dia, campoHora("04:00 p. m."));
         }
         EditorHorarioSemanal horarioSemanal = new EditorHorarioSemanal(dias, desdePorDia, hastaPorDia);
         this.horarioSemanal = horarioSemanal;
@@ -312,7 +313,7 @@ final class EditorConfiguracion extends BorderPane {
         addRow(formulario, 7, "Días y horas", horarioSemanal);
         Label notaHorario = new Label(
                 "El horario está desactivado por defecto. Actívalo solo si deseas limitar la actividad. Cada día "
-                        + "marcado tiene su propio rango de horas (formato HH:mm); un día sin marcar no se consulta.");
+                        + "marcado tiene su propio rango de horas (por ejemplo 08:00 a. m. o 16:00); un día sin marcar no se consulta.");
         notaHorario.setWrapText(true);
         notaHorario.getStyleClass().add("field-help");
         formulario.add(notaHorario, 0, 8, 2, 1);
@@ -585,18 +586,20 @@ final class EditorConfiguracion extends BorderPane {
     private static TextField campoHora(String ejemplo) {
         TextField campo = new TextField();
         campo.setPromptText(ejemplo);
-        campo.setPrefColumnCount(4);
-        campo.setMaxWidth(66);
+        campo.setPrefColumnCount(7);
+        campo.setMaxWidth(80);
+        campo.setStyle("-fx-font-size: 11px;");
+        campo.setTooltip(new Tooltip("Por ejemplo 04:00 p. m., 4:00 pm o 16:00"));
         return campo;
     }
 
     private static LocalTime horaDe(DayOfWeek dia, Map<DayOfWeek, TextField> campos) {
         try {
-            return LocalTime.parse(campos.get(dia).getText().strip());
-        } catch (DateTimeException e) {
+            return FormatoHora.leer(campos.get(dia).getText());
+        } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("La hora de "
                     + dia.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.forLanguageTag("es"))
-                    + " no es válida: usa el formato HH:mm, por ejemplo 08:00.", e);
+                    + " no es válida: escríbela como 08:00 a. m. o 16:00.", e);
         }
     }
 
@@ -613,8 +616,8 @@ final class EditorConfiguracion extends BorderPane {
         for (DayOfWeek dia : DayOfWeek.values()) {
             FranjaHoraria franja = horario.franja(dia).orElse(null);
             dias.get(dia).setSelected(franja != null);
-            desdePorDia.get(dia).setText(franja == null ? "08:00" : franja.desde().toString());
-            hastaPorDia.get(dia).setText(franja == null ? "16:00" : franja.hasta().toString());
+            desdePorDia.get(dia).setText(franja == null ? "08:00 a. m." : FormatoHora.hora(franja.desde()));
+            hastaPorDia.get(dia).setText(franja == null ? "04:00 p. m." : FormatoHora.hora(franja.hasta()));
         }
         aplicarEstadoHorario();
         proteger.setSelected(configuracion.acceso().requerirContrasena());
@@ -1214,7 +1217,7 @@ final class EditorConfiguracion extends BorderPane {
      */
     private static final class EditorHorarioSemanal extends VBox {
         private static final int FRANJAS = 24;
-        private static final double ANCHO_DIA = 72;
+        private static final double ANCHO_DIA = 84;
         private static final double ALTO_FRANJA = 11;
 
         private final Map<DayOfWeek, CheckBox> dias;
@@ -1309,12 +1312,12 @@ final class EditorConfiguracion extends BorderPane {
         /** Eje vertical con la hora cada tres horas, alineado con las franjas de cada día. */
         private static VBox ejeDeHoras() {
             VBox eje = new VBox(1);
-            eje.setPrefWidth(34);
+            eje.setPrefWidth(44);
             Label espacio = new Label(" ");
             espacio.setMinHeight(42);
             eje.getChildren().add(espacio);
             for (int hora = 0; hora < FRANJAS; hora++) {
-                Label etiqueta = new Label(hora % 3 == 0 ? hora + "h" : "");
+                Label etiqueta = new Label(hora % 3 == 0 ? etiquetaEje(hora) : "");
                 etiqueta.setMinHeight(ALTO_FRANJA);
                 etiqueta.setMaxHeight(ALTO_FRANJA);
                 etiqueta.setStyle("-fx-font-size: 9px; -fx-text-fill: #64748B;");
@@ -1323,6 +1326,12 @@ final class EditorConfiguracion extends BorderPane {
                 eje.getChildren().add(etiqueta);
             }
             return eje;
+        }
+
+        /** "12 a. m.", "3 a. m.", "12 p. m.", "3 p. m."... para el eje de la grilla. */
+        private static String etiquetaEje(int hora) {
+            int hora12 = hora % 12 == 0 ? 12 : hora % 12;
+            return hora12 + (hora < 12 ? " a. m." : " p. m.");
         }
 
         private static String abreviatura(DayOfWeek dia) {
@@ -1349,7 +1358,7 @@ final class EditorConfiguracion extends BorderPane {
 
         private static LocalTime horaValida(String texto) {
             try {
-                return LocalTime.parse(texto.strip());
+                return FormatoHora.leer(texto);
             } catch (RuntimeException e) {
                 return null;
             }

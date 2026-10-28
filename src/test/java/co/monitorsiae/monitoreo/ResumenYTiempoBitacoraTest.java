@@ -41,8 +41,8 @@ class ResumenYTiempoBitacoraTest {
         assertEquals("hace 5 min", TiempoRelativo.texto(AHORA.minus(Duration.ofMinutes(5)), reloj, BOGOTA));
         assertEquals("hace 3 h", TiempoRelativo.texto(AHORA.minus(Duration.ofHours(3)), reloj, BOGOTA));
         // 2026-10-24 15:00 UTC = 10:00 en Colombia.
-        assertEquals("24/10 10:00", TiempoRelativo.texto(AHORA.minus(Duration.ofDays(2)), reloj, BOGOTA));
-        assertTrue(TiempoRelativo.completo(AHORA, BOGOTA).contains("26/10/2026 10:00:00"));
+        assertEquals("24/10 10:00 a. m.", TiempoRelativo.texto(AHORA.minus(Duration.ofDays(2)), reloj, BOGOTA));
+        assertTrue(TiempoRelativo.completo(AHORA, BOGOTA).contains("26/10/2026 10:00:00 a. m."));
     }
 
     @Test

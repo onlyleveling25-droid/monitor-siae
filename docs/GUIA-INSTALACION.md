@@ -336,6 +336,7 @@ Contenido:
 | El programa no abre y no muestra nada | Error al arrancar | Abre `%APPDATA%\MonitorSIAE\logs\monitor.log` y mira las últimas líneas. |
 | Al ejecutar desde consola sale *"Unsupported JavaFX configuration"* | Aviso informativo de JavaFX | Es normal; no afecta al funcionamiento. |
 | "No se pudo abrir el navegador o el portal SIAE" | Chrome/Edge no instalado, o distinto al elegido | Instala el navegador o cambia la elección en Ajustes → General. |
+| "El navegador se cerró al arrancar, incluso al reintentar" | Edge/Chrome se está actualizando, o tiene una ventana colgada | El programa ya reintentó una vez solo. Espera un minuto o cierra todas las ventanas del navegador y vuelve a intentar. |
 | Diagnóstico marca el navegador con problema | No encuentra Chrome/Edge en las rutas habituales | Reinstálalo en su ruta estándar. |
 | La voz habla con acento inglés | No hay voz en español | Sección 5. |
 | No suena nada | Volumen en cero o salida equivocada | Sección 6 y Diagnóstico. |

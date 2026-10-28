@@ -63,8 +63,8 @@ class VentanaHorariaTest {
         assertTrue(sabado10.permiteAhora());
         assertFalse(sabado13.permiteAhora());
         assertFalse(martes10.permiteAhora());
-        assertTrue(sabado13.motivoFueraDeHorario().contains("hoy sábado: 09:00 a 12:00"));
-        assertTrue(sabado13.motivoFueraDeHorario().contains("el lunes a las 08:00"));
+        assertTrue(sabado13.motivoFueraDeHorario().contains("hoy sábado: 09:00 a. m. a 12:00 p. m."));
+        assertTrue(sabado13.motivoFueraDeHorario().contains("el lunes a las 08:00 a. m."));
         assertTrue(martes10.motivoFueraDeHorario().contains("hoy martes: sin consulta"));
     }
 
@@ -81,8 +81,8 @@ class VentanaHorariaTest {
                 Clock.fixed(Instant.parse("2026-10-26T10:00:00Z"), ZoneOffset.UTC));
 
         assertFalse(despuesDeCerrar.permiteAhora());
-        assertTrue(despuesDeCerrar.motivoFueraDeHorario().contains("mañana a las 07:00"));
-        assertTrue(antesDeAbrir.motivoFueraDeHorario().contains("hoy a las 07:00"));
+        assertTrue(despuesDeCerrar.motivoFueraDeHorario().contains("mañana a las 07:00 a. m."));
+        assertTrue(antesDeAbrir.motivoFueraDeHorario().contains("hoy a las 07:00 a. m."));
         assertEquals(java.time.LocalTime.of(7, 0), despuesDeCerrar.proximaApertura().orElseThrow().toLocalTime());
     }
 

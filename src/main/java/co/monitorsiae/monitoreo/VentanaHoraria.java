@@ -1,14 +1,13 @@
 package co.monitorsiae.monitoreo;
 
+import co.monitorsiae.dominio.FormatoHora;
 import co.monitorsiae.dominio.HorarioOperacion;
 
 import java.time.Clock;
 import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
 import java.time.format.TextStyle;
 import java.util.Locale;
 import java.util.Optional;
-
 
 /**
  * Responde si en este momento se permite consultar la plataforma.
@@ -38,7 +37,7 @@ public final class VentanaHoraria {
         Locale es = Locale.forLanguageTag("es");
         String hoy = ahora.getDayOfWeek().getDisplayName(TextStyle.FULL, es);
         String rangoHoy = horario.franja(ahora.getDayOfWeek())
-                .map(f -> f.desde() + " a " + f.hasta())
+                .map(f -> FormatoHora.hora(f.desde()) + " a " + FormatoHora.hora(f.hasta()))
                 .orElse("sin consulta");
         return "Fuera del horario configurado (hoy " + hoy + ": " + rangoHoy + "). "
                 + proximaApertura(ahora).map(p -> "Retomará la consulta " + describir(p, ahora, es) + ".")
@@ -64,7 +63,7 @@ public final class VentanaHoraria {
     }
 
     private static String describir(ZonedDateTime apertura, ZonedDateTime ahora, Locale es) {
-        String hora = apertura.toLocalTime().toString();
+        String hora = FormatoHora.hora(apertura);
         if (apertura.toLocalDate().equals(ahora.toLocalDate())) {
             return "hoy a las " + hora;
         }

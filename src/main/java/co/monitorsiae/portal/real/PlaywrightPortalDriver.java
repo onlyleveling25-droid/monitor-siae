@@ -75,7 +75,9 @@ public final class PlaywrightPortalDriver implements PortalDriver {
                             .setViewportSize((ViewportSize) null)
                             .setArgs(List.of("--start-maximized", "--no-first-run",
                                     "--no-default-browser-check", "--disable-background-networking"));
-            contextoCreado = runtime.chromium().launchPersistentContext(perfil, opciones);
+            contextoCreado = ReintentoArranque.ejecutar(
+                    () -> runtime.chromium().launchPersistentContext(perfil, opciones),
+                    tiempo -> Thread.sleep(tiempo.toMillis()));
             paginaCreada = contextoCreado.pages().isEmpty()
                     ? contextoCreado.newPage()
                     : contextoCreado.pages().getFirst();
@@ -86,6 +88,11 @@ public final class PlaywrightPortalDriver implements PortalDriver {
                 runtime.close();
             } catch (RuntimeException cierre) {
                 e.addSuppressed(cierre);
+            }
+            if (ReintentoArranque.seCerroAlArrancar(e)) {
+                throw new PortalException("El navegador se cerró al arrancar, incluso al reintentar. "
+                        + "Si se está actualizando, espera un minuto; si no, cierra todas sus ventanas "
+                        + "y vuelve a intentar.", e);
             }
             throw new PortalException("No se pudo abrir el navegador o el portal SIAE. "
                     + "Verifica que el navegador seleccionado esté instalado.", e);

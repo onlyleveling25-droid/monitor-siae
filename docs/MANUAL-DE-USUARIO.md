@@ -399,7 +399,7 @@ También se aplica a la **espera creciente tras un fallo**: la primera falla esp
 | Opción | Qué hace |
 |---|---|
 | **Limitar el monitoreo a un horario** (casilla) | Es el **interruptor general**. **Desactivado (por defecto)**: el programa consulta a cualquier hora y la grilla de abajo **no se aplica** (se ve atenuada). **Activado**: solo consulta dentro de las horas de cada día marcado. |
-| **Días y horas** | Una columna por día (Lun a Dom). Marca la casilla de cada día que quieras monitorear y escribe sus horas en **Desde** y **Hasta** (formato `HH:mm`, por ejemplo `08:00` y `16:00`). La franja azul muestra gráficamente las horas. Un día sin marcar **no se consulta**. |
+| **Días y horas** | Una columna por día (Lun a Dom). Marca la casilla de cada día que quieras monitorear y escribe sus horas en **Desde** y **Hasta** (se muestran en 12 horas, como `08:00 a. m.` y `04:00 p. m.`; puedes escribirlas así, como `4:00 pm` o en 24 horas, como `16:00`). La franja azul muestra gráficamente las horas. Un día sin marcar **no se consulta**. |
 | **Copiar Lunes a todos los días** | Aplica las horas de Lunes a toda la semana y marca todos los días. |
 
 - La **hora de inicio debe ser anterior** a la de fin; no se admiten horarios que crucen la medianoche.

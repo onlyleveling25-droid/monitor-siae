@@ -103,7 +103,9 @@ $argumentos = @(
     '--type', $Tipo,
     '--name', $nombre,
     '--app-version', $Version,
-    '--vendor', 'Emprestur',
+    # Editor que muestra Windows junto a la version. Cambiarlo no afecta las actualizaciones.
+    '--vendor', 'Polar7 Labs',
+    '--copyright', "(c) $((Get-Date).Year) Yeferson Garcia - Polar7 Labs",
     '--description', 'Monitor SIAE: vigila el inventario de armas y alerta al usuario',
     '--input', $entrada,
     '--main-jar', $jar.Name,

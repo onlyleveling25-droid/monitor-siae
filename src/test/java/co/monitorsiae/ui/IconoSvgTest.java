@@ -11,7 +11,7 @@ class IconoSvgTest {
     @Test
     void todosLosIconosDeLaInterfazSePuedenCargarComoSvg() {
         for (String nombre : List.of("monitor", "dashboard", "settings", "activity", "bell",
-                "diagnostics", "more", "check", "info", "alert", "close", "image")) {
+                "diagnostics", "more", "check", "info", "alert", "close", "image", "search")) {
             assertNotNull(IconoSvg.crear(nombre, 18, "#1D4ED8"), nombre);
         }
     }

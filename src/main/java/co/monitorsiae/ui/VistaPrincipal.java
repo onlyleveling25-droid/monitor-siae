@@ -37,6 +37,7 @@ import javafx.scene.control.Label;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.control.ScrollPane;
+import javafx.scene.control.TextField;
 import javafx.scene.control.Tooltip;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
@@ -86,6 +87,9 @@ public final class VistaPrincipal extends BorderPane {
     private final Label iconoAviso = new Label();
     private final Label textoAviso = new Label();
     private final Label resumen = new Label();
+    private final TextField buscador = new TextField();
+    private HBox cajaBuscador;
+    private final Label sinCoincidencias = new Label();
     private final Button detenerTodos = new Button();
     private final Label modoTexto = new Label();
     private final Label confirmacionReconocimiento = new Label();
@@ -251,14 +255,58 @@ public final class VistaPrincipal extends BorderPane {
         desplazamiento.setFitToWidth(true);
         desplazamiento.getStyleClass().add("transparent-scroll");
         VBox.setVgrow(desplazamiento, Priority.ALWAYS);
-        HBox tituloClientes = new HBox();
+        HBox tituloClientes = new HBox(12);
         tituloClientes.setAlignment(Pos.CENTER_LEFT);
         resumen.getStyleClass().add("section-title");
-        tituloClientes.getChildren().add(resumen);
+        Region separador = new Region();
+        HBox.setHgrow(separador, Priority.ALWAYS);
+        tituloClientes.getChildren().addAll(resumen, separador, crearBuscador());
         cuerpo.getChildren().addAll(encabezado, modo, metricas, avisos, avisoVisual,
                 confirmacionReconocimiento, tituloClientes, desplazamiento);
         panelPrincipal = cuerpo;
         setCenter(panelPrincipal);
+    }
+
+    /**
+     * Casilla para filtrar la lista de clientes por nombre. Solo oculta filas: no detiene ningún
+     * monitoreo y las métricas de arriba siguen contando a todos los clientes.
+     */
+    private HBox crearBuscador() {
+        buscador.setPromptText("Buscar cliente…");
+        buscador.setAccessibleText("Buscar cliente por nombre");
+        buscador.textProperty().addListener((observable, antes, ahora) -> aplicarBusqueda());
+        cajaBuscador = CajaBusqueda.envolver(buscador);
+        cajaBuscador.setPrefWidth(280);
+        cajaBuscador.setMaxWidth(280);
+
+        sinCoincidencias.getStyleClass().add("empty-state");
+        sinCoincidencias.setWrapText(true);
+        sinCoincidencias.setMaxWidth(Double.MAX_VALUE);
+        return cajaBuscador;
+    }
+
+    /** Muestra solo los clientes cuyo nombre coincide con la búsqueda. */
+    private void aplicarBusqueda() {
+        String consulta = buscador.getText().strip();
+        int visibles = 0;
+        for (Map.Entry<String, HBox> entrada : filasClientes.entrySet()) {
+            Cliente cliente = clientesPorId.get(entrada.getKey());
+            boolean coincide = cliente != null && BusquedaClientes.coincide(cliente.nombre(), consulta);
+            entrada.getValue().setVisible(coincide);
+            entrada.getValue().setManaged(coincide);
+            if (coincide) {
+                visibles++;
+            }
+        }
+        int total = filasClientes.size();
+        boolean filtrando = !consulta.isEmpty() && total > 0;
+        resumen.setText(filtrando
+                ? "Clientes configurados · " + visibles + " de " + total
+                : "Clientes configurados");
+        boolean ninguno = filtrando && visibles == 0;
+        sinCoincidencias.setText("Ningún cliente coincide con «" + consulta + "».");
+        sinCoincidencias.setVisible(ninguno);
+        sinCoincidencias.setManaged(ninguno);
     }
 
     private VBox tarjetaMetrica(String titulo, Label valor, String icono, String color) {
@@ -300,10 +348,14 @@ public final class VistaPrincipal extends BorderPane {
             aviso.setWrapText(true);
             avisos.getChildren().add(aviso);
         }
-        if (configuracion.clientes().isEmpty()) {
+        boolean hayClientes = !configuracion.clientes().isEmpty();
+        cajaBuscador.setVisible(hayClientes);
+        cajaBuscador.setManaged(hayClientes);
+        if (!hayClientes) {
             Label vacio = new Label("Aún no hay clientes.\nAgrega el primero desde Ajustes para empezar.");
             vacio.getStyleClass().add("empty-state");
             tarjetas.getChildren().add(vacio);
+            aplicarBusqueda();
             actualizarMetricas();
             return;
         }
@@ -311,6 +363,9 @@ public final class VistaPrincipal extends BorderPane {
             clientesPorId.put(cliente.id(), cliente);
             tarjetas.getChildren().add(tarjeta(cliente));
         }
+        tarjetas.getChildren().add(sinCoincidencias);
+        // Conserva la búsqueda escrita aunque la lista se reconstruya (por ejemplo, al guardar Ajustes).
+        aplicarBusqueda();
         actualizarMetricas();
     }
 

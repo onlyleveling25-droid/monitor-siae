@@ -116,7 +116,8 @@ final class PaginaBitacora extends VBox {
             filtroPeriodo.setValue(null);
             busqueda.clear();
         });
-        HBox filtros = new HBox(10, busqueda, filtroCliente, filtroTipo, filtroPeriodo, quitarFiltros, actualizar);
+        HBox cajaBusqueda = CajaBusqueda.envolver(busqueda);
+        HBox filtros = new HBox(10, cajaBusqueda, filtroCliente, filtroTipo, filtroPeriodo, quitarFiltros, actualizar);
         filtros.setAlignment(Pos.CENTER_LEFT);
 
         aviso.getStyleClass().add("validation-banner");

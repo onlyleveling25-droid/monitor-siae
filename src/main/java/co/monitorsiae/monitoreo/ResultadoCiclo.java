@@ -45,6 +45,13 @@ public sealed interface ResultadoCiclo {
         }
     }
 
+    /** La solicitud ya esta abierta en "Estado de tramite" y el portal aun no tiene inventario. */
+    record SinInventarioEnSolicitud() implements ResultadoCiclo {
+        public String descripcion() {
+            return "Solicitud abierta en Estado de trámite: sin inventario por ahora.";
+        }
+    }
+
     record SinArmaDeInteres(String seccional, List<ArmaInventario> inventario) implements ResultadoCiclo {
         public SinArmaDeInteres {
             inventario = List.copyOf(inventario);

@@ -106,6 +106,15 @@
                 <configuration>
                     <mainClass>co.monitorsiae.portal.real.Reconocimiento</mainClass>
                 </configuration>
+                <executions>
+                    <!-- Reconocimiento del modulo Estado de tramite: mvn compile exec:java@estado-tramite -->
+                    <execution>
+                        <id>estado-tramite</id>
+                        <configuration>
+                            <mainClass>co.monitorsiae.portal.real.ReconocimientoEstadoTramite</mainClass>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

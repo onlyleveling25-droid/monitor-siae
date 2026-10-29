@@ -35,6 +35,18 @@ public interface PortalDriver extends AutoCloseable {
      */
     ResultadoGuardar enviarPaso1(String seccional, String descripcion);
 
+    /**
+     * Va al modulo "Estado de tramite", abre la solicitud en progreso que coincide con el tramite
+     * y pulsa la linea del formulario para que el portal busque inventario. Nunca pulsa FINALIZAR
+     * ni "Cancelar tramite": en ese cuadro FINALIZAR cancela la solicitud.
+     *
+     * <p>Con {@link ResultadoSolicitud#CON_INVENTARIO} el listado queda abierto, listo para
+     * {@link #leerInventario()}. Con {@link ResultadoSolicitud#SIN_INVENTARIO} el cuadro ya se cerro.
+     */
+    default ResultadoSolicitud abrirSolicitudExistente(ParametrosTramite tramite) {
+        return ResultadoSolicitud.SIN_SOLICITUD;
+    }
+
     /** Lee el listado de armas del paso 2. */
     List<ArmaInventario> leerInventario();
 

@@ -23,6 +23,9 @@ import java.util.Optional;
  */
 public final class CicloMonitoreo {
 
+    /** Como se nombra la fuente del inventario en los resultados cuando viene de la solicitud abierta. */
+    static final String ETIQUETA_SOLICITUD = "Estado de trámite";
+
     private final SelectorSeccional selectorSeccional;
     private final SelectorArma selectorArma;
 
@@ -31,9 +34,18 @@ public final class CicloMonitoreo {
         this.selectorArma = selectorArma;
     }
 
+    /** Una vuelta sin memoria entre llamadas: siempre empieza por el paso 1. */
     public ResultadoCiclo ejecutar(Cliente cliente, PortalDriver portal) {
+        return ejecutar(cliente, portal, new SeguimientoSolicitud());
+    }
+
+    /**
+     * Una vuelta que respeta el seguimiento: si hay una solicitud abierta se busca inventario desde
+     * "Estado de tramite"; si no, desde el paso 1.
+     */
+    public ResultadoCiclo ejecutar(Cliente cliente, PortalDriver portal, SeguimientoSolicitud seguimiento) {
         try {
-            return recorrer(cliente, portal);
+            return recorrer(cliente, portal, seguimiento);
         } catch (OpcionNoDisponibleException e) {
             return new ResultadoCiclo.TramiteNoDisponible(e.getMessage());
         } catch (SesionVencidaException e) {
@@ -44,9 +56,16 @@ public final class CicloMonitoreo {
             return new ResultadoCiclo.Inesperado(e.getMessage());
         }
     }
-    
 
-    private ResultadoCiclo recorrer(Cliente cliente, PortalDriver portal) {
+    private ResultadoCiclo recorrer(Cliente cliente, PortalDriver portal, SeguimientoSolicitud seguimiento) {
+        if (seguimiento.siguiendoSolicitud()) {
+            ResultadoCiclo enSolicitud = recorrerSolicitud(cliente, portal, seguimiento);
+            if (enSolicitud != null) {
+                return enSolicitud;
+            }
+            // No hay solicitud abierta: se hace la solicitud desde el paso 1, como siempre.
+        }
+
         ParametrosTramite tramite = cliente.tramite();
 
         List<String> abiertas = portal.abrirFormulario(tramite);
@@ -67,20 +86,43 @@ public final class CicloMonitoreo {
                 probadasSinInventario.add(seccional);
                 continue;
             }
-
-            List<ArmaInventario> inventario = portal.leerInventario();
-            Optional<EleccionArma> eleccion = selectorArma.elegir(inventario, cliente.seleccion());
-            if (eleccion.isEmpty()) {
-                return new ResultadoCiclo.SinArmaDeInteres(seccional, inventario);
-            }
-
-            if (cliente.modo() == ModoReaccion.ALERTA) {
-                return new ResultadoCiclo.ArmaEncontrada(seccional, eleccion.get(), inventario);
-            }
-            return apartar(portal, seccional, eleccion.get(), cliente.seleccion(), inventario,
-                    cliente.alcancePaso2());
+            // Con inventario, GUARDAR ya dejo la solicitud abierta en el portal.
+            return resolverInventario(cliente, portal, seccional, portal.leerInventario(), seguimiento);
         }
         return new ResultadoCiclo.SinInventario(String.join(" | ", probadasSinInventario));
+    }
+
+    /** Busca inventario desde la solicitud abierta; nulo si no hay ninguna y toca volver al paso 1. */
+    private ResultadoCiclo recorrerSolicitud(Cliente cliente, PortalDriver portal, SeguimientoSolicitud seguimiento) {
+        return switch (portal.abrirSolicitudExistente(cliente.tramite())) {
+            case SIN_SOLICITUD -> {
+                seguimiento.volverAlPaso1();
+                yield null;
+            }
+            case SIN_INVENTARIO -> new ResultadoCiclo.SinInventarioEnSolicitud();
+            case CON_INVENTARIO ->
+                    resolverInventario(cliente, portal, ETIQUETA_SOLICITUD, portal.leerInventario(), seguimiento);
+        };
+    }
+
+    private ResultadoCiclo resolverInventario(Cliente cliente, PortalDriver portal, String seccional,
+                                              List<ArmaInventario> inventario, SeguimientoSolicitud seguimiento) {
+        Optional<EleccionArma> eleccion = selectorArma.elegir(inventario, cliente.seleccion());
+        if (eleccion.isEmpty()) {
+            // La solicitud sigue abierta en el portal: repetir el paso 1 no sirve, se vigila desde alli.
+            seguimiento.seguirSolicitud();
+            return new ResultadoCiclo.SinArmaDeInteres(seccional, inventario);
+        }
+
+        if (cliente.modo() == ModoReaccion.ALERTA) {
+            return new ResultadoCiclo.ArmaEncontrada(seccional, eleccion.get(), inventario);
+        }
+        ResultadoCiclo resultado = apartar(portal, seccional, eleccion.get(), cliente.seleccion(), inventario,
+                cliente.alcancePaso2());
+        if (resultado instanceof ResultadoCiclo.ApartadoFallido) {
+            seguimiento.seguirSolicitud();   // alguien se llevo el arma; la solicitud sigue abierta
+        }
+        return resultado;
     }
 
     private static ResultadoCiclo apartar(

@@ -15,6 +15,7 @@ import co.monitorsiae.dominio.Cliente;
 import co.monitorsiae.dominio.Configuracion;
 import co.monitorsiae.dominio.EntornoPortal;
 import co.monitorsiae.dominio.FormatoHora;
+import co.monitorsiae.dominio.ModoInicio;
 import co.monitorsiae.monitoreo.EventoOperativo;
 import co.monitorsiae.monitoreo.SnapshotInventario;
 import co.monitorsiae.notificacion.Alerta;
@@ -31,6 +32,8 @@ import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
+import javafx.scene.control.ComboBox;
+import javafx.util.StringConverter;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
@@ -98,6 +101,7 @@ public final class VistaPrincipal extends BorderPane {
     private final Map<String, Label> actividades = new HashMap<>();
     private final Map<String, Label> horasActividad = new HashMap<>();
     private final Map<String, Button> accionesPrincipales = new HashMap<>();
+    private final Map<String, ComboBox<ModoInicio>> modosInicio = new HashMap<>();
     private final Map<String, MenuItem> detenerDesdeMenu = new HashMap<>();
     private final Map<String, MenuItem> historialDesdeMenu = new HashMap<>();
     private final Map<String, MenuItem> enfocarDesdeMenu = new HashMap<>();
@@ -332,6 +336,7 @@ public final class VistaPrincipal extends BorderPane {
         actividades.clear();
         horasActividad.clear();
         accionesPrincipales.clear();
+        modosInicio.clear();
         detenerDesdeMenu.clear();
         historialDesdeMenu.clear();
         enfocarDesdeMenu.clear();
@@ -435,6 +440,7 @@ public final class VistaPrincipal extends BorderPane {
             if (accionPrincipal != null) {
                 actualizarAccionPrincipal(cliente, accionPrincipal, estado);
             }
+            actualizarSelectorDeOrigen(clienteId, estado);
         }
         MenuItem detener = detenerDesdeMenu.get(clienteId);
         if (detener != null) {
@@ -517,10 +523,11 @@ public final class VistaPrincipal extends BorderPane {
             } else if (esPortalReal() && !monitores.sesionAbierta(cliente.id())) {
                 abrirSesion(cliente);
             } else {
-                iniciar(cliente);
+                iniciar(cliente, modoElegido(cliente.id()));
             }
         });
         accionesPrincipales.put(cliente.id(), principal);
+        ComboBox<ModoInicio> origen = crearSelectorDeOrigen(cliente);
         actualizarAccionPrincipal(cliente, principal, estadoActual);
 
         MenuItem detener = new MenuItem("Detener monitoreo");
@@ -546,7 +553,7 @@ public final class VistaPrincipal extends BorderPane {
         mas.setTooltip(new Tooltip("Más acciones"));
         mas.setOnAction(event -> menu.show(mas, javafx.geometry.Side.BOTTOM, 0, 2));
 
-        fila.getChildren().addAll(acento, identidadCliente, actividadReciente, estado, principal, mas);
+        fila.getChildren().addAll(acento, identidadCliente, actividadReciente, estado, origen, principal, mas);
         if (estadoActual == CoordinadorMonitores.Estado.ALERTA_ENCONTRADA) {
             fila.getStyleClass().add("client-row-alert");
         }
@@ -707,14 +714,64 @@ public final class VistaPrincipal extends BorderPane {
         };
     }
 
-    private void iniciar(Cliente cliente) {
+    private ModoInicio modoElegido(String clienteId) {
+        ComboBox<ModoInicio> combo = modosInicio.get(clienteId);
+        return combo == null || combo.getValue() == null ? ModoInicio.NUEVA_SOLICITUD : combo.getValue();
+    }
+
+    /** Elige si el monitoreo empieza en el paso 1 o vigila la solicitud ya abierta en "Estado de trámite". */
+    private ComboBox<ModoInicio> crearSelectorDeOrigen(Cliente cliente) {
+        ComboBox<ModoInicio> combo = new ComboBox<>();
+        combo.getItems().setAll(ModoInicio.values());
+        combo.setConverter(new StringConverter<>() {
+            @Override
+            public String toString(ModoInicio modo) {
+                return modo == null ? "" : switch (modo) {
+                    case NUEVA_SOLICITUD -> "Nueva solicitud (paso 1)";
+                    case SOLICITUD_EXISTENTE -> "Solicitud existente";
+                };
+            }
+
+            @Override
+            public ModoInicio fromString(String texto) {
+                return null;
+            }
+        });
+        combo.setValue(monitores.solicitudPendiente(cliente.id())
+                ? ModoInicio.SOLICITUD_EXISTENTE : ModoInicio.NUEVA_SOLICITUD);
+        combo.setPrefWidth(185);
+        combo.setMinWidth(185);
+        combo.setTooltip(new Tooltip("Dónde empieza el monitoreo. \"Nueva solicitud\" busca inventario desde el "
+                + "paso 1. \"Solicitud existente\" va a Estado de trámite y vigila la solicitud que ya quedó "
+                + "abierta; si no hay ninguna, hace la solicitud como siempre."));
+        combo.setDisable(ocupado(monitores.estado(cliente.id())) || monitores.estado(cliente.id())
+                == CoordinadorMonitores.Estado.MONITOREANDO);
+        modosInicio.put(cliente.id(), combo);
+        return combo;
+    }
+
+    private void actualizarSelectorDeOrigen(String clienteId, CoordinadorMonitores.Estado estado) {
+        ComboBox<ModoInicio> combo = modosInicio.get(clienteId);
+        if (combo == null) {
+            return;
+        }
+        boolean vigilando = estado == CoordinadorMonitores.Estado.MONITOREANDO
+                || estado == CoordinadorMonitores.Estado.FUERA_DE_HORARIO || ocupado(estado);
+        combo.setDisable(vigilando);
+        if (!vigilando && monitores.solicitudPendiente(clienteId)) {
+            // El monitor dejo una solicitud abierta: al reanudar se sigue desde "Estado de trámite".
+            combo.setValue(ModoInicio.SOLICITUD_EXISTENTE);
+        }
+    }
+
+    private void iniciar(Cliente cliente, ModoInicio modo) {
         if (!problemas.isEmpty()) {
             mostrar(Alert.AlertType.WARNING, "Configuración incompleta",
                     String.join(System.lineSeparator(), servicio.problemasConfiguracion()));
             return;
         }
         try {
-            monitores.iniciar(cliente);
+            monitores.iniciar(cliente, modo);
         } catch (RuntimeException e) {
             mostrar(Alert.AlertType.ERROR, "No se pudo iniciar", e.getMessage());
         }

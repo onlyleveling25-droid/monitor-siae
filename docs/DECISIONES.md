@@ -351,6 +351,28 @@ cambia. El horario sigue desactivado por defecto (D11).
 (en lugar de interpretar mal el horario). El editor ofrece campos de hora por día y "Copiar Lunes a
 todos los días". Quedan fuera dos franjas en un mismo día y horarios que cruzan la medianoche.
 
+## D20. Solicitud abierta en "Estado de trámite" (aprobado por el usuario, 2026-10-29)
+
+**Contexto:** el volcado del módulo Estado de trámite mostró que GUARDAR con inventario deja la solicitud
+abierta (EN PROGRESO) aunque ninguna arma cumpla las reglas. Repetir el paso 1 en cada ciclo es el caso
+"GUARDAR repetido" que figuraba como pendiente.
+
+**Decisión:**
+- El monitor lleva un `SeguimientoSolicitud` por cliente. Tras *inventario sin arma de interés* o *apartado
+  fallido*, pasa a buscar inventario desde Estado de trámite en lugar de repetir el paso 1.
+- El Panel ofrece `ModoInicio` (*Nueva solicitud* / *Solicitud existente*). Con *Solicitud existente* y sin
+  solicitud en progreso, cae al paso 1 en el mismo ciclo.
+- La solicitud se identifica por la tarjeta *EN PROGRESO* cuyo texto contiene el permiso y el tipo de trámite.
+- **Nunca se pulsa FINALIZAR ni "Cancelar trámite" en ese módulo**: sin inventario, FINALIZAR cancela la
+  solicitud. El cuadro se cierra con un clic fuera de él (Escape de respaldo); si no cierra, se falla.
+- El listado de inventario es un `DataGrid` de MUI X con virtualización: se lee desplazando el contenedor y
+  se localiza la fila desplazándolo hasta dibujarla. Los selectores usan `MuiDataGrid-row` y `MuiDataGrid-cell`.
+- "Sin filas" no significa "sin inventario": el listado se abre vacío mientras carga; solo cuenta el aviso del
+  cuadro o la llegada de filas.
+
+**Verificado:** pruebas unitarias con el simulador y una simulación en navegador real (Chrome) contra una página
+que imita el DOM del volcado. **Pendiente:** confirmarlo contra el portal con inventario real.
+
 ## Pendientes por confirmar
 
 - Si el límite de 8 a 16 se aplica de verdad (D11).

@@ -45,6 +45,21 @@ class MonitorClienteTest {
     }
 
     @Test
+    void conUnaSolicitudAbiertaVigilaDesdeEstadoDeTramiteHastaApartar() {
+        PortalSimulado portal = PortalSimulado.con(
+                Escena.conInventario(MEDELLIN, "Escopeta Winchester Mod SXP High Cal 12 7T+1 WINCHESTER 12"),
+                Escena.abiertasSinInventario(MEDELLIN),
+                Escena.abiertasSinInventario(MEDELLIN),
+                Escena.conInventario(MEDELLIN, "Pistola Glock Mod G-43 RAIL CAL 9mm 9T 2P GLOCK 9MM"));
+
+        monitor(portal, siempreAbierto()).run();
+
+        assertEquals(1, portal.formulariosAbiertos(), "el paso 1 se hace una sola vez");
+        assertEquals(3, portal.consultasDeSolicitud());
+        assertEquals(MotivoDetencion.ARMA_APARTADA, oyente.motivo);
+    }
+
+    @Test
     void seDetieneSiLaSesionVence() {
         PortalSimulado portal = PortalSimulado.con(Escena.conFalla(Escena.Falla.SESION_VENCIDA));
 

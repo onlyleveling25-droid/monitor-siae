@@ -34,11 +34,20 @@ public final class MonitorCliente implements Runnable {
     private final Object bloqueoSolicitudes = new Object();
     private final List<CompletableFuture<Void>> solicitudesEnfoque = new ArrayList<>();
 
+    private final SeguimientoSolicitud seguimiento;
+
     private volatile boolean detencionSolicitada;
     private boolean finalizado;
 
     public MonitorCliente(Cliente cliente, PortalDriver portal, CicloMonitoreo ciclo, VentanaHoraria ventana,
                           Duration intervalo, Pausa pausa, OyenteMonitoreo oyente) {
+        this(cliente, portal, ciclo, ventana, intervalo, pausa, oyente, new SeguimientoSolicitud());
+    }
+
+    public MonitorCliente(Cliente cliente, PortalDriver portal, CicloMonitoreo ciclo, VentanaHoraria ventana,
+                          Duration intervalo, Pausa pausa, OyenteMonitoreo oyente,
+                          SeguimientoSolicitud seguimiento) {
+        this.seguimiento = seguimiento;
         this.cliente = cliente;
         this.portal = portal;
         this.ciclo = ciclo;
@@ -108,7 +117,7 @@ public final class MonitorCliente implements Runnable {
                 fueraDeHorarioNotificado = false;
             }
 
-            ResultadoCiclo resultado = ciclo.ejecutar(cliente, portal);
+            ResultadoCiclo resultado = ciclo.ejecutar(cliente, portal, seguimiento);
             procesarSolicitudesEnfoque(false);
             oyente.alTerminarCiclo(cliente, resultado);
 

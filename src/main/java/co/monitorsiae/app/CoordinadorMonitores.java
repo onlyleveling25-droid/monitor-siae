@@ -18,6 +18,7 @@ import java.util.function.Function;
 import co.monitorsiae.dominio.Cliente;
 import co.monitorsiae.dominio.Configuracion;
 import co.monitorsiae.dominio.EntornoPortal;
+import co.monitorsiae.dominio.ModoInicio;
 import co.monitorsiae.monitoreo.CicloMonitoreo;
 import co.monitorsiae.monitoreo.MonitorCliente;
 import co.monitorsiae.monitoreo.EventoOperativo;
@@ -27,6 +28,7 @@ import co.monitorsiae.monitoreo.OyenteRegistro;
 import co.monitorsiae.monitoreo.Pausa;
 import co.monitorsiae.monitoreo.ResultadoCiclo;
 import co.monitorsiae.monitoreo.SelectorArma;
+import co.monitorsiae.monitoreo.SeguimientoSolicitud;
 import co.monitorsiae.monitoreo.SelectorSeccional;
 import co.monitorsiae.monitoreo.SnapshotInventario;
 import co.monitorsiae.monitoreo.VentanaHoraria;
@@ -172,6 +174,20 @@ public final class CoordinadorMonitores implements AutoCloseable {
         return snapshots.historialDe(clienteId);
     }
 
+    /** Indica si el cliente tiene una solicitud abierta en el portal que el monitor debe seguir. */
+    public boolean solicitudPendiente(String clienteId) {
+        return sesionCliente(clienteId).seguimiento.siguiendoSolicitud();
+    }
+
+    /**
+     * Inicia el monitoreo indicando desde donde: la solicitud abierta en "Estado de tramite" o el paso 1.
+     * Si se pide la solicitud y el portal no tiene ninguna, el monitor hace la solicitud como siempre.
+     */
+    public void iniciar(Cliente cliente, ModoInicio modo) {
+        sesionCliente(cliente.id()).modoInicioPedido = java.util.Objects.requireNonNull(modo);
+        iniciar(cliente);
+    }
+
     public void iniciar(Cliente cliente) {
         if (cerrado) {
             throw new IllegalStateException("La aplicación se está cerrando.");
@@ -187,6 +203,10 @@ public final class CoordinadorMonitores implements AutoCloseable {
             if (sesion.estado == Estado.MONITOREANDO || sesion.estado == Estado.INICIANDO
                     || sesion.estado == Estado.DETENIENDO) {
                 return;
+            }
+            if (sesion.modoInicioPedido != null) {
+                sesion.seguimiento.establecer(sesion.modoInicioPedido);
+                sesion.modoInicioPedido = null;
             }
             sesion.estado = Estado.INICIANDO;
             sesion.ultimoResultado = "Iniciando y preparando una nueva consulta.";
@@ -374,7 +394,7 @@ public final class CoordinadorMonitores implements AutoCloseable {
                     new CicloMonitoreo(new SelectorSeccional(), new SelectorArma()),
                     ventana,
                     Duration.ofSeconds(actual.intervaloConsultaSegundos()),
-                    Pausa.real(actual.variacionEsperaPorcentaje() / 100.0), oyente);
+                    Pausa.real(actual.variacionEsperaPorcentaje() / 100.0), oyente, sesion.seguimiento);
             if (sesion.detencionSolicitada) {
                 sesion.monitor.detener();
             }
@@ -547,6 +567,9 @@ public final class CoordinadorMonitores implements AutoCloseable {
         private volatile MonitorCliente monitor;
         private volatile boolean detencionSolicitada;
         private volatile String ultimoResultado = "";
+        /** Si hay una solicitud abierta en el portal; se conserva entre detenciones y reinicios. */
+        private final SeguimientoSolicitud seguimiento = new SeguimientoSolicitud();
+        private volatile ModoInicio modoInicioPedido;
 
         private SesionCliente(String id) {
             this.id = id;

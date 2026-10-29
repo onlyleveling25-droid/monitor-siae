@@ -50,9 +50,18 @@ final class SelectoresSiae {
     /** Tras sellar la reserva, la tarjeta pasa a "Formulario antecedentes Fiscalia". */
     static final String PASO_3 = "text=/Formulario antecedentes Fiscal[ií]a/i"; // CONFIRMAR con 18-tras-confirmar.txt
 
-    /** Filas: mat-table de Angular Material o DataGrid de MUI. */
-    static final String FILAS_INVENTARIO = "table tbody tr, [role='row']:has([role='gridcell'])";
-    static final String CELDAS_INVENTARIO = "td, [role='gridcell']";
+    /**
+     * Filas del inventario. El listado es un DataGrid de MUI X (confirmado en el volcado de
+     * "Estado de tramite"): ahi las clases MuiDataGrid-* valen en cualquier version, mientras que el
+     * rol de las celdas cambia ("cell" o "gridcell"). Las tablas clasicas solo cuentan dentro de un
+     * cuadro: detras del cuadro, "Estado de tramite" tiene su propia tabla (la linea FG-1).
+     */
+    static final String GRID_INVENTARIO = ".MuiDataGrid-root";
+    static final String SCROLL_GRID = ".MuiDataGrid-virtualScroller";
+    static final String FILAS_GRID = ".MuiDataGrid-row";
+    static final String FILAS_INVENTARIO = FILAS_GRID
+            + ", [role='dialog'] table tbody tr, [role='dialog'] [role='row']:has([role='gridcell'])";
+    static final String CELDAS_INVENTARIO = ".MuiDataGrid-cell, td, [role='gridcell'], [role='cell']";
     static final String FILA_SELECCIONADA = "text=/\\d+\\s*fila[s]?\\s+seleccionada/i";
 
     /** Modales: Angular Material (mat-dialog) y MUI. */
@@ -62,6 +71,20 @@ final class SelectoresSiae {
             "input, textarea, [role='combobox'], mat-select, [role='spinbutton']";
     static final String BOTON_CONFIRMAR = "button:has-text('CONFIRMAR')";
     static final String BOTON_VOLVER = "button:has-text('VOLVER')";
+
+    // --- Modulo "Estado de tramite" (React + MUI) ---------------------------------
+    /** Tarjetas de la lista de solicitudes; el texto trae el numero, "EN PROGRESO", permiso y tipo. */
+    static final String TARJETAS_TRAMITE = ".MuiCard-root";
+    static final String ESTADO_EN_PROGRESO = "EN PROGRESO";
+    /** Pestanas CIUDADANO/EMPRESA e HISTORIAL: indican que la pagina ya cargo. */
+    static final String PESTANAS = "button[role='tab']";
+    /** Lineas de formularios de la solicitud abierta; la que dice FG-1 abre el inventario. */
+    static final String FILA_FORMULARIO = "table[aria-label='collapsible table'] tbody tr:has-text('FG-1')";
+    static final String CONTENEDOR_MODAL = ".MuiDialog-container";
+    static final String PAPEL_MODAL = ".MuiDialog-paper";
+    /** Aviso dentro del cuadro; el aviso rojo de abajo desaparece solo y no sirve para decidir. */
+    static final String AVISO_SIN_INVENTARIO_EN_MODAL =
+            ".MuiDialog-paper .MuiAlert-message:text-matches(\"NO HAY INVENTARIO DISPONIBLE\", \"i\")";
 
     static final String BOTON_PORTE = "button:has-text('PORTE')";
     static final String BOTON_TENENCIA = "button:has-text('TENENCIA')";

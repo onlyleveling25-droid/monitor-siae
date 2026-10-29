@@ -139,7 +139,7 @@ documentos ni enviar nada en el paso 3.
 
 - [ ] Mensaje exacto al pulsar GUARDAR con seccional sin inventario.
 - [ ] Si aparece algo nuevo en "trámites pendientes" después de GUARDAR.
-- [ ] Si pulsar GUARDAR varias veces crea duplicados.
+- [ ] Si pulsar GUARDAR varias veces crea duplicados. (Ver D20: con inventario la solicitud queda abierta en Estado de trámite; el monitor deja de repetir el paso 1.)
 - [ ] Si tras el mensaje de sin inventario el formulario conserva los datos o se limpia.
 - [ ] Llamadas de red al abrir cada desplegable y al pulsar GUARDAR (URL, método, tipo de respuesta).
 - [ ] Si el listado del paso 2 llega como JSON o como HTML.

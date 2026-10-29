@@ -8,6 +8,7 @@ import co.monitorsiae.portal.PortalDriver;
 import co.monitorsiae.portal.PortalInesperadoException;
 import co.monitorsiae.portal.PortalNoRespondeException;
 import co.monitorsiae.portal.ResultadoGuardar;
+import co.monitorsiae.portal.ResultadoSolicitud;
 import co.monitorsiae.portal.SesionVencidaException;
 
 import java.util.ArrayDeque;
@@ -29,6 +30,9 @@ public final class PortalSimulado implements PortalDriver {
     private Escena actual;
 
     private int formulariosAbiertos;
+    private int consultasDeSolicitud;
+    /** Como el portal real: GUARDAR con inventario deja la solicitud abierta en "Estado de tramite". */
+    private boolean solicitudAbierta;
     private final List<String> seccionalesEnviadas = new ArrayList<>();
     private final List<ArmaInventario> intentosDeApartar = new ArrayList<>();
 
@@ -65,7 +69,22 @@ public final class PortalSimulado implements PortalDriver {
             throw new PortalInesperadoException("GUARDAR está deshabilitado: la descripción no cumple el largo.");
         }
         seccionalesEnviadas.add(seccional);
-        return actual.conInventario().contains(seccional) ? ResultadoGuardar.AVANZO_PASO_2 : ResultadoGuardar.SIN_INVENTARIO;
+        if (actual.conInventario().contains(seccional)) {
+            solicitudAbierta = true;
+            return ResultadoGuardar.AVANZO_PASO_2;
+        }
+        return ResultadoGuardar.SIN_INVENTARIO;
+    }
+
+    @Override
+    public ResultadoSolicitud abrirSolicitudExistente(ParametrosTramite tramite) {
+        if (!solicitudAbierta) {
+            return ResultadoSolicitud.SIN_SOLICITUD;
+        }
+        actual = pendientes.size() > 1 ? pendientes.pollFirst() : pendientes.peekFirst();
+        consultasDeSolicitud++;
+        lanzarFallaSiCorresponde();
+        return actual.inventario().isEmpty() ? ResultadoSolicitud.SIN_INVENTARIO : ResultadoSolicitud.CON_INVENTARIO;
     }
 
     @Override
@@ -89,6 +108,10 @@ public final class PortalSimulado implements PortalDriver {
                 // respuesta normal
             }
         }
+    }
+
+    public int consultasDeSolicitud() {
+        return consultasDeSolicitud;
     }
 
     public int formulariosAbiertos() {

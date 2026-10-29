@@ -13,6 +13,7 @@ import co.monitorsiae.portal.PortalException;
 import co.monitorsiae.portal.PortalInesperadoException;
 import co.monitorsiae.portal.PortalNoRespondeException;
 import co.monitorsiae.portal.ResultadoGuardar;
+import co.monitorsiae.portal.ResultadoSolicitud;
 import co.monitorsiae.portal.SesionPortalCerradaException;
 import co.monitorsiae.portal.SesionVencidaException;
 import com.microsoft.playwright.BrowserContext;
@@ -21,6 +22,7 @@ import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.PlaywrightException;
+import com.microsoft.playwright.options.BoundingBox;
 import com.microsoft.playwright.options.ViewportSize;
 import com.microsoft.playwright.options.WaitForSelectorState;
 import com.microsoft.playwright.options.WaitUntilState;
@@ -41,6 +43,9 @@ import java.util.Set;
 public final class PlaywrightPortalDriver implements PortalDriver {
 
     public static final String URL_TRAMITE = "https://dccae.cgfm.mil.co/dccae/main/SolicitudTramite";
+    public static final String URL_ESTADO_TRAMITE = "https://dccae.cgfm.mil.co/dccae/main/EstadoTramite";
+    private static final com.fasterxml.jackson.databind.ObjectMapper JSON =
+            new com.fasterxml.jackson.databind.ObjectMapper();
 
     private static final Duration ESPERA_CORTA = Duration.ofSeconds(6);
     private static final Duration ESPERA_MEDIA = Duration.ofSeconds(20);
@@ -353,6 +358,12 @@ public final class PlaywrightPortalDriver implements PortalDriver {
         asegurarPaso2();
         esperarFilasInventario();
 
+        List<ArmaInventario> delGrid = leerGridCompleto();
+        if (!delGrid.isEmpty()) {
+            return delGrid;
+        }
+
+        // Respaldo para tablas clasicas, sin virtualizacion.
         List<ArmaInventario> armas = new ArrayList<>();
         List<Locator> filas = pagina.locator(SelectoresSiae.FILAS_INVENTARIO).all();
         for (int i = 0; i < filas.size(); i++) {
@@ -371,6 +382,70 @@ public final class PlaywrightPortalDriver implements PortalDriver {
         }
         return armas;
     }
+
+    private record FilaGrid(int posicion, List<String> celdas) {
+    }
+
+    /**
+     * El DataGrid solo dibuja las filas visibles (mas un margen), asi que con unas 5 a la vista se
+     * leerian 8 de 19 armas. Se recorre el desplazamiento completo y se junta cada fila una sola vez.
+     */
+    private List<ArmaInventario> leerGridCompleto() {
+        Locator grid = pagina.locator(SelectoresSiae.GRID_INVENTARIO).first();
+        if (grid.count() == 0) {
+            return List.of();
+        }
+        try {
+            String json = String.valueOf(grid.evaluate(JS_LEER_GRID));
+            List<FilaGrid> filas = JSON.readValue(json,
+                    new com.fasterxml.jackson.core.type.TypeReference<List<FilaGrid>>() { });
+            List<ArmaInventario> armas = new ArrayList<>();
+            for (FilaGrid fila : filas) {
+                String descripcion = String.join(" ", fila.celdas()).replaceAll("\\s+", " ").strip();
+                if (!descripcion.isBlank()) {
+                    String tipo = fila.celdas().isEmpty() ? "" : fila.celdas().getFirst();
+                    armas.add(new ArmaInventario(fila.posicion(), descripcion, tipo));
+                }
+            }
+            return armas;
+        } catch (IOException | RuntimeException e) {
+            LOG.warn("No se pudo leer el listado completo del DataGrid; se usa la lectura simple.", e);
+            return List.of();
+        }
+    }
+
+    private static final String JS_LEER_GRID = """
+            async (grid) => {
+              const pausa = ms => new Promise(r => setTimeout(r, ms));
+              const limpiar = t => (t || '').replace(/\\s+/g, ' ').trim();
+              const scroller = grid.querySelector('.MuiDataGrid-virtualScroller');
+              const total = Math.max(0, (parseInt(grid.getAttribute('aria-rowcount') || '0', 10) || 0) - 1);
+              const filas = new Map();
+              const recoger = () => {
+                grid.querySelectorAll('.MuiDataGrid-row').forEach(f => {
+                  const idx = f.getAttribute('data-rowindex');
+                  const clave = idx !== null ? 'i' + idx : (f.getAttribute('data-id') || 'n' + filas.size);
+                  if (!filas.has(clave)) {
+                    const celdas = Array.from(f.querySelectorAll('.MuiDataGrid-cell')).map(c => limpiar(c.innerText));
+                    filas.set(clave, { posicion: idx !== null ? parseInt(idx, 10) : filas.size, celdas: celdas });
+                  }
+                });
+              };
+              if (scroller) { scroller.scrollTop = 0; await pausa(120); }
+              recoger();
+              let vueltas = 0;
+              while (scroller && (total === 0 || filas.size < total) && vueltas < 80) {
+                const antes = scroller.scrollTop;
+                scroller.scrollTop = antes + Math.max(40, scroller.clientHeight * 0.7);
+                await pausa(120);
+                recoger();
+                vueltas++;
+                if (scroller.scrollTop === antes) break;
+              }
+              if (scroller) { scroller.scrollTop = 0; }
+              return JSON.stringify(Array.from(filas.values()).sort((a, b) => a.posicion - b.posicion));
+            }
+            """;
 
     @Override
     public boolean apartar(ArmaInventario arma, Modalidad modalidad) {
@@ -595,6 +670,13 @@ public final class PlaywrightPortalDriver implements PortalDriver {
     }
 
     private Locator buscarFila(ArmaInventario arma) {
+        Locator grid = pagina.locator(SelectoresSiae.GRID_INVENTARIO).first();
+        if (grid.count() > 0) {
+            Locator enGrid = buscarFilaEnGrid(grid, arma);
+            if (enGrid != null) {
+                return enGrid;
+            }
+        }
         List<Locator> filas = pagina.locator(SelectoresSiae.FILAS_INVENTARIO).all();
         for (Locator fila : filas) {
             String texto = textoDe(fila);
@@ -616,6 +698,39 @@ public final class PlaywrightPortalDriver implements PortalDriver {
         return null;
     }
 
+    /** Desplaza el DataGrid desde arriba hasta que la fila del arma este dibujada en pantalla. */
+    private Locator buscarFilaEnGrid(Locator grid, ArmaInventario arma) {
+        Locator desplazamiento = grid.locator(SelectoresSiae.SCROLL_GRID).first();
+        boolean conScroll = desplazamiento.count() > 0;
+        if (conScroll) {
+            desplazamiento.evaluate("el => { el.scrollTop = 0; }");
+            pagina.waitForTimeout(120);
+        }
+        for (int vuelta = 0; vuelta < 80; vuelta++) {
+            for (Locator fila : grid.locator(SelectoresSiae.FILAS_GRID).all()) {
+                String texto = textoDe(fila);
+                if (Texto.equivalentes(texto, arma.descripcion())
+                        || Texto.contieneTermino(texto, arma.descripcion())) {
+                    return fila;
+                }
+            }
+            if (!conScroll) {
+                return null;
+            }
+            double antes = numero(desplazamiento.evaluate("el => el.scrollTop"));
+            desplazamiento.evaluate("el => { el.scrollTop = el.scrollTop + Math.max(40, el.clientHeight * 0.7); }");
+            pagina.waitForTimeout(120);
+            if (numero(desplazamiento.evaluate("el => el.scrollTop")) == antes) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private static double numero(Object valor) {
+        return valor instanceof Number n ? n.doubleValue() : 0;
+    }
+
     private void esperarFilasInventario() {
         long limite = System.nanoTime() + ESPERA_MEDIA.toNanos();
         while (System.nanoTime() < limite) {
@@ -628,6 +743,131 @@ public final class PlaywrightPortalDriver implements PortalDriver {
             pagina.waitForTimeout(300);
         }
         throw inesperado("El paso 2 no mostró filas de inventario.", null);
+    }
+
+    // --- Solicitud abierta en "Estado de tramite" ------------------------------------
+
+    @Override
+    public ResultadoSolicitud abrirSolicitudExistente(ParametrosTramite tramite) {
+        verificarDisponible();
+        detectarSesionVencida();
+        pagina.navigate(URL_ESTADO_TRAMITE,
+                new Page.NavigateOptions().setWaitUntil(WaitUntilState.DOMCONTENTLOADED));
+        esperarEstadoTramite();
+
+        Locator tarjeta = buscarTarjetaDeSolicitud(tramite);
+        if (tarjeta == null) {
+            return ResultadoSolicitud.SIN_SOLICITUD;
+        }
+        tarjeta.scrollIntoViewIfNeeded();
+        tarjeta.click();
+
+        // La linea FG-1 aparece cuando termina de cargar el detalle; al pulsarla el portal busca inventario.
+        Locator linea = pagina.locator(SelectoresSiae.FILA_FORMULARIO).first();
+        try {
+            linea.waitFor(new Locator.WaitForOptions().setState(WaitForSelectorState.VISIBLE)
+                    .setTimeout(ESPERA_MEDIA.toMillis()));
+        } catch (PlaywrightException e) {
+            throw inesperado("La solicitud no mostró la línea del formulario FG-1.", e);
+        }
+        linea.locator("td").first().click();
+        return esperarResultadoInventarioDeSolicitud();
+    }
+
+    /** Espera a que la pagina cargue (pestanas visibles) y a que llegue la lista de solicitudes. */
+    private void esperarEstadoTramite() {
+        long limite = System.nanoTime() + ESPERA_MEDIA.toNanos();
+        while (System.nanoTime() < limite) {
+            detectarSesionVencida();
+            if (pagina.locator(SelectoresSiae.PESTANAS).count() > 0) {
+                long espera = System.nanoTime() + ESPERA_CORTA.toNanos();
+                while (System.nanoTime() < espera && pagina.locator(SelectoresSiae.TARJETAS_TRAMITE).count() == 0) {
+                    pagina.waitForTimeout(250);
+                }
+                return;
+            }
+            pagina.waitForTimeout(250);
+        }
+        throw inesperado("No se abrió el módulo Estado de trámite.", null);
+    }
+
+    /**
+     * La solicitud en progreso cuyo permiso y tipo de tramite coinciden con los del cliente; nulo si
+     * no hay. Nunca se toca nada fuera de las tarjetas: el boton "Cancelar tramite" queda intacto.
+     */
+    private Locator buscarTarjetaDeSolicitud(ParametrosTramite tramite) {
+        for (Locator tarjeta : pagina.locator(SelectoresSiae.TARJETAS_TRAMITE).all()) {
+            String texto = textoDe(tarjeta);
+            if (Texto.contieneTermino(texto, SelectoresSiae.ESTADO_EN_PROGRESO)
+                    && Texto.contieneTermino(texto, tramite.obtenerPermiso())
+                    && Texto.contieneTermino(texto, tramite.tipoTramite())) {
+                return tarjeta;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Al abrir la linea FG-1 el listado aparece primero vacio ("Sin filas") mientras carga; solo hay
+     * inventario cuando llegan filas y solo hay "sin inventario" cuando sale el aviso del cuadro.
+     */
+    private ResultadoSolicitud esperarResultadoInventarioDeSolicitud() {
+        long limite = System.nanoTime() + ESPERA_LARGA.toNanos();
+        while (System.nanoTime() < limite) {
+            detectarSesionVencida();
+            if (pagina.locator(SelectoresSiae.FILAS_INVENTARIO).count() > 0) {
+                return ResultadoSolicitud.CON_INVENTARIO;
+            }
+            if (pagina.locator(SelectoresSiae.AVISO_SIN_INVENTARIO_EN_MODAL).count() > 0) {
+                cerrarCuadroSinFinalizar();
+                return ResultadoSolicitud.SIN_INVENTARIO;
+            }
+            pagina.waitForTimeout(250);
+        }
+        throw inesperado("La solicitud no mostró inventario ni el aviso de que no hay.", null);
+    }
+
+    /**
+     * Cierra el cuadro de la solicitud con un clic fuera de el. NUNCA se pulsa FINALIZAR: con la
+     * solicitud sin inventario ese boton CANCELA la solicitud. Si el clic no basta se prueba con
+     * Escape; si tampoco, se falla antes que arriesgar la solicitud.
+     */
+    private void cerrarCuadroSinFinalizar() {
+        for (int intento = 0; intento < 2; intento++) {
+            Locator papel = pagina.locator(SelectoresSiae.PAPEL_MODAL).last();
+            if (!estaVisible(papel)) {
+                return;
+            }
+            if (intento == 0) {
+                clicFueraDelCuadro(papel);
+            } else {
+                pagina.keyboard().press("Escape");
+            }
+            long limite = System.nanoTime() + Duration.ofSeconds(2).toNanos();
+            while (System.nanoTime() < limite) {
+                if (!estaVisible(papel)) {
+                    return;
+                }
+                pagina.waitForTimeout(100);
+            }
+        }
+        throw inesperado("No se pudo cerrar el cuadro de la solicitud sin pulsar FINALIZAR.", null);
+    }
+
+    /** Clic en la esquina superior izquierda del fondo del cuadro, siempre fuera del recuadro blanco. */
+    private void clicFueraDelCuadro(Locator papel) {
+        BoundingBox fondo = pagina.locator(SelectoresSiae.CONTENEDOR_MODAL).last().boundingBox();
+        BoundingBox recuadro = papel.boundingBox();
+        if (fondo == null || recuadro == null) {
+            return;
+        }
+        double x = fondo.x + 10;
+        double y = fondo.y + 10;
+        boolean dentro = x >= recuadro.x && x <= recuadro.x + recuadro.width
+                && y >= recuadro.y && y <= recuadro.y + recuadro.height;
+        if (!dentro) {
+            pagina.mouse().click(x, y);
+        }
     }
 
     // --- Comunes -----------------------------------------------------------------

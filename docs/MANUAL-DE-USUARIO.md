@@ -224,6 +224,33 @@ Su texto depende de la situación:
 | **Monitoreando** (deshabilitado) | El monitoreo está en marcha (o esperando horario). | Para detenerlo usa el menú ⋯. |
 | **Ir al navegador** | Portal real, con una oportunidad pendiente y la sesión abierta. | Trae al frente el navegador de ese cliente. |
 
+### Dónde empieza el monitoreo: "Nueva solicitud" o "Solicitud existente"
+
+Junto al botón **Iniciar / reanudar** hay un selector con dos opciones:
+
+- **Nueva solicitud (paso 1)**: busca inventario desde el paso 1, como siempre.
+- **Solicitud existente**: va al módulo **Estado de trámite**, abre la solicitud que ya quedó en progreso y
+  busca el inventario desde ahí, sin volver a llenar seccional, tipo de trámite ni descripción. Si no hay
+  ninguna solicitud en progreso que coincida con el permiso y el tipo de trámite del cliente, el programa
+  hace la solicitud desde el paso 1 como si hubieras elegido la otra opción.
+
+**Por qué existe.** Cuando el paso 1 se guarda y el portal sí tiene inventario pero **ninguna arma
+cumple tus objetivos**, la solicitud ya quedó abierta en Estado de trámite. Repetir el paso 1 no tiene
+sentido: lo que corresponde es volver a abrir esa solicitud y mirar si apareció inventario. El programa lo
+hace solo: tras ese caso pasa a vigilar la solicitud (el selector cambia a *Solicitud existente*). Usa el
+selector a mano cuando reinicias el programa o quieres retomar una solicitud que dejaste abierta.
+
+**Cómo trabaja desde Estado de trámite.** En cada vuelta abre el módulo, elige la solicitud *EN PROGRESO*,
+pulsa la línea "FG-1…" (el portal busca inventario) y espera:
+- si aparece el listado, aplica tus objetivos, alternativas y comodín igual que en el paso 1;
+- si dice *"No hay inventario disponible por parte de Indumil."*, cierra el cuadro haciendo clic **fuera de
+  él** y espera al siguiente ciclo.
+
+> **Importante.** El programa **nunca pulsa FINALIZAR** en ese cuadro sin inventario, porque en ese momento
+> **cancela la solicitud**. Tampoco toca el botón *Cancelar trámite*. Si no logra cerrar el cuadro, se detiene
+> con un error y una captura antes que arriesgar la solicitud. Haz lo mismo cuando navegues a mano: cierra
+> ese cuadro con un clic fuera.
+
 El botón **Iniciar / reanudar** aparece **gris (deshabilitado)** si:
 - el cliente está **inactivo** (se activa en Ajustes → Clientes → "Cliente incluido en el monitoreo");
 - hay **errores de configuración** (sale un aviso: *"Completa la configuración antes de iniciar el monitoreo."*);

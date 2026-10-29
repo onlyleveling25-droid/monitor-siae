@@ -361,8 +361,13 @@ abierta (EN PROGRESO) aunque ninguna arma cumpla las reglas. Repetir el paso 1 e
 - El monitor lleva un `SeguimientoSolicitud` por cliente. Tras *inventario sin arma de interés* o *apartado
   fallido*, pasa a buscar inventario desde Estado de trámite en lugar de repetir el paso 1.
 - El Panel ofrece `ModoInicio` (*Nueva solicitud* / *Solicitud existente*). Con *Solicitud existente* y sin
-  solicitud en progreso, cae al paso 1 en el mismo ciclo.
-- La solicitud se identifica por la tarjeta *EN PROGRESO* cuyo texto contiene el permiso y el tipo de trámite.
+  solicitud en progreso, **el monitor se detiene** con el motivo `SOLICITUD_NO_ENCONTRADA` y un aviso, y no
+  improvisa el paso 1: la persona conserva el control y decide si cambia a *Nueva solicitud*.
+- La solicitud se identifica por el **número** que la persona escribe (opcional), tal como sale en la tarjeta
+  (`1-01-45-202610-4336`); sin número, por la primera tarjeta *EN PROGRESO* cuyo texto contiene el permiso y el
+  tipo de trámite. Tras un paso 1 nuevo no se conoce el número, así que se descarta cualquiera indicado antes.
+- Sin recargar: si la página ya está en Estado de trámite, la tarjeta correcta está seleccionada (fondo morado
+  `rgb(95, 64, 127)`) y la línea FG-1 sigue visible, solo se vuelve a pulsar esa línea.
 - **Nunca se pulsa FINALIZAR ni "Cancelar trámite" en ese módulo**: sin inventario, FINALIZAR cancela la
   solicitud. El cuadro se cierra con un clic fuera de él (Escape de respaldo); si no cierra, se falla.
 - El listado de inventario es un `DataGrid` de MUI X con virtualización: se lee desplazando el contenedor y

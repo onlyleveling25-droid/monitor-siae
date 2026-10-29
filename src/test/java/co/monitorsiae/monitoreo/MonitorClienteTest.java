@@ -19,6 +19,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MonitorClienteTest {
 
@@ -57,6 +58,19 @@ class MonitorClienteTest {
         assertEquals(1, portal.formulariosAbiertos(), "el paso 1 se hace una sola vez");
         assertEquals(3, portal.consultasDeSolicitud());
         assertEquals(MotivoDetencion.ARMA_APARTADA, oyente.motivo);
+    }
+
+    @Test
+    void siPideLaSolicitudExistenteYNoHayNingunaSeDetieneSinHacerElPaso1() {
+        PortalSimulado portal = PortalSimulado.con(Escena.abiertasSinInventario(MEDELLIN));
+        SeguimientoSolicitud seguimiento = new SeguimientoSolicitud(co.monitorsiae.dominio.ModoInicio.SOLICITUD_EXISTENTE);
+
+        new MonitorCliente(cliente, portal, nuevoCiclo(), siempreAbierto(), INTERVALO, esperas::add, oyente,
+                seguimiento).run();
+
+        assertEquals(MotivoDetencion.SOLICITUD_NO_ENCONTRADA, oyente.motivo);
+        assertEquals(0, portal.formulariosAbiertos());
+        assertTrue(esperas.isEmpty());
     }
 
     @Test

@@ -42,8 +42,12 @@ public interface PortalDriver extends AutoCloseable {
      *
      * <p>Con {@link ResultadoSolicitud#CON_INVENTARIO} el listado queda abierto, listo para
      * {@link #leerInventario()}. Con {@link ResultadoSolicitud#SIN_INVENTARIO} el cuadro ya se cerro.
+     * Si la pagina ya esta en esa solicitud solo se repite la busqueda, sin recargar nada.
+     *
+     * @param numeroSolicitud numero tal como lo muestra el portal (por ejemplo 1-01-45-202610-4336);
+     *                        vacio para tomar la primera solicitud en progreso del mismo tramite
      */
-    default ResultadoSolicitud abrirSolicitudExistente(ParametrosTramite tramite) {
+    default ResultadoSolicitud abrirSolicitudExistente(ParametrosTramite tramite, String numeroSolicitud) {
         return ResultadoSolicitud.SIN_SOLICITUD;
     }
 

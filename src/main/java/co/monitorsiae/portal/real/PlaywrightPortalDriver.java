@@ -748,42 +748,76 @@ public final class PlaywrightPortalDriver implements PortalDriver {
     // --- Solicitud abierta en "Estado de tramite" ------------------------------------
 
     @Override
-    public ResultadoSolicitud abrirSolicitudExistente(ParametrosTramite tramite) {
+    public ResultadoSolicitud abrirSolicitudExistente(ParametrosTramite tramite, String numeroSolicitud) {
         verificarDisponible();
         detectarSesionVencida();
-        pagina.navigate(URL_ESTADO_TRAMITE,
-                new Page.NavigateOptions().setWaitUntil(WaitUntilState.DOMCONTENTLOADED));
-        esperarEstadoTramite();
+        String numero = numeroDeSolicitud(numeroSolicitud);
 
-        Locator tarjeta = buscarTarjetaDeSolicitud(tramite);
+        // Si la pagina ya esta en Estado de tramite no se recarga: solo se repite la busqueda. Se
+        // navega unicamente la primera vez o si la persona (o el portal) saco la pagina de ahi.
+        if (!pagina.url().contains("/EstadoTramite")) {
+            LOG.info("Abriendo Estado de trámite para buscar la solicitud ({}).", URL_ESTADO_TRAMITE);
+            pagina.navigate(URL_ESTADO_TRAMITE,
+                    new Page.NavigateOptions().setWaitUntil(WaitUntilState.DOMCONTENTLOADED));
+        }
+        esperarEstadoTramite();
+        cerrarCuadroAbierto();
+
+        Locator tarjeta = esperarTarjetaDeSolicitud(tramite, numero);
         if (tarjeta == null) {
             return ResultadoSolicitud.SIN_SOLICITUD;
         }
-        tarjeta.scrollIntoViewIfNeeded();
-        tarjeta.click();
 
-        // La linea FG-1 aparece cuando termina de cargar el detalle; al pulsarla el portal busca inventario.
+        // La linea FG-1 queda en pantalla mientras la solicitud siga seleccionada: basta con pulsarla
+        // otra vez. Si la pagina se recargo o hay otra solicitud seleccionada, se abre la tarjeta primero.
         Locator linea = pagina.locator(SelectoresSiae.FILA_FORMULARIO).first();
-        try {
-            linea.waitFor(new Locator.WaitForOptions().setState(WaitForSelectorState.VISIBLE)
-                    .setTimeout(ESPERA_MEDIA.toMillis()));
-        } catch (PlaywrightException e) {
-            throw inesperado("La solicitud no mostró la línea del formulario FG-1.", e);
+        if (!(tarjetaSeleccionada(tarjeta) && estaVisible(linea))) {
+            LOG.info("Abriendo la solicitud en Estado de trámite.");
+            tarjeta.scrollIntoViewIfNeeded();
+            tarjeta.click();
+            try {
+                linea.waitFor(new Locator.WaitForOptions().setState(WaitForSelectorState.VISIBLE)
+                        .setTimeout(ESPERA_MEDIA.toMillis()));
+            } catch (PlaywrightException e) {
+                throw inesperado("La solicitud no mostró la línea del formulario FG-1.", e);
+            }
         }
         linea.locator("td").first().click();
         return esperarResultadoInventarioDeSolicitud();
     }
 
-    /** Espera a que la pagina cargue (pestanas visibles) y a que llegue la lista de solicitudes. */
+    /** Del texto que escribe la persona solo importa el numero ("1-01-45-202610-4336"), aunque pegue la linea entera. */
+    static String numeroDeSolicitud(String texto) {
+        if (texto == null || texto.isBlank()) {
+            return "";
+        }
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\d+(?:\\s*-\\s*\\d+){2,}").matcher(texto);
+        return m.find() ? m.group().replaceAll("\\s+", "") : texto.strip();
+    }
+
+    /** La tarjeta seleccionada se pinta de morado (rgb 95, 64, 127); las demas son blancas (visto en el volcado). */
+    private static boolean tarjetaSeleccionada(Locator tarjeta) {
+        try {
+            return "rgb(95, 64, 127)".equals(String.valueOf(
+                    tarjeta.evaluate("el => getComputedStyle(el).backgroundColor")));
+        } catch (RuntimeException e) {
+            return false;   // ante la duda se vuelve a pulsar la tarjeta, que es lo seguro
+        }
+    }
+
+    /** Si quedo un cuadro de una vuelta anterior abierto, se cierra (sin FINALIZAR) antes de seguir. */
+    private void cerrarCuadroAbierto() {
+        if (estaVisible(pagina.locator(SelectoresSiae.PAPEL_MODAL).last())) {
+            cerrarCuadroSinFinalizar();
+        }
+    }
+
+    /** Espera a que la pagina cargue: las pestanas CIUDADANO/EMPRESA e HISTORIAL son lo primero que sale. */
     private void esperarEstadoTramite() {
         long limite = System.nanoTime() + ESPERA_MEDIA.toNanos();
         while (System.nanoTime() < limite) {
             detectarSesionVencida();
             if (pagina.locator(SelectoresSiae.PESTANAS).count() > 0) {
-                long espera = System.nanoTime() + ESPERA_CORTA.toNanos();
-                while (System.nanoTime() < espera && pagina.locator(SelectoresSiae.TARJETAS_TRAMITE).count() == 0) {
-                    pagina.waitForTimeout(250);
-                }
                 return;
             }
             pagina.waitForTimeout(250);
@@ -792,15 +826,43 @@ public final class PlaywrightPortalDriver implements PortalDriver {
     }
 
     /**
-     * La solicitud en progreso cuyo permiso y tipo de tramite coinciden con los del cliente; nulo si
-     * no hay. Nunca se toca nada fuera de las tarjetas: el boton "Cancelar tramite" queda intacto.
+     * La lista de solicitudes llega del servidor varios segundos despues de que carga la pagina (unos
+     * 6 s en el volcado): concluir "no hay solicitud" demasiado pronto detendria el monitor sin
+     * motivo. Se espera a la tarjeta que coincide, no a "alguna" tarjeta, porque puede haber otras.
      */
-    private Locator buscarTarjetaDeSolicitud(ParametrosTramite tramite) {
+    private Locator esperarTarjetaDeSolicitud(ParametrosTramite tramite, String numero) {
+        long limite = System.nanoTime() + ESPERA_MEDIA.toNanos();
+        do {
+            detectarSesionVencida();
+            Locator tarjeta = buscarTarjetaDeSolicitud(tramite, numero);
+            if (tarjeta != null) {
+                return tarjeta;
+            }
+            pagina.waitForTimeout(300);
+        } while (System.nanoTime() < limite);
+        LOG.info("Estado de trámite: {} solicitudes visibles y ninguna coincide ({}).",
+                pagina.locator(SelectoresSiae.TARJETAS_TRAMITE).count(),
+                numero.isBlank() ? "EN PROGRESO con permiso \"" + tramite.obtenerPermiso() + "\" y tipo \""
+                        + tramite.tipoTramite() + "\"" : "número " + numero + " EN PROGRESO");
+        return null;
+    }
+
+    /**
+     * La solicitud en progreso que busca el cliente: la del numero indicado o, sin numero, la primera
+     * cuyo permiso y tipo de tramite coinciden. Nunca se toca nada fuera de las tarjetas: el boton
+     * "Cancelar tramite" queda intacto.
+     */
+    private Locator buscarTarjetaDeSolicitud(ParametrosTramite tramite, String numero) {
         for (Locator tarjeta : pagina.locator(SelectoresSiae.TARJETAS_TRAMITE).all()) {
             String texto = textoDe(tarjeta);
-            if (Texto.contieneTermino(texto, SelectoresSiae.ESTADO_EN_PROGRESO)
-                    && Texto.contieneTermino(texto, tramite.obtenerPermiso())
-                    && Texto.contieneTermino(texto, tramite.tipoTramite())) {
+            if (!Texto.contieneTermino(texto, SelectoresSiae.ESTADO_EN_PROGRESO)) {
+                continue;
+            }
+            boolean coincide = numero.isBlank()
+                    ? Texto.contieneTermino(texto, tramite.obtenerPermiso())
+                            && Texto.contieneTermino(texto, tramite.tipoTramite())
+                    : Texto.contieneTermino(texto, numero);
+            if (coincide) {
                 return tarjeta;
             }
         }

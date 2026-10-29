@@ -230,9 +230,15 @@ Junto al botón **Iniciar / reanudar** hay un selector con dos opciones:
 
 - **Nueva solicitud (paso 1)**: busca inventario desde el paso 1, como siempre.
 - **Solicitud existente**: va al módulo **Estado de trámite**, abre la solicitud que ya quedó en progreso y
-  busca el inventario desde ahí, sin volver a llenar seccional, tipo de trámite ni descripción. Si no hay
-  ninguna solicitud en progreso que coincida con el permiso y el tipo de trámite del cliente, el programa
-  hace la solicitud desde el paso 1 como si hubieras elegido la otra opción.
+  busca el inventario desde ahí, sin volver a llenar seccional, tipo de trámite ni descripción. **Si no la
+  encuentra, no hace el paso 1 por su cuenta**: se detiene y muestra *"No se encontró la solicitud…"* en la fila
+  y en un aviso. Tú decides: revisas el portal o cambias el selector a *Nueva solicitud (paso 1)* y vuelves a iniciar.
+
+Al elegir **Solicitud existente** aparece el campo **N.º de solicitud (opcional)**. Escribe el número tal como
+sale en la tarjeta de Estado de trámite, por ejemplo `1-01-45-202610-4336` (si pegas la línea completa,
+*"1-01-45-202610-4336 - EN PROGRESO"*, se toma solo el número). Sirve cuando hay más de una solicitud abierta,
+por ejemplo de otra seccional. Si lo dejas vacío, se toma la primera solicitud *EN PROGRESO* con el mismo permiso
+y tipo de trámite del cliente.
 
 **Por qué existe.** Cuando el paso 1 se guarda y el portal sí tiene inventario pero **ninguna arma
 cumple tus objetivos**, la solicitud ya quedó abierta en Estado de trámite. Repetir el paso 1 no tiene
@@ -240,8 +246,10 @@ sentido: lo que corresponde es volver a abrir esa solicitud y mirar si apareció
 hace solo: tras ese caso pasa a vigilar la solicitud (el selector cambia a *Solicitud existente*). Usa el
 selector a mano cuando reinicias el programa o quieres retomar una solicitud que dejaste abierta.
 
-**Cómo trabaja desde Estado de trámite.** En cada vuelta abre el módulo, elige la solicitud *EN PROGRESO*,
-pulsa la línea "FG-1…" (el portal busca inventario) y espera:
+**Cómo trabaja desde Estado de trámite.** La primera vez abre el módulo, elige la solicitud *EN PROGRESO* y pulsa
+la línea "FG-1…" (el portal busca inventario). En las vueltas siguientes **no recarga nada**: mientras esa línea
+siga en pantalla, solo vuelve a pulsarla. Si la página se recarga o sales de ahí, repite el recorrido completo.
+Tras pulsar la línea espera:
 - si aparece el listado, aplica tus objetivos, alternativas y comodín igual que en el paso 1;
 - si dice *"No hay inventario disponible por parte de Indumil."*, cierra el cuadro haciendo clic **fuera de
   él** y espera al siguiente ciclo.

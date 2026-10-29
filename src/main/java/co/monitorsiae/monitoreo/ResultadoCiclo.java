@@ -45,6 +45,20 @@ public sealed interface ResultadoCiclo {
         }
     }
 
+    /**
+     * Se pidio vigilar la solicitud abierta y no hay ninguna que coincida. El monitor se detiene para
+     * que la persona decida: revisar el portal o iniciar de nuevo desde el paso 1.
+     */
+    record SolicitudNoEncontrada(String detalle) implements ResultadoCiclo {
+        public boolean detieneMonitoreo() {
+            return true;
+        }
+
+        public String descripcion() {
+            return detalle;
+        }
+    }
+
     /** La solicitud ya esta abierta en "Estado de tramite" y el portal aun no tiene inventario. */
     record SinInventarioEnSolicitud() implements ResultadoCiclo {
         public String descripcion() {

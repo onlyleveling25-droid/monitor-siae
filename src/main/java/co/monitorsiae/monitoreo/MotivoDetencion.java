@@ -10,5 +10,7 @@ public enum MotivoDetencion {
     SESION_VENCIDA,
     FALLOS_REPETIDOS,
     NAVEGADOR_CERRADO,
-    ERROR_INESPERADO
+    ERROR_INESPERADO,
+    /** Se pidio vigilar una solicitud abierta y el portal no tiene ninguna que coincida. */
+    SOLICITUD_NO_ENCONTRADA
 }

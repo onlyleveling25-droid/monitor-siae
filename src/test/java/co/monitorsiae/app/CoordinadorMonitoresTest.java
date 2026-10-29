@@ -5,6 +5,7 @@ import co.monitorsiae.dominio.ClientesDePrueba;
 import co.monitorsiae.dominio.Configuracion;
 import co.monitorsiae.dominio.EntornoPortal;
 import co.monitorsiae.dominio.ArmaInventario;
+import co.monitorsiae.dominio.ModoInicio;
 import co.monitorsiae.dominio.ModoReaccion;
 import co.monitorsiae.dominio.Modalidad;
 import co.monitorsiae.dominio.ParametrosTramite;
@@ -14,6 +15,7 @@ import co.monitorsiae.notificacion.CentralAlertas;
 import co.monitorsiae.notificacion.Alerta;
 import co.monitorsiae.portal.PortalDriver;
 import co.monitorsiae.portal.ResultadoGuardar;
+import co.monitorsiae.portal.ResultadoSolicitud;
 import co.monitorsiae.portal.SesionPortalCerradaException;
 import co.monitorsiae.portal.simulado.Escena;
 import co.monitorsiae.portal.simulado.FabricaPortalSimulada;
@@ -22,6 +24,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -53,6 +56,114 @@ class CoordinadorMonitoresTest {
             coordinador.close();
             assertTrue(portal.liberado.await(2, TimeUnit.SECONDS));
             assertEquals(1, portal.cierres.get());
+        } finally {
+            coordinador.close();
+        }
+    }
+
+    @Test
+    void conSolicitudExistenteElMonitorEmpiezaEnEstadoDeTramiteYNoEnElPaso1() throws Exception {
+        Cliente cliente = ClientesDePrueba.valido("Ana");
+        Configuracion configuracion = Configuracion.porDefecto()
+                .conEntornoPortal(EntornoPortal.PORTAL_REAL)
+                .conClientes(List.of(cliente));
+        List<String> llamadas = new CopyOnWriteArrayList<>();
+        PortalDriver portal = new PortalDriver() {
+            @Override
+            public List<String> abrirFormulario(ParametrosTramite tramite) {
+                llamadas.add("paso1");
+                return List.of();
+            }
+
+            @Override
+            public ResultadoGuardar enviarPaso1(String seccional, String descripcion) {
+                return ResultadoGuardar.SIN_INVENTARIO;
+            }
+
+            @Override
+            public ResultadoSolicitud abrirSolicitudExistente(ParametrosTramite tramite, String numeroSolicitud) {
+                llamadas.add("solicitud");
+                return ResultadoSolicitud.SIN_INVENTARIO;
+            }
+
+            @Override
+            public List<ArmaInventario> leerInventario() {
+                return List.of();
+            }
+
+            @Override
+            public boolean apartar(ArmaInventario arma, Modalidad modalidad) {
+                return false;
+            }
+        };
+        BlockingQueue<Actualizacion> cambios = new LinkedBlockingQueue<>();
+        CoordinadorMonitores coordinador = new CoordinadorMonitores(configuracion,
+                new CentralAlertas(List.of()), perfil -> portal,
+                (id, estado) -> cambios.add(new Actualizacion(id, estado)));
+        try {
+            coordinador.abrirSesion(cliente);
+            esperar(cambios, CoordinadorMonitores.Estado.SESION_ABIERTA);
+
+            coordinador.iniciar(cliente, ModoInicio.SOLICITUD_EXISTENTE);
+            esperarResultado(coordinador, cliente.id());
+
+            assertEquals("solicitud", llamadas.getFirst());
+            assertTrue(coordinador.solicitudPendiente(cliente.id()));
+            assertTrue(coordinador.ultimoResultado(cliente.id()).contains("Estado de trámite"));
+        } finally {
+            coordinador.close();
+        }
+    }
+
+    @Test
+    void sinLaSolicitudPedidaElMonitorSeDetieneAvisaYNoHaceElPaso1() throws Exception {
+        Cliente cliente = ClientesDePrueba.valido("Ana");
+        Configuracion configuracion = Configuracion.porDefecto()
+                .conEntornoPortal(EntornoPortal.PORTAL_REAL)
+                .conClientes(List.of(cliente));
+        List<String> llamadas = new CopyOnWriteArrayList<>();
+        PortalDriver portal = new PortalDriver() {
+            @Override
+            public List<String> abrirFormulario(ParametrosTramite tramite) {
+                llamadas.add("paso1");
+                return List.of();
+            }
+
+            @Override
+            public ResultadoGuardar enviarPaso1(String seccional, String descripcion) {
+                return ResultadoGuardar.SIN_INVENTARIO;
+            }
+
+            @Override
+            public ResultadoSolicitud abrirSolicitudExistente(ParametrosTramite tramite, String numeroSolicitud) {
+                llamadas.add("solicitud:" + numeroSolicitud);
+                return ResultadoSolicitud.SIN_SOLICITUD;
+            }
+
+            @Override
+            public List<ArmaInventario> leerInventario() {
+                return List.of();
+            }
+
+            @Override
+            public boolean apartar(ArmaInventario arma, Modalidad modalidad) {
+                return false;
+            }
+        };
+        BlockingQueue<Actualizacion> cambios = new LinkedBlockingQueue<>();
+        CoordinadorMonitores coordinador = new CoordinadorMonitores(configuracion,
+                new CentralAlertas(List.of()), perfil -> portal,
+                (id, estado) -> cambios.add(new Actualizacion(id, estado)));
+        try {
+            coordinador.abrirSesion(cliente);
+            esperar(cambios, CoordinadorMonitores.Estado.SESION_ABIERTA);
+
+            coordinador.iniciar(cliente, ModoInicio.SOLICITUD_EXISTENTE, "1-01-45-202610-4336");
+            esperarEstado(coordinador, cliente.id(), CoordinadorMonitores.Estado.DETENIDO);
+
+            assertEquals(List.of("solicitud:1-01-45-202610-4336"), llamadas);
+            assertTrue(coordinador.solicitudNoEncontrada(cliente.id()));
+            assertTrue(coordinador.ultimoResultado(cliente.id()).contains("1-01-45-202610-4336"));
         } finally {
             coordinador.close();
         }

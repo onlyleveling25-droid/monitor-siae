@@ -77,7 +77,7 @@ public final class PortalSimulado implements PortalDriver {
     }
 
     @Override
-    public ResultadoSolicitud abrirSolicitudExistente(ParametrosTramite tramite) {
+    public ResultadoSolicitud abrirSolicitudExistente(ParametrosTramite tramite, String numeroSolicitud) {
         if (!solicitudAbierta) {
             return ResultadoSolicitud.SIN_SOLICITUD;
         }

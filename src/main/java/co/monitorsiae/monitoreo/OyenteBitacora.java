@@ -107,6 +107,7 @@ public final class OyenteBitacora implements OyenteMonitoreo {
             case FALLOS_REPETIDOS -> "fallos repetidos del portal";
             case NAVEGADOR_CERRADO -> "se cerró el navegador";
             case ERROR_INESPERADO -> "error inesperado";
+            case SOLICITUD_NO_ENCONTRADA -> "no se encontró la solicitud en Estado de trámite";
         };
     }
 }

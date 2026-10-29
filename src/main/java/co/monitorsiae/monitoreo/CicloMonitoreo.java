@@ -59,11 +59,7 @@ public final class CicloMonitoreo {
 
     private ResultadoCiclo recorrer(Cliente cliente, PortalDriver portal, SeguimientoSolicitud seguimiento) {
         if (seguimiento.siguiendoSolicitud()) {
-            ResultadoCiclo enSolicitud = recorrerSolicitud(cliente, portal, seguimiento);
-            if (enSolicitud != null) {
-                return enSolicitud;
-            }
-            // No hay solicitud abierta: se hace la solicitud desde el paso 1, como siempre.
+            return recorrerSolicitud(cliente, portal, seguimiento);
         }
 
         ParametrosTramite tramite = cliente.tramite();
@@ -92,12 +88,21 @@ public final class CicloMonitoreo {
         return new ResultadoCiclo.SinInventario(String.join(" | ", probadasSinInventario));
     }
 
-    /** Busca inventario desde la solicitud abierta; nulo si no hay ninguna y toca volver al paso 1. */
+    /**
+     * Busca inventario desde la solicitud abierta. Si no hay ninguna NO se improvisa el paso 1: el
+     * monitor se detiene y la persona decide si revisar el portal o iniciar desde el paso 1.
+     */
     private ResultadoCiclo recorrerSolicitud(Cliente cliente, PortalDriver portal, SeguimientoSolicitud seguimiento) {
-        return switch (portal.abrirSolicitudExistente(cliente.tramite())) {
+        String numero = seguimiento.numeroSolicitud();
+        return switch (portal.abrirSolicitudExistente(cliente.tramite(), numero)) {
             case SIN_SOLICITUD -> {
                 seguimiento.volverAlPaso1();
-                yield null;
+                yield new ResultadoCiclo.SolicitudNoEncontrada(numero.isBlank()
+                        ? "No se encontró ninguna solicitud en progreso de «" + cliente.tramite().obtenerPermiso()
+                        + " · " + cliente.tramite().tipoTramite() + "» en Estado de trámite. Revisa el portal o "
+                        + "inicia con «Nueva solicitud (paso 1)»."
+                        : "No se encontró la solicitud " + numero + " en progreso en Estado de trámite. Revisa "
+                        + "el número o inicia con «Nueva solicitud (paso 1)».");
             }
             case SIN_INVENTARIO -> new ResultadoCiclo.SinInventarioEnSolicitud();
             case CON_INVENTARIO ->

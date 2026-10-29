@@ -44,6 +44,7 @@ public final class OyenteRegistro implements OyenteMonitoreo {
             case FALLOS_REPETIDOS -> "por fallos repetidos del portal";
             case NAVEGADOR_CERRADO -> "porque se cerró el navegador";
             case ERROR_INESPERADO -> "por un error inesperado";
+            case SOLICITUD_NO_ENCONTRADA -> "porque no se encontró la solicitud en Estado de trámite";
         };
         REGISTRO.info("[{}] Monitoreo detenido: {}", cliente.nombre(), detalle);
     }

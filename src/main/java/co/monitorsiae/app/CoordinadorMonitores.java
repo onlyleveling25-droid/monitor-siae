@@ -184,8 +184,23 @@ public final class CoordinadorMonitores implements AutoCloseable {
      * Si se pide la solicitud y el portal no tiene ninguna, el monitor hace la solicitud como siempre.
      */
     public void iniciar(Cliente cliente, ModoInicio modo) {
-        sesionCliente(cliente.id()).modoInicioPedido = java.util.Objects.requireNonNull(modo);
+        iniciar(cliente, modo, "");
+    }
+
+    /**
+     * Como {@link #iniciar(Cliente, ModoInicio)}, indicando ademas cual solicitud vigilar por su numero
+     * tal como aparece en el portal (por ejemplo 1-01-45-202610-4336). Vacio toma la primera que coincida.
+     */
+    public void iniciar(Cliente cliente, ModoInicio modo, String numeroSolicitud) {
+        SesionCliente sesion = sesionCliente(cliente.id());
+        sesion.numeroSolicitudPedido = numeroSolicitud == null ? "" : numeroSolicitud;
+        sesion.modoInicioPedido = java.util.Objects.requireNonNull(modo);
         iniciar(cliente);
+    }
+
+    /** Indica si el ultimo monitoreo se detuvo porque el portal no tiene la solicitud que se pidio vigilar. */
+    public boolean solicitudNoEncontrada(String clienteId) {
+        return sesionCliente(clienteId).solicitudNoEncontrada;
     }
 
     public void iniciar(Cliente cliente) {
@@ -205,9 +220,10 @@ public final class CoordinadorMonitores implements AutoCloseable {
                 return;
             }
             if (sesion.modoInicioPedido != null) {
-                sesion.seguimiento.establecer(sesion.modoInicioPedido);
+                sesion.seguimiento.establecer(sesion.modoInicioPedido, sesion.numeroSolicitudPedido);
                 sesion.modoInicioPedido = null;
             }
+            sesion.solicitudNoEncontrada = false;
             sesion.estado = Estado.INICIANDO;
             sesion.ultimoResultado = "Iniciando y preparando una nueva consulta.";
             notificar(sesion.id, Estado.INICIANDO);
@@ -385,6 +401,8 @@ public final class CoordinadorMonitores implements AutoCloseable {
 
                 @Override
                 public void alDetenerse(Cliente iniciado, co.monitorsiae.monitoreo.MotivoDetencion motivo) {
+                    sesion.solicitudNoEncontrada =
+                            motivo == co.monitorsiae.monitoreo.MotivoDetencion.SOLICITUD_NO_ENCONTRADA;
                     registro.alDetenerse(iniciado, motivo);
                     oyenteBitacora.alDetenerse(iniciado, motivo);
                     oyenteAlertas.alDetenerse(iniciado, motivo);
@@ -570,6 +588,8 @@ public final class CoordinadorMonitores implements AutoCloseable {
         /** Si hay una solicitud abierta en el portal; se conserva entre detenciones y reinicios. */
         private final SeguimientoSolicitud seguimiento = new SeguimientoSolicitud();
         private volatile ModoInicio modoInicioPedido;
+        private volatile String numeroSolicitudPedido = "";
+        private volatile boolean solicitudNoEncontrada;
 
         private SesionCliente(String id) {
             this.id = id;

@@ -102,6 +102,9 @@ public final class VistaPrincipal extends BorderPane {
     private final Map<String, Label> horasActividad = new HashMap<>();
     private final Map<String, Button> accionesPrincipales = new HashMap<>();
     private final Map<String, ComboBox<ModoInicio>> modosInicio = new HashMap<>();
+    private final Map<String, TextField> numerosSolicitud = new HashMap<>();
+    /** Lo ultimo escrito por cliente: sobrevive a que la lista de clientes se redibuje. */
+    private final Map<String, String> numerosEscritos = new HashMap<>();
     private final Map<String, MenuItem> detenerDesdeMenu = new HashMap<>();
     private final Map<String, MenuItem> historialDesdeMenu = new HashMap<>();
     private final Map<String, MenuItem> enfocarDesdeMenu = new HashMap<>();
@@ -337,6 +340,7 @@ public final class VistaPrincipal extends BorderPane {
         horasActividad.clear();
         accionesPrincipales.clear();
         modosInicio.clear();
+        numerosSolicitud.clear();
         detenerDesdeMenu.clear();
         historialDesdeMenu.clear();
         enfocarDesdeMenu.clear();
@@ -424,9 +428,17 @@ public final class VistaPrincipal extends BorderPane {
                 case SESION_CERRADA -> mostrarAvisoVisual(
                         cliente.nombre() + ": navegador cerrado. Puedes abrir una nueva sesión.",
                         TipoAviso.INFO);
-                case DETENIDO -> mostrarAvisoVisual(monitores.sesionAbierta(clienteId)
-                        ? cliente.nombre() + ": monitoreo detenido; la sesión del navegador permanece abierta."
-                        : cliente.nombre() + ": monitoreo detenido.", TipoAviso.INFO);
+                case DETENIDO -> {
+                    if (monitores.solicitudNoEncontrada(clienteId)) {
+                        // Aviso propio: la persona decide si revisa el portal o cambia a "Nueva solicitud".
+                        mostrarAvisoVisual(cliente.nombre() + ": " + monitores.ultimoResultado(clienteId),
+                                TipoAviso.ERROR);
+                    } else {
+                        mostrarAvisoVisual(monitores.sesionAbierta(clienteId)
+                                ? cliente.nombre() + ": monitoreo detenido; la sesión del navegador permanece abierta."
+                                : cliente.nombre() + ": monitoreo detenido.", TipoAviso.INFO);
+                    }
+                }
                 case ERROR -> mostrarAvisoVisual(
                         cliente.nombre() + ": " + monitores.ultimoResultado(clienteId),
                         TipoAviso.ERROR);
@@ -523,11 +535,11 @@ public final class VistaPrincipal extends BorderPane {
             } else if (esPortalReal() && !monitores.sesionAbierta(cliente.id())) {
                 abrirSesion(cliente);
             } else {
-                iniciar(cliente, modoElegido(cliente.id()));
+                iniciar(cliente, modoElegido(cliente.id()), numeroElegido(cliente.id()));
             }
         });
         accionesPrincipales.put(cliente.id(), principal);
-        ComboBox<ModoInicio> origen = crearSelectorDeOrigen(cliente);
+        VBox origen = crearSelectorDeOrigen(cliente);
         actualizarAccionPrincipal(cliente, principal, estadoActual);
 
         MenuItem detener = new MenuItem("Detener monitoreo");
@@ -719,8 +731,16 @@ public final class VistaPrincipal extends BorderPane {
         return combo == null || combo.getValue() == null ? ModoInicio.NUEVA_SOLICITUD : combo.getValue();
     }
 
-    /** Elige si el monitoreo empieza en el paso 1 o vigila la solicitud ya abierta en "Estado de trámite". */
-    private ComboBox<ModoInicio> crearSelectorDeOrigen(Cliente cliente) {
+    private String numeroElegido(String clienteId) {
+        TextField campo = numerosSolicitud.get(clienteId);
+        return campo == null ? "" : campo.getText().strip();
+    }
+
+    /**
+     * Elige si el monitoreo empieza en el paso 1 o vigila la solicitud ya abierta en "Estado de trámite".
+     * Con la segunda opcion aparece un campo para indicar cual solicitud por su numero (opcional).
+     */
+    private VBox crearSelectorDeOrigen(Cliente cliente) {
         ComboBox<ModoInicio> combo = new ComboBox<>();
         combo.getItems().setAll(ModoInicio.values());
         combo.setConverter(new StringConverter<>() {
@@ -743,11 +763,27 @@ public final class VistaPrincipal extends BorderPane {
         combo.setMinWidth(185);
         combo.setTooltip(new Tooltip("Dónde empieza el monitoreo. \"Nueva solicitud\" busca inventario desde el "
                 + "paso 1. \"Solicitud existente\" va a Estado de trámite y vigila la solicitud que ya quedó "
-                + "abierta; si no hay ninguna, hace la solicitud como siempre."));
+                + "abierta; si no la encuentra, se detiene y te avisa (no hace el paso 1 por su cuenta)."));
         combo.setDisable(ocupado(monitores.estado(cliente.id())) || monitores.estado(cliente.id())
                 == CoordinadorMonitores.Estado.MONITOREANDO);
         modosInicio.put(cliente.id(), combo);
-        return combo;
+
+        TextField numero = new TextField(numerosEscritos.getOrDefault(cliente.id(), ""));
+        numero.setPromptText("N.º de solicitud (opcional)");
+        numero.setPrefWidth(185);
+        numero.setMinWidth(185);
+        numero.setTooltip(new Tooltip("Número de la solicitud tal como aparece en Estado de trámite, por ejemplo "
+                + "1-01-45-202610-4336. Si lo dejas vacío, se toma la primera solicitud en progreso del mismo "
+                + "permiso y tipo de trámite. Sirve cuando hay más de una solicitud (otra seccional, por ejemplo)."));
+        numero.textProperty().addListener((obs, antes, ahora) -> numerosEscritos.put(cliente.id(), ahora));
+        numero.setDisable(combo.isDisable());
+        numero.visibleProperty().bind(combo.valueProperty().isEqualTo(ModoInicio.SOLICITUD_EXISTENTE));
+        numero.managedProperty().bind(numero.visibleProperty());
+        numerosSolicitud.put(cliente.id(), numero);
+
+        VBox bloque = new VBox(4, combo, numero);
+        bloque.setAlignment(Pos.CENTER_LEFT);
+        return bloque;
     }
 
     private void actualizarSelectorDeOrigen(String clienteId, CoordinadorMonitores.Estado estado) {
@@ -758,20 +794,24 @@ public final class VistaPrincipal extends BorderPane {
         boolean vigilando = estado == CoordinadorMonitores.Estado.MONITOREANDO
                 || estado == CoordinadorMonitores.Estado.FUERA_DE_HORARIO || ocupado(estado);
         combo.setDisable(vigilando);
+        TextField numero = numerosSolicitud.get(clienteId);
+        if (numero != null) {
+            numero.setDisable(vigilando);
+        }
         if (!vigilando && monitores.solicitudPendiente(clienteId)) {
             // El monitor dejo una solicitud abierta: al reanudar se sigue desde "Estado de trámite".
             combo.setValue(ModoInicio.SOLICITUD_EXISTENTE);
         }
     }
 
-    private void iniciar(Cliente cliente, ModoInicio modo) {
+    private void iniciar(Cliente cliente, ModoInicio modo, String numeroSolicitud) {
         if (!problemas.isEmpty()) {
             mostrar(Alert.AlertType.WARNING, "Configuración incompleta",
                     String.join(System.lineSeparator(), servicio.problemasConfiguracion()));
             return;
         }
         try {
-            monitores.iniciar(cliente, modo);
+            monitores.iniciar(cliente, modo, numeroSolicitud);
         } catch (RuntimeException e) {
             mostrar(Alert.AlertType.ERROR, "No se pudo iniciar", e.getMessage());
         }

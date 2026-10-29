@@ -93,15 +93,47 @@ class SolicitudAbiertaTest {
     }
 
     @Test
-    void pedirLaSolicitudExistenteSinTenerlaHaceLaSolicitudDesdeElPaso1() {
+    void pedirLaSolicitudExistenteSinTenerlaDetieneElMonitorYNoHaceElPaso1() {
         PortalSimulado portal = PortalSimulado.con(Escena.abiertasSinInventario(MEDELLIN));
         SeguimientoSolicitud seguimiento = new SeguimientoSolicitud(ModoInicio.SOLICITUD_EXISTENTE);
 
         ResultadoCiclo resultado = ciclo.ejecutar(cliente, portal, seguimiento);
 
-        assertEquals(new ResultadoCiclo.SinInventario(MEDELLIN), resultado);
-        assertEquals(List.of(MEDELLIN), portal.seccionalesEnviadas());
-        assertFalse(seguimiento.siguiendoSolicitud(), "sin solicitud abierta se vuelve al paso 1");
+        ResultadoCiclo.SolicitudNoEncontrada noEncontrada =
+                assertInstanceOf(ResultadoCiclo.SolicitudNoEncontrada.class, resultado);
+        assertTrue(noEncontrada.detieneMonitoreo());
+        assertTrue(noEncontrada.descripcion().contains("Nueva solicitud (paso 1)"));
+        assertTrue(portal.seccionalesEnviadas().isEmpty(), "no se improvisa el paso 1");
+        assertEquals(0, portal.formulariosAbiertos());
+        assertFalse(seguimiento.siguiendoSolicitud());
+    }
+
+    @Test
+    void elMensajeDeSolicitudNoEncontradaNombraElNumeroPedido() {
+        PortalSimulado portal = PortalSimulado.con(Escena.abiertasSinInventario(MEDELLIN));
+        SeguimientoSolicitud seguimiento = new SeguimientoSolicitud();
+        seguimiento.establecer(ModoInicio.SOLICITUD_EXISTENTE, " 1-01-45-202610-4336 ");
+
+        ResultadoCiclo resultado = ciclo.ejecutar(cliente, portal, seguimiento);
+
+        assertTrue(assertInstanceOf(ResultadoCiclo.SolicitudNoEncontrada.class, resultado)
+                .descripcion().contains("1-01-45-202610-4336"));
+    }
+
+    @Test
+    void elNumeroIndicadoSeConservaMientrasSeVigilaPeroSeOlvidaAlGuardarUnPaso1Nuevo() {
+        SeguimientoSolicitud seguimiento = new SeguimientoSolicitud();
+
+        seguimiento.establecer(ModoInicio.SOLICITUD_EXISTENTE, "1-01-45-202610-4336");
+        assertEquals("1-01-45-202610-4336", seguimiento.numeroSolicitud());
+
+        seguimiento.seguirSolicitud();   // viene de un paso 1 nuevo: se ignora el numero de otra solicitud
+        assertTrue(seguimiento.siguiendoSolicitud());
+        assertEquals("", seguimiento.numeroSolicitud());
+
+        seguimiento.establecer(ModoInicio.NUEVA_SOLICITUD, "1-01-45-202610-4336");
+        assertFalse(seguimiento.siguiendoSolicitud());
+        assertEquals("", seguimiento.numeroSolicitud());
     }
 
     @Test

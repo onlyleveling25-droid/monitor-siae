@@ -63,6 +63,10 @@ public final class PlaywrightPortalDriver implements PortalDriver {
     private volatile Runnable accionAlCerrar = () -> { };
     /** Motivo por el que el servidor no contesto al ultimo GUARDAR; nulo si respondio bien. */
     private volatile String fallaAlGuardar;
+    /** El ultimo apartado se confirmo directamente en el cuadro "Ver armas" (sin el cuadro "Esta seguro"). */
+    private volatile boolean cierreConfirmadoAlApartar;
+    /** El inventario que se esta trabajando se abrio desde "Estado de tramite", no desde el paso 1. */
+    private volatile boolean desdeEstadoTramite;
 
     public PlaywrightPortalDriver(Path perfil, NavegadorPreferido navegador, Path capturas) {
         this.capturas = capturas;
@@ -133,6 +137,7 @@ public final class PlaywrightPortalDriver implements PortalDriver {
     @Override
     public List<String> abrirFormulario(ParametrosTramite tramite) {
         verificarDisponible();
+        desdeEstadoTramite = false;
         asegurarPaso1();
         seleccionarSiHaceFalta(SelectoresSiae.PLACEHOLDER_PERMISO, tramite.obtenerPermiso(),
                 "como desea obtener el permiso");
@@ -464,6 +469,20 @@ public final class PlaywrightPortalDriver implements PortalDriver {
             throw new PortalException("La modalidad TENENCIA exige departamento, ciudad y dirección "
                     + "completa; revisa la configuración del cliente.");
         }
+        cierreConfirmadoAlApartar = false;
+        try {
+            return elegirYConfirmar(arma, modalidad, direccion);
+        } catch (PlaywrightException e) {
+            if (pagina.isClosed()) {
+                throw e;   // el navegador se cerro: lo trata quien vigila la sesion
+            }
+            // Un paso que no respondio como se esperaba no debe tumbar el monitoreo: se informa
+            // con captura y el siguiente ciclo cierra cualquier cuadro que haya quedado abierto.
+            throw inesperado("Falló un paso al apartar el arma: " + primeraLinea(e.getMessage()), e);
+        }
+    }
+
+    private boolean elegirYConfirmar(ArmaInventario arma, Modalidad modalidad, DireccionTenencia direccion) {
         asegurarPaso2();
 
         Locator fila = buscarFila(arma);
@@ -474,16 +493,153 @@ public final class PlaywrightPortalDriver implements PortalDriver {
         fila.click();
         esperarFilaSeleccionada();
 
-        pagina.locator(modalidad == Modalidad.PORTE
+        String nombreBoton = modalidad == Modalidad.PORTE ? "PORTE" : "TENENCIA";
+        Locator boton = pagina.locator(modalidad == Modalidad.PORTE
                 ? SelectoresSiae.BOTON_PORTE
-                : SelectoresSiae.BOTON_TENENCIA).first().click();
+                : SelectoresSiae.BOTON_TENENCIA).first();
+        boolean hayBoton = esperarBoton(boton);
+        if (hayBoton) {
+            boton.click();
+        } else if (!desdeEstadoTramite) {
+            throw inesperado("El botón " + nombreBoton + " no está disponible después de elegir el arma.", null);
+        } else {
+            LOG.info("En Estado de trámite no hay botón {}: se sigue con FINALIZAR del listado.", nombreBoton);
+        }
 
-        Locator modal = esperarModal();
+        // Segun el modulo, el portal puede mostrar primero "¿Esta seguro de adquirir el siguiente arma?"
+        // o ir directo a "¿Desea confirmar y continuar...?" (Ver armas): se atiende el que salga.
+        Locator modal = hayBoton ? esperarCuadroTrasElegirArma(!desdeEstadoTramite) : null;
+        if (modal == null) {
+            // Solo desde Estado de tramite: sin cuadro intermedio, el arma se confirma con FINALIZAR.
+            return finalizarDesdeElListadoYConfirmar(arma);
+        }
+        if (clasificar(modal) == Cuadro.CIERRE) {
+            LOG.info("El portal pidió confirmar directamente el cuadro «Ver armas»; se confirma ahí.");
+            confirmarEn(modal);
+            cierreConfirmadoAlApartar = true;
+            return esperarDesenlacePreasignacion(modal, arma);
+        }
         if (modalidad == Modalidad.TENENCIA) {
             llenarDireccion(modal, direccion);  // CONFIRMAR con 17-modal-tenencia.html
         }
         confirmarEn(modal);
         return esperarDesenlacePreasignacion(modal, arma);
+    }
+
+    /**
+     * Desde "Estado de tramite", cuando elegir el arma no abre el cuadro "Esta seguro", el camino es
+     * FINALIZAR del listado y CONFIRMAR en "Ver armas", tanto para pre-asignar como para sellar.
+     * Solo se pulsa FINALIZAR con una fila seleccionada y sin el aviso de "sin inventario" (con ese
+     * aviso FINALIZAR cancela la solicitud); y solo se confirma el cuadro si es el de "Ver armas".
+     */
+    private boolean finalizarDesdeElListadoYConfirmar(ArmaInventario arma) {
+        if (pagina.locator(SelectoresSiae.FILA_SELECCIONADA).count() == 0) {
+            throw inesperado("No se pulsa FINALIZAR: no hay una fila seleccionada en el listado.", null);
+        }
+        if (pagina.locator(SelectoresSiae.AVISO_SIN_INVENTARIO_EN_MODAL).count() > 0) {
+            throw inesperado("No se pulsa FINALIZAR: el cuadro dice que no hay inventario.", null);
+        }
+        Locator finalizar = pagina.locator(SelectoresSiae.BOTON_FINALIZAR).first();
+        if (finalizar.count() == 0) {
+            throw inesperado("No se encontró FINALIZAR en el listado del inventario.", null);
+        }
+        Locator encima = ultimoModalVisible();
+        if (encima != null && encima.locator(SelectoresSiae.BOTON_FINALIZAR).count() == 0) {
+            throw inesperado("No se pulsa FINALIZAR: hay un cuadro desconocido sobre el listado («"
+                    + recortar(textoDe(encima), 120) + "»).", null);
+        }
+        LOG.info("Sin cuadro intermedio al elegir el arma: se pulsa FINALIZAR del listado y se confirma «Ver armas».");
+        finalizar.scrollIntoViewIfNeeded();
+        finalizar.click();
+
+        Locator modal = esperarModal();
+        if (clasificar(modal) != Cuadro.CIERRE) {
+            // Se lanza (no se devuelve falso) para que el ciclo no reintente pulsando FINALIZAR otra vez.
+            throw inesperado("Tras FINALIZAR salió un cuadro que no es «Ver armas» («"
+                    + recortar(textoDe(modal), 120) + "»); no se confirma.", null);
+        }
+        confirmarEn(modal);
+        cierreConfirmadoAlApartar = true;
+        return esperarDesenlacePreasignacion(modal, arma);
+    }
+
+    private enum Cuadro { ADQUISICION, CIERRE, DESCONOCIDO }
+
+    /** Reconoce el cuadro por su texto: nunca se confirma uno que no se sepa que es. */
+    private Cuadro clasificar(Locator modal) {
+        String texto = Texto.normalizar(textoDe(modal));
+        if (texto.contains("confirmar y continuar") || texto.contains("armas asignadas")) {
+            return Cuadro.CIERRE;
+        }
+        if (texto.contains("esta seguro de adquirir") || texto.contains("siguiente arma")) {
+            return Cuadro.ADQUISICION;
+        }
+        return Cuadro.DESCONOCIDO;
+    }
+
+    /**
+     * Espera el cuadro de confirmacion del arma, ignorando el listado que sigue abierto debajo.
+     *
+     * @param obligatorio si es falso y no sale ninguno, devuelve nulo en lugar de fallar
+     */
+    private Locator esperarCuadroTrasElegirArma(boolean obligatorio) {
+        long limite = System.nanoTime() + ESPERA_CORTA.toNanos();
+        String visto = "";
+        while (System.nanoTime() < limite) {
+            List<Locator> modales = pagina.locator(SelectoresSiae.MODALES).all();
+            for (int i = modales.size() - 1; i >= 0; i--) {
+                Locator modal = modales.get(i);
+                if (!estaVisible(modal)) {
+                    continue;
+                }
+                if (clasificar(modal) != Cuadro.DESCONOCIDO) {
+                    return modal;
+                }
+                visto = textoDe(modal);
+            }
+            pagina.waitForTimeout(150);
+        }
+        if (!obligatorio) {
+            return null;
+        }
+        throw inesperado("Tras elegir el arma no apareció un cuadro de confirmación conocido"
+                + (visto.isBlank() ? "." : " (se vio: «" + recortar(visto, 120) + "»)."), null);
+    }
+
+    /** El cuadro visible que esta mas arriba, o nulo si no hay ninguno. */
+    private Locator ultimoModalVisible() {
+        List<Locator> modales = pagina.locator(SelectoresSiae.MODALES).all();
+        for (int i = modales.size() - 1; i >= 0; i--) {
+            if (estaVisible(modales.get(i))) {
+                return modales.get(i);
+            }
+        }
+        return null;
+    }
+
+    private boolean esperarBoton(Locator boton) {
+        long limite = System.nanoTime() + ESPERA_CORTA.toNanos();
+        while (System.nanoTime() < limite) {
+            if (boton.count() > 0 && estaVisible(boton) && boton.isEnabled()) {
+                return true;
+            }
+            pagina.waitForTimeout(150);
+        }
+        return false;
+    }
+
+    /** Resume el mensaje de un error de Playwright, que suele venir como "Error { message='...' ... }". */
+    private static String primeraLinea(String texto) {
+        if (texto == null) {
+            return "";
+        }
+        String limpio = texto.replaceAll("\\s+", " ").replaceFirst("^Error \\{ ?(message=')?", "");
+        return recortar(limpio, 160);
+    }
+
+    private static String recortar(String texto, int maximo) {
+        String limpio = texto.replaceAll("\\s+", " ").strip();
+        return limpio.length() <= maximo ? limpio : limpio.substring(0, maximo) + "…";
     }
 
     /**
@@ -516,18 +672,40 @@ public final class PlaywrightPortalDriver implements PortalDriver {
         verificarDisponible();
         detectarSesionVencida();
 
+        if (cierreConfirmadoAlApartar) {
+            LOG.info("El cuadro «Ver armas» ya se confirmó al apartar; no hay nada más que sellar.");
+            cierreConfirmadoAlApartar = false;
+            return true;
+        }
+        // Con el aviso de "sin inventario" a la vista, FINALIZAR CANCELARIA la solicitud: jamas se pulsa.
+        if (pagina.locator(SelectoresSiae.AVISO_SIN_INVENTARIO_EN_MODAL).count() > 0) {
+            LOG.warn("No se pulsa FINALIZAR: el cuadro dice que no hay inventario y cancelaría la solicitud.");
+            return false;
+        }
         Locator finalizar = pagina.locator(SelectoresSiae.BOTON_FINALIZAR).first();
         if (finalizar.count() == 0) {
             LOG.warn("No se encontró FINALIZAR; la reserva queda sin sellar.");
             return false;
         }
-        finalizar.scrollIntoViewIfNeeded();
-        finalizar.click();
+        try {
+            finalizar.scrollIntoViewIfNeeded();
+            finalizar.click();
 
-        // Modal de cierre general: "¿Desea confirmar y continuar el proceso...?" con Ver Armas.
-        Locator modal = esperarModal();
-        confirmarEn(modal);
-        return esperarAvancePaso3(modal);
+            // Modal de cierre general: "¿Desea confirmar y continuar el proceso...?" con Ver Armas.
+            Locator modal = esperarModal();
+            if (clasificar(modal) != Cuadro.CIERRE) {
+                LOG.warn("Tras FINALIZAR salió un cuadro que no es el de cierre («{}»); no se confirma.",
+                        recortar(textoDe(modal), 120));
+                return false;
+            }
+            confirmarEn(modal);
+            return esperarAvancePaso3(modal);
+        } catch (PlaywrightException e) {
+            if (pagina.isClosed()) {
+                throw e;
+            }
+            throw inesperado("Falló un paso al sellar el trámite: " + primeraLinea(e.getMessage()), e);
+        }
     }
 
     /** Tras el CONFIRMAR de cierre, el portal avanza al paso 3 (Formulario antecedentes Fiscalia). */
@@ -878,6 +1056,7 @@ public final class PlaywrightPortalDriver implements PortalDriver {
         while (System.nanoTime() < limite) {
             detectarSesionVencida();
             if (pagina.locator(SelectoresSiae.FILAS_INVENTARIO).count() > 0) {
+                desdeEstadoTramite = true;
                 return ResultadoSolicitud.CON_INVENTARIO;
             }
             if (pagina.locator(SelectoresSiae.AVISO_SIN_INVENTARIO_EN_MODAL).count() > 0) {

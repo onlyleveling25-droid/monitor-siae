@@ -372,6 +372,17 @@ abierta (EN PROGRESO) aunque ninguna arma cumpla las reglas. Repetir el paso 1 e
   solicitud. El cuadro se cierra con un clic fuera de él (Escape de respaldo); si no cierra, se falla.
 - El listado de inventario es un `DataGrid` de MUI X con virtualización: se lee desplazando el contenedor y
   se localiza la fila desplazándolo hasta dibujarla. Los selectores usan `MuiDataGrid-row` y `MuiDataGrid-cell`.
+- El apartado se adapta al cuadro que salga: *"¿Está seguro de adquirir…?"* o, si el portal va directo,
+  *"¿Desea confirmar y continuar…?"* (Ver armas). Un cuadro desconocido no se confirma. FINALIZAR no se pulsa
+  si el cuadro dice que no hay inventario. Los fallos de Playwright en esos pasos se convierten en un error
+  controlado con captura en lugar de tumbar el monitoreo.
+- Desde Estado de trámite, si elegir el arma no abre "¿Está seguro de adquirir…?", se pulsa FINALIZAR del
+  listado y se confirma "Ver armas", con *pre-asignar* igual que con *sellar* (indicación del usuario, que cree
+  que ese primer cuadro no sale en trámites). **Sin verificar contra el portal**: en el paso 1 ese CONFIRMAR sella
+  el trámite. Salvaguardas: solo con una fila seleccionada, sin el aviso de "sin inventario" y sin un cuadro
+  desconocido encima; si tras FINALIZAR no sale "Ver armas" se lanza un error (no se devuelve falso) para que
+  el ciclo no reintente pulsando FINALIZAR. Desde el paso 1 no cambia nada.
+- Si el monitor se detiene por no encontrar la solicitud, suena una alerta de problema.
 - "Sin filas" no significa "sin inventario": el listado se abre vacío mientras carga; solo cuenta el aviso del
   cuadro o la llegada de filas.
 

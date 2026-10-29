@@ -45,6 +45,14 @@ public final class TraductorAlertas {
 
     /** Alertas que solo se conocen al detenerse el monitor y no vienen de un resultado puntual. */
     public Optional<Alerta> deDetencion(Cliente cliente, MotivoDetencion motivo) {
+        if (motivo == MotivoDetencion.SOLICITUD_NO_ENCONTRADA) {
+            // El monitor se detuvo solo: sin aviso sonoro nadie se enteraria hasta mirar la pantalla.
+            return Optional.of(new Alerta(cliente.id(), Gravedad.PROBLEMA,
+                    "Solicitud no encontrada: " + cliente.nombre(),
+                    "No se encontró la solicitud en Estado de trámite y el monitoreo se detuvo. Revise el "
+                            + "portal o inicie con «Nueva solicitud (paso 1)».",
+                    "El monitoreo de " + cliente.nombre() + " se detuvo: no se encontró la solicitud."));
+        }
         if (motivo != MotivoDetencion.FALLOS_REPETIDOS) {
             return Optional.empty();
         }

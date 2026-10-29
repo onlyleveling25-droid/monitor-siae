@@ -254,6 +254,19 @@ Tras pulsar la línea espera:
 - si dice *"No hay inventario disponible por parte de Indumil."*, cierra el cuadro haciendo clic **fuera de
   él** y espera al siguiente ciclo.
 
+**Cuando hay inventario en Estado de trámite.** Elige el arma según tus reglas, pulsa PORTE o TENENCIA y atiende
+lo que muestre el portal:
+- Si sale *"¿Está seguro de adquirir el siguiente arma?"*, lo confirma y se comporta como en el paso 1: con
+  *pre-asignar* se detiene ahí; con *sellar* sigue con FINALIZAR y el cuadro *"¿Desea confirmar y continuar…?"*.
+- Si **no** sale ese cuadro (o no hay botones PORTE/TENENCIA), pulsa **FINALIZAR del listado** y confirma el cuadro
+  *"Ver armas"*. En este camino lo hace **igual con *pre-asignar* que con *sellar***.
+- Si sale directamente *"Ver armas"*, lo confirma ahí.
+- Si aparece un cuadro que no reconoce, **no confirma nada**: informa del error con una captura y deja la
+  solicitud como está. FINALIZAR solo se pulsa con una fila seleccionada y sin el aviso de "sin inventario".
+
+La alarma suena en Estado de trámite con las mismas reglas que en el paso 1: cuando el programa **encuentra un arma
+que cumple** (la aparta, o avisa en modo alerta) o el apartado falla.
+
 > **Importante.** El programa **nunca pulsa FINALIZAR** en ese cuadro sin inventario, porque en ese momento
 > **cancela la solicitud**. Tampoco toca el botón *Cancelar trámite*. Si no logra cerrar el cuadro, se detiene
 > con un error y una captura antes que arriesgar la solicitud. Haz lo mismo cuando navegues a mano: cierra
@@ -657,6 +670,12 @@ Una alerta es lo que exige tu atención. Hay dos clases:
 | **Arma disponible (no se pudo apartar): Ana** | *"La plataforma no confirmó el apartado tras 2 intento(s); revise la ventana del navegador."* | Revisa de inmediato. Quizá otra persona la tomó, o aún puedes apartarla a mano. |
 | **Sesión cerrada: Ana** | *"La plataforma cerró la sesión. Inicie sesión de nuevo en la ventana de este cliente y reanude el monitoreo."* | Inicia sesión en el navegador y pulsa **Iniciar / reanudar**. |
 | **Monitoreo detenido: Ana** | *"La plataforma respondió con errores varias veces seguidas. Revise la ventana de este cliente y reanude el monitoreo."* | Mira la bitácora (captura) y reanuda cuando se resuelva. |
+| **Solicitud no encontrada: Ana** | *"No se encontró la solicitud en Estado de trámite y el monitoreo se detuvo. Revise el portal o inicie con «Nueva solicitud (paso 1)»."* | Revisa Estado de trámite; si no hay solicitud, cambia el selector a *Nueva solicitud (paso 1)* y reanuda. |
+
+> **Lo que NO suena.** Que haya inventario **no** dispara alarma por sí solo: la alarma suena cuando el programa
+> **encuentra un arma que cumple tus reglas** (la aparta, o avisa en modo alerta) o cuando algo falla y el monitor
+> se detiene. Si hay inventario pero ningún arma cumple tus objetivos (*"Inventario … sin armas de interés"*), o la
+> solicitud abierta sigue sin inventario, el programa solo lo anota en la fila y sigue vigilando en silencio.
 
 La voz dice una frase corta, sin describir el arma. Por ejemplo: *"Atención. Arma apartada para Ana. Termine
 el trámite."*
@@ -677,6 +696,7 @@ el trámite."*
 | Arma disponible (modo alerta) | **Sí** (estado *Alerta encontrada*). |
 | Sesión vencida | **Sí**. |
 | Tres fallos seguidos | **Sí**. |
+| No se encuentra la solicitud (*Solicitud existente*) | **Sí**, con alerta de problema. |
 | Apartado fallido | **No**: sigue consultando. Detenlo desde ⋯ si ya no lo necesitas. |
 
 ---

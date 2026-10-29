@@ -62,6 +62,17 @@ class TraductorAlertasTest {
     }
 
     @Test
+    void siElMonitorSeDetieneSinEncontrarLaSolicitudSeAvisaConUnProblema() {
+        assertEquals(Gravedad.PROBLEMA, traductor.deDetencion(cliente,
+                MotivoDetencion.SOLICITUD_NO_ENCONTRADA).orElseThrow().gravedad());
+    }
+
+    @Test
+    void inventarioSinArmaDeInteresNoSuenaNiLaSolicitudSinInventario() {
+        assertTrue(traductor.deResultado(cliente, new ResultadoCiclo.SinInventarioEnSolicitud()).isEmpty());
+    }
+
+    @Test
     void losEstadosNormalesNoGeneranAlerta() {
         assertTrue(traductor.deResultado(cliente, new ResultadoCiclo.SeccionalesCerradas()).isEmpty());
         assertTrue(traductor.deResultado(cliente, new ResultadoCiclo.SinInventario(SECCIONAL)).isEmpty());

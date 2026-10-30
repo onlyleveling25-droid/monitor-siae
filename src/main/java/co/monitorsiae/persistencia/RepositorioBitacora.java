@@ -10,4 +10,13 @@ public interface RepositorioBitacora {
 
     /** Eventos conservados, del más reciente al más antiguo. */
     List<EventoOperativo> eventos();
+
+    /**
+     * Borra todos los eventos guardados. No toca las capturas ni el historial de inventarios.
+     *
+     * @return cuántos eventos se borraron
+     */
+    default int vaciar() {
+        throw new UnsupportedOperationException("Esta bitácora no se puede vaciar.");
+    }
 }

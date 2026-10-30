@@ -11,6 +11,7 @@ import co.monitorsiae.portal.PortalDriver;
 import co.monitorsiae.portal.PortalException;
 import co.monitorsiae.portal.PortalNoRespondeException;
 import co.monitorsiae.portal.ResultadoGuardar;
+import co.monitorsiae.portal.ResultadoSolicitud;
 import co.monitorsiae.portal.SesionVencidaException;
 
 import java.util.ArrayList;
@@ -94,7 +95,12 @@ public final class CicloMonitoreo {
      */
     private ResultadoCiclo recorrerSolicitud(Cliente cliente, PortalDriver portal, SeguimientoSolicitud seguimiento) {
         String numero = seguimiento.numeroSolicitud();
-        return switch (portal.abrirSolicitudExistente(cliente.tramite(), numero)) {
+        ResultadoSolicitud encontrada = portal.abrirSolicitudExistente(cliente.tramite(), numero);
+        if (encontrada != ResultadoSolicitud.SIN_SOLICITUD) {
+            // Sin número se tomó la primera que coincidía: desde ahora se vigila siempre esa.
+            seguimiento.fijarNumeroSiFalta(portal.numeroSolicitudAbierta());
+        }
+        return switch (encontrada) {
             case SIN_SOLICITUD -> {
                 seguimiento.volverAlPaso1();
                 yield new ResultadoCiclo.SolicitudNoEncontrada(numero.isBlank()
@@ -104,7 +110,7 @@ public final class CicloMonitoreo {
                         : "No se encontró la solicitud " + numero + " en progreso en Estado de trámite. Revisa "
                         + "el número o inicia con «Nueva solicitud (paso 1)».");
             }
-            case SIN_INVENTARIO -> new ResultadoCiclo.SinInventarioEnSolicitud();
+            case SIN_INVENTARIO -> new ResultadoCiclo.SinInventarioEnSolicitud(seguimiento.numeroSolicitud());
             case CON_INVENTARIO ->
                     resolverInventario(cliente, portal, ETIQUETA_SOLICITUD, portal.leerInventario(), seguimiento);
         };
@@ -130,15 +136,41 @@ public final class CicloMonitoreo {
         return resultado;
     }
 
-    private static ResultadoCiclo apartar(
-            PortalDriver portal, String seccional, EleccionArma eleccion, ReglasSeleccion reglas,
+    /**
+     * Intenta apartar hasta el número de reintentos del cliente. Entre un intento y otro se vuelve a
+     * leer el listado y a elegir: si el arma desapareció se pasa a la siguiente que cumpla (otro
+     * objetivo, una alternativa o el comodín); si sigue ahí se reintenta con ella.
+     */
+    private ResultadoCiclo apartar(
+            PortalDriver portal, String seccional, EleccionArma primera, ReglasSeleccion reglas,
             List<ArmaInventario> inventario, AlcancePaso2 alcancePaso2) {
+        EleccionArma eleccion = primera;
+        List<ArmaInventario> listado = inventario;
         for (int intento = 1; intento <= reglas.reintentos(); intento++) {
             if (portal.apartar(eleccion.arma(), reglas)) {
-                boolean sellado = alcancePaso2 == AlcancePaso2.SELLAR_TRAMITE_COMPLETO && portal.confirmarCierre();
-                return new ResultadoCiclo.ArmaApartada(seccional, eleccion, intento, inventario, sellado);
+                // Desde Estado de trámite el único cuadro es «Ver armas», que ya sella el trámite.
+                boolean sellado = portal.cierreConfirmadoAlApartar()
+                        || (alcancePaso2 == AlcancePaso2.SELLAR_TRAMITE_COMPLETO && portal.confirmarCierre());
+                return new ResultadoCiclo.ArmaApartada(seccional, eleccion, intento, listado, sellado);
             }
+            if (intento == reglas.reintentos()) {
+                break;
+            }
+            try {
+                listado = portal.leerInventario();
+            } catch (SesionVencidaException e) {
+                throw e;
+            } catch (PortalException e) {
+                // No se pudo repasar el listado: se avisa del apartado fallido, que es lo importante.
+                return new ResultadoCiclo.ApartadoFallido(seccional, eleccion, intento, listado);
+            }
+            Optional<EleccionArma> siguiente = selectorArma.elegir(listado, reglas);
+            if (siguiente.isEmpty()) {
+                // Ya no queda ninguna que cumpla: alguien se llevó el arma.
+                return new ResultadoCiclo.ApartadoFallido(seccional, eleccion, intento, listado);
+            }
+            eleccion = siguiente.get();
         }
-        return new ResultadoCiclo.ApartadoFallido(seccional, eleccion, reglas.reintentos(), inventario);
+        return new ResultadoCiclo.ApartadoFallido(seccional, eleccion, reglas.reintentos(), listado);
     }
 }

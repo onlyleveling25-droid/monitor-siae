@@ -35,6 +35,21 @@ class RepositorioBitacoraJsonTest {
     }
 
     @Test
+    void vaciarBorraTodoYPermiteSeguirRegistrando() {
+        Path archivo = carpeta.resolve("bitacora.json");
+        RepositorioBitacoraJson repositorio = new RepositorioBitacoraJson(archivo, reloj);
+        repositorio.registrar(evento(Duration.ofMinutes(2), "uno"));
+        repositorio.registrar(evento(Duration.ofMinutes(1), "dos"));
+
+        assertEquals(2, repositorio.vaciar());
+        assertTrue(new RepositorioBitacoraJson(archivo, reloj).eventos().isEmpty(), "el vaciado queda en disco");
+
+        repositorio.registrar(evento(Duration.ZERO, "nuevo"));
+        assertEquals(java.util.List.of("nuevo"),
+                repositorio.eventos().stream().map(EventoOperativo::detalle).toList());
+    }
+
+    @Test
     void sinArchivoLaBitacoraEstaVacia() {
         assertTrue(new RepositorioBitacoraJson(carpeta.resolve("no-existe.json"), reloj).eventos().isEmpty());
     }

@@ -48,6 +48,24 @@ class OyenteBitacoraTest {
     }
 
     @Test
+    void inventarioSinInteresSeAnotaUnaVezConLaListaCompleta() {
+        ResultadoCiclo sinInteres = new ResultadoCiclo.SinArmaDeInteres("Estado de trámite", List.of(
+                new ArmaInventario(0, "Revolver Martial Cal 38", "Revolver"),
+                new ArmaInventario(1, "Escopeta Winchester SXP Cal 12", "Escopeta")));
+
+        oyente.alTerminarCiclo(ana, sinInteres);
+        oyente.alTerminarCiclo(ana, sinInteres);
+
+        assertEquals(1, bitacora.eventos().size());
+        EventoOperativo evento = bitacora.eventos().getFirst();
+        assertEquals(TipoEvento.INVENTARIO_SIN_INTERES, evento.tipo());
+        assertTrue(evento.detalle().contains("no se seleccionó nada"));
+        assertTrue(evento.detalle().contains("Revolver Martial Cal 38"));
+        assertTrue(evento.detalle().contains("Escopeta Winchester SXP Cal 12"));
+        assertTrue(evento.tipo().conInventario(), "debe poder abrirse el inventario desde la bitácora");
+    }
+
+    @Test
     void anotaQueElPortalNoRespondeUnaSolaVezMientrasDure() {
         oyente.alTerminarCiclo(ana, new ResultadoCiclo.PortalNoResponde("GUARDAR no tuvo respuesta."));
         oyente.alTerminarCiclo(ana, new ResultadoCiclo.PortalNoResponde("GUARDAR no tuvo respuesta."));

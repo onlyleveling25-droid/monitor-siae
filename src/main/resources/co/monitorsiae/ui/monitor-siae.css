@@ -763,6 +763,16 @@
     -fx-text-fill: #166534;
 }
 
+/* Inventario sin arma de interés: ámbar en vez de verde, porque no se eligió nada. */
+.snapshot-choice-none {
+    -fx-background-color: #FFFBEB;
+    -fx-border-color: #FCD34D;
+}
+
+.snapshot-choice-none .snapshot-choice-label {
+    -fx-text-fill: #92400E;
+}
+
 .snapshot-choice-name {
     -fx-font-size: 15px;
     -fx-font-weight: bold;

@@ -61,6 +61,13 @@ public final class RepositorioBitacoraJson implements RepositorioBitacora {
         return vigentes(cargar());
     }
 
+    @Override
+    public synchronized int vaciar() {
+        int borrados = cargar().size();
+        escribir(List.of());
+        return borrados;
+    }
+
     private List<EventoOperativo> vigentes(List<EventoOperativo> eventos) {
         Instant limite = reloj.instant().minus(RETENCION);
         return eventos.stream().filter(e -> !e.momento().isBefore(limite)).toList();

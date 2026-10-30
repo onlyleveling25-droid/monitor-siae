@@ -67,6 +67,8 @@ public final class PlaywrightPortalDriver implements PortalDriver {
     private volatile boolean cierreConfirmadoAlApartar;
     /** El inventario que se esta trabajando se abrio desde "Estado de tramite", no desde el paso 1. */
     private volatile boolean desdeEstadoTramite;
+    /** Número de la solicitud que se abrió por última vez en "Estado de tramite"; vacio si no se sabe. */
+    private volatile String numeroSolicitudAbierta = "";
 
     public PlaywrightPortalDriver(Path perfil, NavegadorPreferido navegador, Path capturas) {
         this.capturas = capturas;
@@ -491,7 +493,7 @@ public final class PlaywrightPortalDriver implements PortalDriver {
         }
         fila.scrollIntoViewIfNeeded();
         fila.click();
-        esperarFilaSeleccionada();
+        esperarFilaSeleccionada(arma);
 
         String nombreBoton = modalidad == Modalidad.PORTE ? "PORTE" : "TENENCIA";
         Locator boton = pagina.locator(modalidad == Modalidad.PORTE
@@ -533,9 +535,7 @@ public final class PlaywrightPortalDriver implements PortalDriver {
      * aviso FINALIZAR cancela la solicitud); y solo se confirma el cuadro si es el de "Ver armas".
      */
     private boolean finalizarDesdeElListadoYConfirmar(ArmaInventario arma) {
-        if (pagina.locator(SelectoresSiae.FILA_SELECCIONADA).count() == 0) {
-            throw inesperado("No se pulsa FINALIZAR: no hay una fila seleccionada en el listado.", null);
-        }
+        verificarArmaSeleccionada(arma);
         if (pagina.locator(SelectoresSiae.AVISO_SIN_INVENTARIO_EN_MODAL).count() > 0) {
             throw inesperado("No se pulsa FINALIZAR: el cuadro dice que no hay inventario.", null);
         }
@@ -772,15 +772,53 @@ public final class PlaywrightPortalDriver implements PortalDriver {
         }
     }
 
-    private void esperarFilaSeleccionada() {
+    private void esperarFilaSeleccionada(ArmaInventario arma) {
         long limite = System.nanoTime() + ESPERA_CORTA.toNanos();
         while (System.nanoTime() < limite) {
-            if (pagina.locator(SelectoresSiae.FILA_SELECCIONADA).count() > 0) {
+            if (haySeleccion(arma)) {
                 return;
             }
             pagina.waitForTimeout(150);
         }
         throw inesperado("El clic en la fila no quedó registrado.", null);
+    }
+
+    /**
+     * El portal confirma la selección de varias formas según el módulo: el contador "1 fila
+     * seleccionada" del listado, la fila marcada o, en "Estado de trámite", un resumen con el arma
+     * elegida. Basta cualquiera de las tres.
+     */
+    private boolean haySeleccion(ArmaInventario arma) {
+        return pagina.locator(SelectoresSiae.FILA_SELECCIONADA).count() > 0
+                || pagina.locator(SelectoresSiae.FILA_GRID_MARCADA).count() > 0
+                || (desdeEstadoTramite && resumenMuestra(arma));
+    }
+
+    /** Busca el arma en una tabla del cuadro que no sea el propio listado: el resumen de la selección. */
+    private boolean resumenMuestra(ArmaInventario arma) {
+        for (Locator fila : pagina.locator(SelectoresSiae.FILAS_RESUMEN_SELECCION).all()) {
+            if (Texto.contieneTermino(textoDe(fila), arma.descripcion())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Antes de un paso que no se puede deshacer, comprueba que lo seleccionado sea el arma elegida.
+     * Si el portal marca otra fila, se detiene en lugar de confirmar un arma equivocada.
+     */
+    private void verificarArmaSeleccionada(ArmaInventario arma) {
+        List<Locator> marcadas = pagina.locator(SelectoresSiae.FILA_GRID_MARCADA).all();
+        for (Locator marcada : marcadas) {
+            if (!Texto.contieneTermino(textoDe(marcada), arma.descripcion())) {
+                throw inesperado("No se confirma: la fila seleccionada («" + recortar(textoDe(marcada), 120)
+                        + "») no es el arma elegida («" + recortar(arma.descripcion(), 120) + "»).", null);
+            }
+        }
+        if (marcadas.isEmpty() && !haySeleccion(arma)) {
+            throw inesperado("No se confirma: no hay ningún arma seleccionada en el listado.", null);
+        }
     }
 
     private boolean hayErrorDeCupo() {
@@ -941,9 +979,16 @@ public final class PlaywrightPortalDriver implements PortalDriver {
         esperarEstadoTramite();
         cerrarCuadroAbierto();
 
+        numeroSolicitudAbierta = "";
         Locator tarjeta = esperarTarjetaDeSolicitud(tramite, numero);
         if (tarjeta == null) {
             return ResultadoSolicitud.SIN_SOLICITUD;
+        }
+        String numeroDeLaTarjeta = numeroDeSolicitud(textoDe(tarjeta));
+        // Solo se acepta si parece un número de solicitud; si no, se sigue buscando por permiso y tipo.
+        numeroSolicitudAbierta = numeroDeLaTarjeta.matches("\\d+(?:-\\d+){2,}") ? numeroDeLaTarjeta : "";
+        if (numero.isBlank() && !numeroSolicitudAbierta.isEmpty()) {
+            LOG.info("Se vigila la solicitud {} (la primera en progreso del mismo trámite).", numeroSolicitudAbierta);
         }
 
         // La linea FG-1 queda en pantalla mientras la solicitud siga seleccionada: basta con pulsarla
@@ -962,6 +1007,16 @@ public final class PlaywrightPortalDriver implements PortalDriver {
         }
         linea.locator("td").first().click();
         return esperarResultadoInventarioDeSolicitud();
+    }
+
+    @Override
+    public String numeroSolicitudAbierta() {
+        return numeroSolicitudAbierta;
+    }
+
+    @Override
+    public boolean cierreConfirmadoAlApartar() {
+        return cierreConfirmadoAlApartar;
     }
 
     /** Del texto que escribe la persona solo importa el numero ("1-01-45-202610-4336"), aunque pegue la linea entera. */
@@ -1106,9 +1161,23 @@ public final class PlaywrightPortalDriver implements PortalDriver {
         double y = fondo.y + 10;
         boolean dentro = x >= recuadro.x && x <= recuadro.x + recuadro.width
                 && y >= recuadro.y && y <= recuadro.y + recuadro.height;
-        if (!dentro) {
-            pagina.mouse().click(x, y);
+        if (dentro || sobreBotonPeligroso(x, y)) {
+            return;   // queda Escape, que no toca ningún botón
         }
+        pagina.mouse().click(x, y);
+    }
+
+    /** Verdadero si el punto cae sobre "Cancelar trámite" (la X roja), que jamás se pulsa. */
+    private boolean sobreBotonPeligroso(double x, double y) {
+        for (Locator boton : pagina.locator(SelectoresSiae.BOTON_CANCELAR_TRAMITE).all()) {
+            BoundingBox caja = boton.boundingBox();
+            if (caja != null && x >= caja.x - 8 && x <= caja.x + caja.width + 8
+                    && y >= caja.y - 8 && y <= caja.y + caja.height + 8) {
+                LOG.warn("El clic para cerrar el cuadro caería sobre «Cancelar trámite»; se usa Escape.");
+                return true;
+            }
+        }
+        return false;
     }
 
     // --- Comunes -----------------------------------------------------------------

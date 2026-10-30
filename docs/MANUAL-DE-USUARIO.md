@@ -238,7 +238,9 @@ Al elegir **Solicitud existente** aparece el campo **N.º de solicitud (opcional
 sale en la tarjeta de Estado de trámite, por ejemplo `1-01-45-202610-4336` (si pegas la línea completa,
 *"1-01-45-202610-4336 - EN PROGRESO"*, se toma solo el número). Sirve cuando hay más de una solicitud abierta,
 por ejemplo de otra seccional. Si lo dejas vacío, se toma la primera solicitud *EN PROGRESO* con el mismo permiso
-y tipo de trámite del cliente.
+y tipo de trámite del cliente, y **desde ese momento se vigila siempre esa misma** (su número aparece en la fila del
+cliente: *"Solicitud 1-01-45-… en Estado de trámite: sin inventario por ahora."*). Así, si después aparece otra
+solicitud del mismo tipo, el programa no salta a ella.
 
 **Por qué existe.** Cuando el paso 1 se guarda y el portal sí tiene inventario pero **ninguna arma
 cumple tus objetivos**, la solicitud ya quedó abierta en Estado de trámite. Repetir el paso 1 no tiene
@@ -263,9 +265,13 @@ lo que muestre el portal:
 - Si sale directamente *"Ver armas"*, lo confirma ahí.
 - Si aparece un cuadro que no reconoce, **no confirma nada**: informa del error con una captura y deja la
   solicitud como está. FINALIZAR solo se pulsa con una fila seleccionada y sin el aviso de "sin inventario".
+- Antes de pulsar FINALIZAR comprueba que **lo seleccionado sea el arma elegida**: el portal lo muestra con la fila
+  marcada, con el contador "1 fila seleccionada" o con el resumen del arma. Si la fila marcada es otra, no
+  confirma nada.
 
 La alarma suena en Estado de trámite con las mismas reglas que en el paso 1: cuando el programa **encuentra un arma
-que cumple** (la aparta, o avisa en modo alerta) o el apartado falla.
+que cumple** (la aparta, o avisa en modo alerta), cuando el apartado falla y **una vez** cuando aparece inventario
+sin ningún arma de interés (sección 10).
 
 > **Importante.** El programa **nunca pulsa FINALIZAR** en ese cuadro sin inventario, porque en ese momento
 > **cancela la solicitud**. Tampoco toca el botón *Cancelar trámite*. Si no logra cerrar el cuadro, se detiene
@@ -510,7 +516,7 @@ Los campos de esta sección y la siguiente **aparecen u ocultan** según la reac
 |---|---|---|
 | **Modalidad (botón que se pulsa en el portal)** | Si la reacción es **Apartar** | **PORTE** o **TENENCIA**: el botón que el programa pulsa después de seleccionar el arma. |
 | **Departamento / Ciudad / Dirección completa** | Si Apartar **y** modalidad **TENENCIA** | La dirección que exige el modal de TENENCIA. Los tres son obligatorios en ese caso. |
-| **Reintentos al apartar** | Si la reacción es **Apartar** | De 1 a 5 (2 por defecto). Cuántas veces intenta apartar el arma si la plataforma no lo confirma. |
+| **Reintentos al apartar** | Si la reacción es **Apartar** | De 1 a 5 (2 por defecto). Cuántas veces intenta apartar si la plataforma no lo confirma. **Antes de cada reintento vuelve a leer el listado y a elegir**: si el arma sigue ahí, la intenta de nuevo; si desapareció, pasa a la siguiente que cumpla (otro objetivo, una alternativa o el comodín); si ya no queda ninguna, deja de intentar y avisa del apartado fallido. |
 
 En modo **Solo alertar** esos campos se ocultan y la ayuda lo explica: *"no hay modalidad, reintentos ni
 paso 2 que configurar"*. Lo que ocultas **no se borra**: si vuelves a Apartar, reaparece lo que habías escrito.
@@ -668,14 +674,19 @@ Una alerta es lo que exige tu atención. Hay dos clases:
 | **Arma apartada: Ana** | *"… en Medellín. Termine el trámite en la ventana del navegador de este cliente."* | Ve al navegador y termina el trámite. |
 | **Arma disponible: Ana** | *"… Selecciónela ya en la ventana del navegador de este cliente."* | Selecciona el arma tú en el portal. |
 | **Arma disponible (no se pudo apartar): Ana** | *"La plataforma no confirmó el apartado tras 2 intento(s); revise la ventana del navegador."* | Revisa de inmediato. Quizá otra persona la tomó, o aún puedes apartarla a mano. |
+| **Inventario sin arma de interés: Ana** | *"Apareció inventario en … (14 armas), pero ninguna cumple los objetivos ni las alternativas; no se seleccionó nada…"* | Revisa la lista en la bitácora o el historial. Si alguna te sirve, ajusta los objetivos o apártala a mano. |
 | **Sesión cerrada: Ana** | *"La plataforma cerró la sesión. Inicie sesión de nuevo en la ventana de este cliente y reanude el monitoreo."* | Inicia sesión en el navegador y pulsa **Iniciar / reanudar**. |
 | **Monitoreo detenido: Ana** | *"La plataforma respondió con errores varias veces seguidas. Revise la ventana de este cliente y reanude el monitoreo."* | Mira la bitácora (captura) y reanuda cuando se resuelva. |
 | **Solicitud no encontrada: Ana** | *"No se encontró la solicitud en Estado de trámite y el monitoreo se detuvo. Revise el portal o inicie con «Nueva solicitud (paso 1)»."* | Revisa Estado de trámite; si no hay solicitud, cambia el selector a *Nueva solicitud (paso 1)* y reanuda. |
 
-> **Lo que NO suena.** Que haya inventario **no** dispara alarma por sí solo: la alarma suena cuando el programa
-> **encuentra un arma que cumple tus reglas** (la aparta, o avisa en modo alerta) o cuando algo falla y el monitor
-> se detiene. Si hay inventario pero ningún arma cumple tus objetivos (*"Inventario … sin armas de interés"*), o la
-> solicitud abierta sigue sin inventario, el programa solo lo anota en la fila y sigue vigilando en silencio.
+> **Inventario sin arma de interés.** Si aparece inventario pero ninguna arma cumple tus objetivos, alternativas ni
+> comodín, la alarma suena **una sola vez por ese inventario** y el monitoreo sigue. Si en los ciclos siguientes el
+> listado es el mismo, no vuelve a sonar; si cambia, o si desaparece y vuelve a aparecer, suena otra vez. La lista
+> completa queda en la bitácora (evento *Inventario sin interés*) y en el historial del cliente, marcada como
+> *Ningún objeto elegido*.
+>
+> **Lo que NO suena.** Que la solicitud abierta siga sin inventario, que las seccionales estén cerradas o que el
+> portal falle un momento: eso solo queda en la fila del cliente.
 
 La voz dice una frase corta, sin describir el arma. Por ejemplo: *"Atención. Arma apartada para Ana. Termine
 el trámite."*
@@ -698,6 +709,7 @@ el trámite."*
 | Tres fallos seguidos | **Sí**. |
 | No se encuentra la solicitud (*Solicitud existente*) | **Sí**, con alerta de problema. |
 | Apartado fallido | **No**: sigue consultando. Detenlo desde ⋯ si ya no lo necesitas. |
+| Inventario sin arma de interés | **No**: sigue vigilando la solicitud. |
 
 ---
 
@@ -776,6 +788,10 @@ apóstrofe para que Excel no las ejecute como fórmulas.
 - Se guardan como máximo **1000 eventos** de los **últimos 30 días**; lo más antiguo se borra solo.
 - Las **capturas de pantalla** de los fallos también se borran solas a los **30 días** (al abrir el programa y
   una vez al día).
+- **Vaciar bitácora** (botón rojo arriba, junto a *Exportar CSV*) borra **todos** los eventos de todos los
+  clientes para liberar espacio. Pide confirmación con **Aceptar** o **Cancelar**; Cancelar es la opción por
+  defecto. No se puede deshacer, así que si quieres conservarlos, exporta antes el CSV. No detiene ningún
+  monitoreo (los eventos nuevos se siguen anotando) y no borra el historial de inventarios ni las capturas.
 - Cuando una captura se borra, su evento sigue en la bitácora, con el aviso de que ya no está.
 
 ---

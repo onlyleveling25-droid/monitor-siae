@@ -166,6 +166,17 @@ public final class CoordinadorMonitores implements AutoCloseable {
         return bitacora.eventos();
     }
 
+    /**
+     * Borra todos los eventos de la bitácora. Los monitores en curso siguen anotando los nuevos.
+     *
+     * @return cuántos eventos se borraron
+     */
+    public int vaciarBitacora() {
+        int borrados = bitacora.vaciar();
+        LOG.info("La bitácora se vació a pedido del usuario ({} eventos).", borrados);
+        return borrados;
+    }
+
     public Optional<SnapshotInventario> ultimoSnapshot(String clienteId) {
         return snapshots.ultimoDe(clienteId);
     }
@@ -177,6 +188,11 @@ public final class CoordinadorMonitores implements AutoCloseable {
     /** Indica si el cliente tiene una solicitud abierta en el portal que el monitor debe seguir. */
     public boolean solicitudPendiente(String clienteId) {
         return sesionCliente(clienteId).seguimiento.siguiendoSolicitud();
+    }
+
+    /** Número de la solicitud que vigila el monitor de este cliente; vacío si aún no se conoce. */
+    public String numeroSolicitudVigilada(String clienteId) {
+        return sesionCliente(clienteId).seguimiento.numeroSolicitud();
     }
 
     /**
@@ -346,6 +362,8 @@ public final class CoordinadorMonitores implements AutoCloseable {
                 private final OyenteRegistro registro = new OyenteRegistro();
                 private final OyenteAlertas oyenteAlertas = new OyenteAlertas(new TraductorAlertas(), alertas);
                 private final OyenteBitacora oyenteBitacora = new OyenteBitacora(bitacora, Clock.systemUTC());
+                private final co.monitorsiae.monitoreo.InventarioNuevo inventarioNuevo =
+                        new co.monitorsiae.monitoreo.InventarioNuevo();
 
                 @Override
                 public void alIniciar(Cliente iniciado) {
@@ -378,7 +396,14 @@ public final class CoordinadorMonitores implements AutoCloseable {
                 @Override
                 public void alTerminarCiclo(Cliente iniciado, ResultadoCiclo resultado) {
                     sesion.ultimoResultado = resultado.descripcion();
-                    if (resultado instanceof ResultadoCiclo.ArmaEncontrada encontrada) {
+                    boolean inventarioSinInteresNuevo = inventarioNuevo.registrar(iniciado.id(), resultado);
+                    if (resultado instanceof ResultadoCiclo.SinArmaDeInteres sinInteres) {
+                        // Se guarda una vez por inventario, sin arma elegida, para revisar qué había.
+                        if (inventarioSinInteresNuevo) {
+                            snapshots.guardar(new SnapshotInventario(Instant.now(), iniciado.id(),
+                                    iniciado.nombre(), sinInteres.seccional(), sinInteres.inventario(), null));
+                        }
+                    } else if (resultado instanceof ResultadoCiclo.ArmaEncontrada encontrada) {
                         snapshots.guardar(new SnapshotInventario(Instant.now(), iniciado.id(), iniciado.nombre(),
                                 encontrada.seccional(), encontrada.inventario(), encontrada.eleccion()));
                         sesion.estado = Estado.ALERTA_ENCONTRADA;

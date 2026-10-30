@@ -34,6 +34,15 @@ public final class TraductorAlertas {
                             + " intento(s); revise la ventana del navegador de este cliente.",
                     "Atención. Había un arma disponible para " + cliente.nombre()
                             + " pero no se pudo apartar. Revise de inmediato."));
+            // Hubo inventario aunque nada cumple: se avisa para que la persona lo revise. Quien escucha
+            // se encarga de que suene una sola vez por inventario, no en cada ciclo.
+            case ResultadoCiclo.SinArmaDeInteres s -> Optional.of(new Alerta(cliente.id(), Gravedad.OPORTUNIDAD,
+                    "Inventario sin arma de interés: " + cliente.nombre(),
+                    "Apareció inventario en " + s.seccional() + " (" + s.inventario().size() + " armas), pero "
+                            + "ninguna cumple los objetivos ni las alternativas; no se seleccionó nada. La lista "
+                            + "completa queda en la bitácora y en el historial del cliente. El monitoreo sigue.",
+                    "Atención. Hay inventario para " + cliente.nombre()
+                            + ", pero ninguna arma es de interés. Revise la lista."));
             case ResultadoCiclo.SesionVencida s -> Optional.of(new Alerta(cliente.id(), Gravedad.PROBLEMA,
                     "Sesión cerrada: " + cliente.nombre(),
                     "La plataforma cerró la sesión. Inicie sesión de nuevo en la ventana de este cliente y "

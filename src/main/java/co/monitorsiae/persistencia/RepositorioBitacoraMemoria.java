@@ -21,4 +21,11 @@ public final class RepositorioBitacoraMemoria implements RepositorioBitacora {
     public synchronized List<EventoOperativo> eventos() {
         return List.copyOf(eventos);
     }
+
+    @Override
+    public synchronized int vaciar() {
+        int borrados = eventos.size();
+        eventos.clear();
+        return borrados;
+    }
 }

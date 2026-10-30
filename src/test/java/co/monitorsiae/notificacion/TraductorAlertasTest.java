@@ -68,15 +68,25 @@ class TraductorAlertasTest {
     }
 
     @Test
-    void inventarioSinArmaDeInteresNoSuenaNiLaSolicitudSinInventario() {
+    void laSolicitudSinInventarioNoSuena() {
         assertTrue(traductor.deResultado(cliente, new ResultadoCiclo.SinInventarioEnSolicitud()).isEmpty());
+    }
+
+    @Test
+    void inventarioSinArmaDeInteresAvisaConLaCantidadYSinSeleccionarNada() {
+        Alerta alerta = traductor.deResultado(cliente, new ResultadoCiclo.SinArmaDeInteres(SECCIONAL, List.of(
+                new co.monitorsiae.dominio.ArmaInventario(0, "Revolver Martial Cal 38", "Revolver"),
+                new co.monitorsiae.dominio.ArmaInventario(1, "Escopeta Pump 12", "Escopeta")))).orElseThrow();
+
+        assertEquals(Gravedad.OPORTUNIDAD, alerta.gravedad());
+        assertTrue(alerta.detalle().contains("2 armas"));
+        assertTrue(alerta.detalle().contains("no se seleccionó nada"));
     }
 
     @Test
     void losEstadosNormalesNoGeneranAlerta() {
         assertTrue(traductor.deResultado(cliente, new ResultadoCiclo.SeccionalesCerradas()).isEmpty());
         assertTrue(traductor.deResultado(cliente, new ResultadoCiclo.SinInventario(SECCIONAL)).isEmpty());
-        assertTrue(traductor.deResultado(cliente, new ResultadoCiclo.SinArmaDeInteres(SECCIONAL, List.of())).isEmpty());
         assertTrue(traductor.deResultado(cliente, new ResultadoCiclo.Inesperado("503")).isEmpty());
         assertTrue(traductor.deDetencion(cliente, MotivoDetencion.ARMA_APARTADA).isEmpty());
         assertTrue(traductor.deDetencion(cliente, MotivoDetencion.SOLICITADO_POR_USUARIO).isEmpty());

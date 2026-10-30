@@ -59,13 +59,27 @@ public sealed interface ResultadoCiclo {
         }
     }
 
-    /** La solicitud ya esta abierta en "Estado de tramite" y el portal aun no tiene inventario. */
-    record SinInventarioEnSolicitud() implements ResultadoCiclo {
+    /**
+     * La solicitud ya esta abierta en "Estado de tramite" y el portal aun no tiene inventario.
+     *
+     * @param numero numero de la solicitud vigilada; vacio si no se conoce
+     */
+    record SinInventarioEnSolicitud(String numero) implements ResultadoCiclo {
+        public SinInventarioEnSolicitud {
+            numero = numero == null ? "" : numero.strip();
+        }
+
+        public SinInventarioEnSolicitud() {
+            this("");
+        }
+
         public String descripcion() {
-            return "Solicitud abierta en Estado de trámite: sin inventario por ahora.";
+            return (numero.isEmpty() ? "Solicitud abierta" : "Solicitud " + numero)
+                    + " en Estado de trámite: sin inventario por ahora.";
         }
     }
 
+    /** Hubo inventario, pero ninguna arma cumple los objetivos, alternativas ni el tipo comodin. */
     record SinArmaDeInteres(String seccional, List<ArmaInventario> inventario) implements ResultadoCiclo {
         public SinArmaDeInteres {
             inventario = List.copyOf(inventario);
@@ -73,6 +87,13 @@ public sealed interface ResultadoCiclo {
 
         public String descripcion() {
             return "Inventario en " + seccional + " (" + inventario.size() + " armas) sin armas de interés.";
+        }
+
+        /** Identifica este inventario: dos lecturas con la misma firma son el mismo listado. */
+        public String firma() {
+            StringBuilder firma = new StringBuilder(seccional);
+            inventario.forEach(arma -> firma.append('\n').append(arma.descripcion()));
+            return firma.toString();
         }
     }
 

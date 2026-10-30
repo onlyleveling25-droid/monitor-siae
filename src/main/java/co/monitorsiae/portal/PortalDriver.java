@@ -51,6 +51,22 @@ public interface PortalDriver extends AutoCloseable {
         return ResultadoSolicitud.SIN_SOLICITUD;
     }
 
+    /**
+     * Número de la solicitud que abrió la última llamada a {@link #abrirSolicitudExistente}, tal como
+     * lo muestra el portal; vacío si no se conoce. Sirve para seguir siempre la misma solicitud.
+     */
+    default String numeroSolicitudAbierta() {
+        return "";
+    }
+
+    /**
+     * Verdadero si el último apartado ya confirmó el cuadro «Ver armas», que sella el trámite. Pasa
+     * desde "Estado de trámite", donde ese cuadro es la única confirmación que ofrece el portal.
+     */
+    default boolean cierreConfirmadoAlApartar() {
+        return false;
+    }
+
     /** Lee el listado de armas del paso 2. */
     List<ArmaInventario> leerInventario();
 

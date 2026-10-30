@@ -47,7 +47,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-/** Eventos operativos por cliente, tipo, periodo y texto. Solo lee; no cambia el monitoreo. */
+/** Eventos operativos por cliente, tipo, periodo y texto. No cambia el monitoreo; solo puede vaciar la bitácora. */
 final class PaginaBitacora extends VBox {
 
     private static final java.time.Duration PERIODO_RESUMEN = java.time.Duration.ofHours(24);
@@ -57,6 +57,7 @@ final class PaginaBitacora extends VBox {
     private final Consumer<EventoOperativo> verInventario;
     private final Path carpetaCapturas;
     private final Consumer<Path> abrirArchivo;
+    private final java.util.function.IntSupplier vaciar;
     private final Clock reloj = Clock.systemUTC();
     private final ZoneId zona = ZoneId.systemDefault();
     private final ComboBox<Cliente> filtroCliente = new ComboBox<>();
@@ -75,8 +76,10 @@ final class PaginaBitacora extends VBox {
     private boolean actualizando;
 
     PaginaBitacora(Supplier<List<EventoOperativo>> eventos, Supplier<List<Cliente>> clientes,
-                   Consumer<EventoOperativo> verInventario, Path carpetaCapturas, Consumer<Path> abrirArchivo) {
+                   Consumer<EventoOperativo> verInventario, Path carpetaCapturas, Consumer<Path> abrirArchivo,
+                   java.util.function.IntSupplier vaciar) {
         super(16);
+        this.vaciar = vaciar;
         this.carpetaCapturas = carpetaCapturas;
         this.abrirArchivo = abrirArchivo;
         this.eventos = eventos;
@@ -95,7 +98,12 @@ final class PaginaBitacora extends VBox {
         exportar.getStyleClass().add("secondary-button");
         exportar.setTooltip(new Tooltip("Guarda los eventos que ves ahora (con los filtros) en un archivo para Excel"));
         exportar.setOnAction(e -> exportar());
-        HBox encabezado = new HBox(14, titulos, exportar);
+        Button vaciarBitacora = new Button("Vaciar bitácora");
+        vaciarBitacora.getStyleClass().add("danger-button");
+        vaciarBitacora.setGraphic(IconoSvg.crear("close", 16, "#B91C1C"));
+        vaciarBitacora.setTooltip(new Tooltip("Borra todos los eventos para liberar espacio; pide confirmación"));
+        vaciarBitacora.setOnAction(e -> vaciarConConfirmacion());
+        HBox encabezado = new HBox(14, titulos, exportar, vaciarBitacora);
         encabezado.setAlignment(Pos.CENTER_LEFT);
         encabezado.getStyleClass().add("page-header");
 
@@ -315,6 +323,7 @@ final class PaginaBitacora extends VBox {
         switch (tipo) {
             case OPORTUNIDAD -> { clase = "status-alert"; icono = "bell"; color = "#C2410C"; }
             case ARMA_APARTADA -> { clase = "status-success"; icono = "check"; color = "#15803D"; }
+            case INVENTARIO_SIN_INTERES -> { clase = "status-waiting"; icono = "info"; color = "#B45309"; }
             case APARTADO_FALLIDO, SESION_VENCIDA -> { clase = "status-error"; icono = "alert"; color = "#B91C1C"; }
             case RESPUESTA_INESPERADA, PORTAL_SIN_RESPUESTA -> { clase = "status-waiting"; icono = "diagnostics"; color = "#B45309"; }
             case MONITOREO_INICIADO -> { clase = "status-running"; icono = "activity"; color = "#1D4ED8"; }
@@ -435,6 +444,46 @@ final class PaginaBitacora extends VBox {
             mostrarAviso(Alert.AlertType.INFORMATION, visibles.size() + " evento(s) guardados en " + archivo.getName());
         } catch (java.io.IOException | RuntimeException e) {
             mostrarAviso(Alert.AlertType.ERROR, "No se pudo guardar el archivo: " + e.getMessage());
+        }
+    }
+
+    /** Pide confirmación (Cancelar por defecto) y borra todos los eventos de la bitácora. */
+    private void vaciarConConfirmacion() {
+        int total;
+        try {
+            total = eventos.get().size();
+        } catch (RuntimeException e) {
+            total = -1;   // la bitácora no se pudo leer: igual se permite vaciarla
+        }
+        if (total == 0) {
+            mostrarAviso(Alert.AlertType.INFORMATION, "La bitácora ya está vacía.");
+            return;
+        }
+        ButtonType aceptar = new ButtonType("Aceptar", ButtonBar.ButtonData.OK_DONE);
+        ButtonType cancelar = new ButtonType("Cancelar", ButtonBar.ButtonData.CANCEL_CLOSE);
+        Alert confirmacion = new Alert(Alert.AlertType.CONFIRMATION,
+                (total > 0 ? "Se borrarán los " + total + " eventos de todos los clientes. " : "Se borrarán todos los eventos. ")
+                        + "Esta acción no se puede deshacer; si quieres conservarlos, usa antes «Exportar CSV».\n\n"
+                        + "No se detiene ningún monitoreo, y el historial de inventarios y las capturas no se borran.",
+                aceptar, cancelar);
+        if (getScene() != null) {
+            confirmacion.initOwner(getScene().getWindow());
+        }
+        EstilosJavaFx.aplicar(confirmacion.getDialogPane());
+        confirmacion.setTitle("Vaciar bitácora");
+        confirmacion.setHeaderText("¿Vaciar la bitácora?");
+        // Cancelar es la opción por defecto: pulsar Enter sin pensar no debe borrar nada.
+        ((Button) confirmacion.getDialogPane().lookupButton(aceptar)).setDefaultButton(false);
+        ((Button) confirmacion.getDialogPane().lookupButton(cancelar)).setDefaultButton(true);
+        if (confirmacion.showAndWait().orElse(cancelar) != aceptar) {
+            return;
+        }
+        try {
+            int borrados = vaciar.getAsInt();
+            actualizar();
+            mostrarAviso(Alert.AlertType.INFORMATION, "Bitácora vaciada: se borraron " + borrados + " evento(s).");
+        } catch (RuntimeException e) {
+            mostrarAviso(Alert.AlertType.ERROR, "No se pudo vaciar la bitácora: " + e.getMessage());
         }
     }
 

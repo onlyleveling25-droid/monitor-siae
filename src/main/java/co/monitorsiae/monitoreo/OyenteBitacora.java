@@ -25,6 +25,7 @@ public final class OyenteBitacora implements OyenteMonitoreo {
     private final Clock reloj;
     private final Map<String, String> ultimoPorCliente = new ConcurrentHashMap<>();
     private final Map<String, Instant> inicioPorCliente = new ConcurrentHashMap<>();
+    private final InventarioNuevo inventarioNuevo = new InventarioNuevo();
 
     public OyenteBitacora(RepositorioBitacora bitacora, Clock reloj) {
         this.bitacora = Objects.requireNonNull(bitacora);
@@ -33,6 +34,7 @@ public final class OyenteBitacora implements OyenteMonitoreo {
 
     @Override
     public void alIniciar(Cliente cliente) {
+        inventarioNuevo.olvidar(cliente.id());
         ultimoPorCliente.remove(cliente.id());
         inicioPorCliente.put(cliente.id(), reloj.instant());
         String seccionales = String.join(", ", cliente.tramite().seccionales());
@@ -44,6 +46,15 @@ public final class OyenteBitacora implements OyenteMonitoreo {
 
     @Override
     public void alTerminarCiclo(Cliente cliente, ResultadoCiclo resultado) {
+        if (resultado instanceof ResultadoCiclo.SinArmaDeInteres sinInteres) {
+            // Una vez por inventario: el mismo listado en los ciclos siguientes no se repite.
+            if (inventarioNuevo.registrar(cliente.id(), resultado)) {
+                anotar(cliente, TipoEvento.INVENTARIO_SIN_INTERES, detalleSinInteres(sinInteres),
+                        sinInteres.seccional(), "", null, "");
+            }
+            return;
+        }
+        inventarioNuevo.registrar(cliente.id(), resultado);
         TipoEvento tipo = switch (resultado) {
             case ResultadoCiclo.ArmaEncontrada e -> TipoEvento.OPORTUNIDAD;
             case ResultadoCiclo.ArmaApartada a -> TipoEvento.ARMA_APARTADA;
@@ -96,6 +107,14 @@ public final class OyenteBitacora implements OyenteMonitoreo {
         } catch (RuntimeException e) {
             REGISTRO.warn("No se pudo escribir en la bitácora; el monitoreo continúa.", e);
         }
+    }
+
+    /** La lista completa queda en el detalle del evento, para revisarla aunque el historial ya no la tenga. */
+    static String detalleSinInteres(ResultadoCiclo.SinArmaDeInteres sinInteres) {
+        StringBuilder detalle = new StringBuilder(sinInteres.descripcion())
+                .append(" Ninguna cumplía los objetivos ni las alternativas; no se seleccionó nada. Inventario:");
+        sinInteres.inventario().forEach(arma -> detalle.append("\n• ").append(arma.descripcion()));
+        return detalle.toString();
     }
 
     private static String texto(MotivoDetencion motivo) {

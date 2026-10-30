@@ -801,6 +801,11 @@ public final class VistaPrincipal extends BorderPane {
         if (!vigilando && monitores.solicitudPendiente(clienteId)) {
             // El monitor dejo una solicitud abierta: al reanudar se sigue desde "Estado de trámite".
             combo.setValue(ModoInicio.SOLICITUD_EXISTENTE);
+            // Y se sigue la misma solicitud: su número queda escrito si la persona no puso otro.
+            String vigilada = monitores.numeroSolicitudVigilada(clienteId);
+            if (numero != null && numero.getText().isBlank() && !vigilada.isBlank()) {
+                numero.setText(vigilada);
+            }
         }
     }
 
@@ -886,7 +891,7 @@ public final class VistaPrincipal extends BorderPane {
         if (paginaBitacora == null) {
             paginaBitacora = new PaginaBitacora(monitores::eventosBitacora,
                     () -> servicio.configuracion().clientes(), this::verInventarioDelEvento,
-                    carpetaCapturas, abrirArchivo);
+                    carpetaCapturas, abrirArchivo, monitores::vaciarBitacora);
         }
         paginaBitacora.actualizar();
         setCenter(paginaBitacora);
@@ -1138,7 +1143,9 @@ public final class VistaPrincipal extends BorderPane {
         seccional.getStyleClass().add("history-location");
         HBox resumen = new HBox(8, fecha, seccional);
         resumen.setAlignment(Pos.CENTER_LEFT);
-        Label seleccion = new Label(snapshot.eleccion().arma().descripcion());
+        Label seleccion = new Label(snapshot.conEleccion()
+                ? snapshot.eleccion().arma().descripcion()
+                : "Sin arma de interés · " + snapshot.inventario().size() + " objetos, no se eligió ninguno");
         seleccion.getStyleClass().add("history-selection");
         seleccion.setWrapText(true);
         VBox textos = new VBox(2, resumen, seleccion);
@@ -1174,11 +1181,6 @@ public final class VistaPrincipal extends BorderPane {
 
     private void mostrarSnapshot(SnapshotInventario snapshot) {
         var eleccion = snapshot.eleccion();
-        String motivo = switch (eleccion.motivo()) {
-            case OBJETIVO -> "Objetivo prioritario #" + (eleccion.prioridad() + 1);
-            case ALTERNATIVA -> "Alternativa #" + (eleccion.prioridad() + 1);
-            case CUALQUIERA_DEL_TIPO -> "Comodín por tipo";
-        };
         Dialog<Void> dialogo = new Dialog<>();
         dialogo.initOwner(propietario);
         dialogo.setTitle("Inventario analizado");
@@ -1195,20 +1197,7 @@ public final class VistaPrincipal extends BorderPane {
         Label subtitulo = new Label("Evidencia de la decisión del sistema");
         subtitulo.getStyleClass().add("dialog-description");
 
-        VBox eleccionCard = new VBox(6);
-        eleccionCard.getStyleClass().add("snapshot-choice-card");
-        HBox rotulo = new HBox(8, IconoSvg.crear("check", 17, "#15803D"));
-        Label rotuloTexto = new Label("OBJETO ELEGIDO POR EL SISTEMA");
-        rotuloTexto.getStyleClass().add("snapshot-choice-label");
-        rotulo.getChildren().add(rotuloTexto);
-        Label armaElegida = new Label(eleccion.arma().descripcion());
-        armaElegida.getStyleClass().add("snapshot-choice-name");
-        armaElegida.setWrapText(true);
-        Label reglaAplicada = new Label(motivo
-                + (eleccion.criterio().isBlank() ? "" : " · " + eleccion.criterio()));
-        reglaAplicada.getStyleClass().add("snapshot-choice-reason");
-        reglaAplicada.setWrapText(true);
-        eleccionCard.getChildren().addAll(rotulo, armaElegida, reglaAplicada);
+        VBox eleccionCard = eleccion == null ? tarjetaSinEleccion() : tarjetaEleccion(eleccion);
 
         HBox datos = new HBox(10,
                 datoSnapshot("CLIENTE", snapshot.clienteNombre()),
@@ -1222,7 +1211,7 @@ public final class VistaPrincipal extends BorderPane {
         objetos.getStyleClass().add("snapshot-items");
         snapshot.inventario().forEach(arma -> objetos.getChildren().add(
                 filaInventario(arma.posicion() + 1, arma.descripcion(),
-                        arma.posicion() == eleccion.arma().posicion())));
+                        eleccion != null && arma.posicion() == eleccion.arma().posicion())));
         ScrollPane lista = new ScrollPane(objetos);
         lista.setFitToWidth(true);
         lista.getStyleClass().add("history-scroll");
@@ -1231,6 +1220,45 @@ public final class VistaPrincipal extends BorderPane {
         dialogo.getDialogPane().setContent(contenido);
         dialogo.getDialogPane().setPrefWidth(760);
         dialogo.showAndWait();
+    }
+
+    private static VBox tarjetaEleccion(co.monitorsiae.monitoreo.EleccionArma eleccion) {
+        String motivo = switch (eleccion.motivo()) {
+            case OBJETIVO -> "Objetivo prioritario #" + (eleccion.prioridad() + 1);
+            case ALTERNATIVA -> "Alternativa #" + (eleccion.prioridad() + 1);
+            case CUALQUIERA_DEL_TIPO -> "Comodín por tipo";
+        };
+        VBox tarjeta = new VBox(6);
+        tarjeta.getStyleClass().add("snapshot-choice-card");
+        HBox rotulo = new HBox(8, IconoSvg.crear("check", 17, "#15803D"));
+        Label rotuloTexto = new Label("OBJETO ELEGIDO POR EL SISTEMA");
+        rotuloTexto.getStyleClass().add("snapshot-choice-label");
+        rotulo.getChildren().add(rotuloTexto);
+        Label armaElegida = new Label(eleccion.arma().descripcion());
+        armaElegida.getStyleClass().add("snapshot-choice-name");
+        armaElegida.setWrapText(true);
+        Label reglaAplicada = new Label(motivo
+                + (eleccion.criterio().isBlank() ? "" : " · " + eleccion.criterio()));
+        reglaAplicada.getStyleClass().add("snapshot-choice-reason");
+        reglaAplicada.setWrapText(true);
+        tarjeta.getChildren().addAll(rotulo, armaElegida, reglaAplicada);
+        return tarjeta;
+    }
+
+    /** Hubo inventario, pero nada cumplía: se deja constancia de que no se seleccionó ningún objeto. */
+    private static VBox tarjetaSinEleccion() {
+        VBox tarjeta = new VBox(6);
+        tarjeta.getStyleClass().addAll("snapshot-choice-card", "snapshot-choice-none");
+        HBox rotulo = new HBox(8, IconoSvg.crear("info", 17, "#B45309"));
+        Label rotuloTexto = new Label("NINGÚN OBJETO ELEGIDO");
+        rotuloTexto.getStyleClass().add("snapshot-choice-label");
+        rotulo.getChildren().add(rotuloTexto);
+        Label explicacion = new Label("Ninguna arma de este inventario cumplía los objetivos ni las alternativas "
+                + "del cliente, así que el sistema no seleccionó nada y siguió vigilando.");
+        explicacion.getStyleClass().add("snapshot-choice-reason");
+        explicacion.setWrapText(true);
+        tarjeta.getChildren().addAll(rotulo, explicacion);
+        return tarjeta;
     }
 
     private static VBox datoSnapshot(String etiqueta, String valor) {

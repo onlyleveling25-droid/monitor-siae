@@ -41,6 +41,20 @@ public final class SeguimientoSolicitud {
         numeroSolicitud = "";
     }
 
+    /**
+     * Fija la solicitud que se encontró sin número (la primera que coincidía), para que los ciclos
+     * siguientes vigilen siempre esa y no otra del mismo tipo que aparezca después.
+     *
+     * @return verdadero si el número quedó fijado ahora
+     */
+    public boolean fijarNumeroSiFalta(String numero) {
+        if (!enSolicitud || !numeroSolicitud.isBlank() || numero == null || numero.isBlank()) {
+            return false;
+        }
+        numeroSolicitud = numero.strip();
+        return true;
+    }
+
     /** No hay solicitud abierta (o ya se uso): se vuelve a hacer desde el paso 1. */
     public void volverAlPaso1() {
         enSolicitud = false;

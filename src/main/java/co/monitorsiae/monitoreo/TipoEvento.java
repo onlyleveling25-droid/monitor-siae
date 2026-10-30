@@ -8,6 +8,7 @@ public enum TipoEvento {
     MONITOREO_INICIADO("Monitoreo iniciado"),
     MONITOREO_DETENIDO("Monitoreo detenido"),
     OPORTUNIDAD("Oportunidad"),
+    INVENTARIO_SIN_INTERES("Inventario sin interés"),
     ARMA_APARTADA("Arma apartada"),
     APARTADO_FALLIDO("Apartado fallido"),
     SESION_VENCIDA("Sesión vencida"),
@@ -37,6 +38,7 @@ public enum TipoEvento {
 
     /** Eventos cuyo inventario puede haberse guardado en el historial del cliente. */
     public boolean conInventario() {
-        return this == OPORTUNIDAD || this == ARMA_APARTADA || this == APARTADO_FALLIDO;
+        return this == OPORTUNIDAD || this == ARMA_APARTADA || this == APARTADO_FALLIDO
+                || this == INVENTARIO_SIN_INTERES;
     }
 }

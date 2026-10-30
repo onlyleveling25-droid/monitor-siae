@@ -63,6 +63,13 @@ final class SelectoresSiae {
             + ", [role='dialog'] table tbody tr, [role='dialog'] [role='row']:has([role='gridcell'])";
     static final String CELDAS_INVENTARIO = ".MuiDataGrid-cell, td, [role='gridcell'], [role='cell']";
     static final String FILA_SELECCIONADA = "text=/\\d+\\s*fila[s]?\\s+seleccionada/i";
+    /** Fila del DataGrid que el portal marca como elegida. */
+    static final String FILA_GRID_MARCADA = ".MuiDataGrid-row.Mui-selected, .MuiDataGrid-row[aria-selected='true']";
+    /**
+     * Resumen del arma elegida en "Estado de tramite": una tabla del cuadro que no es el listado (el
+     * DataGrid no usa etiquetas table). CONFIRMAR con un volcado de ese modulo con inventario.
+     */
+    static final String FILAS_RESUMEN_SELECCION = ".MuiDialog-paper table tbody tr";
 
     /** Modales: Angular Material (mat-dialog) y MUI. */
     static final String MODALES =
@@ -80,6 +87,8 @@ final class SelectoresSiae {
     static final String PESTANAS = "button[role='tab']";
     /** Lineas de formularios de la solicitud abierta; la que dice FG-1 abre el inventario. */
     static final String FILA_FORMULARIO = "table[aria-label='collapsible table'] tbody tr:has-text('FG-1')";
+    /** La X roja junto a la solicitud: CANCELA el tramite. Jamas se pulsa; solo se usa para esquivarla. */
+    static final String BOTON_CANCELAR_TRAMITE = "button[aria-label='Cancelar trámite']";
     static final String CONTENEDOR_MODAL = ".MuiDialog-container";
     static final String PAPEL_MODAL = ".MuiDialog-paper";
     /** Aviso dentro del cuadro; el aviso rojo de abajo desaparece solo y no sirve para decidir. */

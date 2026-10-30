@@ -49,9 +49,22 @@ public sealed interface ResultadoCiclo {
      * Se pidio vigilar la solicitud abierta y no hay ninguna que coincida. El monitor se detiene para
      * que la persona decida: revisar el portal o iniciar de nuevo desde el paso 1.
      */
-    record SolicitudNoEncontrada(String detalle) implements ResultadoCiclo {
+    record SolicitudNoEncontrada(String detalle, String queHacer) implements ResultadoCiclo {
+        public SolicitudNoEncontrada {
+            queHacer = queHacer == null ? "" : queHacer;
+        }
+
+        public SolicitudNoEncontrada(String detalle) {
+            this(detalle, "");
+        }
+
         public boolean detieneMonitoreo() {
             return true;
+        }
+
+        /** El resumen y, debajo, los pasos que debe seguir la persona. */
+        public String textoCompleto() {
+            return queHacer.isBlank() ? detalle : detalle + "\n\n" + queHacer;
         }
 
         public String descripcion() {

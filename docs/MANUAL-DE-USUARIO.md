@@ -248,6 +248,15 @@ sentido: lo que corresponde es volver a abrir esa solicitud y mirar si apareció
 hace solo: tras ese caso pasa a vigilar la solicitud (el selector cambia a *Solicitud existente*). Usa el
 selector a mano cuando reinicias el programa o quieres retomar una solicitud que dejaste abierta.
 
+**Si la solicitud tarda en aparecer.** El portal puede tardar unos segundos en mostrar en Estado de trámite la
+solicitud que acaba de crear el paso 1. El programa espera hasta unos 20 segundos, **recarga la página** y espera
+otros 20. Si aun así no aparece, **se detiene** (no crea otra solicitud por su cuenta), suena una alerta de problema
+y el aviso del Panel explica qué hacer:
+1. Abre «Estado de trámite» en el navegador del cliente y busca una tarjeta EN PROGRESO de su trámite.
+2. Si la ves: elige «Solicitud existente», escribe su número y pulsa «Iniciar / reanudar».
+3. Si no está: deja «Nueva solicitud (paso 1)» y pulsa «Iniciar / reanudar»; el programa vuelve a buscar desde
+   el paso 1.
+
 **Cómo trabaja desde Estado de trámite.** La primera vez abre el módulo, elige la solicitud *EN PROGRESO* y pulsa
 la línea "FG-1…" (el portal busca inventario). En las vueltas siguientes **no recarga nada**: mientras esa línea
 siga en pantalla, solo vuelve a pulsarla. Si la página se recarga o sales de ahí, repite el recorrido completo.
@@ -677,7 +686,7 @@ Una alerta es lo que exige tu atención. Hay dos clases:
 | **Inventario sin arma de interés: Ana** | *"Apareció inventario en … (14 armas), pero ninguna cumple los objetivos ni las alternativas; no se seleccionó nada…"* | Revisa la lista en la bitácora o el historial. Si alguna te sirve, ajusta los objetivos o apártala a mano. |
 | **Sesión cerrada: Ana** | *"La plataforma cerró la sesión. Inicie sesión de nuevo en la ventana de este cliente y reanude el monitoreo."* | Inicia sesión en el navegador y pulsa **Iniciar / reanudar**. |
 | **Monitoreo detenido: Ana** | *"La plataforma respondió con errores varias veces seguidas. Revise la ventana de este cliente y reanude el monitoreo."* | Mira la bitácora (captura) y reanuda cuando se resuelva. |
-| **Solicitud no encontrada: Ana** | *"No se encontró la solicitud en Estado de trámite y el monitoreo se detuvo. Revise el portal o inicie con «Nueva solicitud (paso 1)»."* | Revisa Estado de trámite; si no hay solicitud, cambia el selector a *Nueva solicitud (paso 1)* y reanuda. |
+| **Revise la solicitud: Ana** | Explica qué pasó y da los pasos: abrir «Estado de trámite» en el navegador de Ana y buscar la solicitud EN PROGRESO; si está, elegir «Solicitud existente», escribir su número y pulsar «Iniciar / reanudar»; si no está, dejar «Nueva solicitud (paso 1)» y reanudar. | Sigue los pasos de la alerta. El mismo texto queda en el aviso rojo de arriba del Panel. |
 
 > **Inventario sin arma de interés.** Si aparece inventario pero ninguna arma cumple tus objetivos, alternativas ni
 > comodín, la alarma suena **una sola vez por ese inventario** y el monitoreo sigue. Si en los ciclos siguientes el

@@ -431,8 +431,9 @@ public final class VistaPrincipal extends BorderPane {
                 case DETENIDO -> {
                     if (monitores.solicitudNoEncontrada(clienteId)) {
                         // Aviso propio: la persona decide si revisa el portal o cambia a "Nueva solicitud".
-                        mostrarAvisoVisual(cliente.nombre() + ": " + monitores.ultimoResultado(clienteId),
-                                TipoAviso.ERROR);
+                        String indicaciones = monitores.indicacionesSolicitud(clienteId);
+                        mostrarAvisoVisual(cliente.nombre() + ": " + (indicaciones.isBlank()
+                                ? monitores.ultimoResultado(clienteId) : indicaciones), TipoAviso.ERROR);
                     } else {
                         mostrarAvisoVisual(monitores.sesionAbierta(clienteId)
                                 ? cliente.nombre() + ": monitoreo detenido; la sesión del navegador permanece abierta."

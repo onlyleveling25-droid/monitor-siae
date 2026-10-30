@@ -97,18 +97,15 @@ public final class CicloMonitoreo {
         String numero = seguimiento.numeroSolicitud();
         ResultadoSolicitud encontrada = portal.abrirSolicitudExistente(cliente.tramite(), numero);
         if (encontrada != ResultadoSolicitud.SIN_SOLICITUD) {
+            seguimiento.solicitudEncontrada();
             // Sin número se tomó la primera que coincidía: desde ahora se vigila siempre esa.
             seguimiento.fijarNumeroSiFalta(portal.numeroSolicitudAbierta());
         }
         return switch (encontrada) {
             case SIN_SOLICITUD -> {
+                ResultadoCiclo.SolicitudNoEncontrada noEncontrada = solicitudNoEncontrada(cliente, seguimiento);
                 seguimiento.volverAlPaso1();
-                yield new ResultadoCiclo.SolicitudNoEncontrada(numero.isBlank()
-                        ? "No se encontró ninguna solicitud en progreso de «" + cliente.tramite().obtenerPermiso()
-                        + " · " + cliente.tramite().tipoTramite() + "» en Estado de trámite. Revisa el portal o "
-                        + "inicia con «Nueva solicitud (paso 1)»."
-                        : "No se encontró la solicitud " + numero + " en progreso en Estado de trámite. Revisa "
-                        + "el número o inicia con «Nueva solicitud (paso 1)».");
+                yield noEncontrada;
             }
             case SIN_INVENTARIO -> new ResultadoCiclo.SinInventarioEnSolicitud(seguimiento.numeroSolicitud());
             case CON_INVENTARIO ->
@@ -116,12 +113,62 @@ public final class CicloMonitoreo {
         };
     }
 
+    /**
+     * Explica por qué se detuvo y qué hacer, según cómo se llegó aquí: la solicitud la acababa de
+     * crear el paso 1, la persona dio un número o pidió la primera en progreso.
+     */
+    static ResultadoCiclo.SolicitudNoEncontrada solicitudNoEncontrada(Cliente cliente,
+                                                                       SeguimientoSolicitud seguimiento) {
+        String nombre = cliente.nombre();
+        String tramite = "«" + cliente.tramite().obtenerPermiso() + " · " + cliente.tramite().tipoTramite() + "»";
+        String numero = seguimiento.numeroSolicitud();
+        String reanudar = "Si no está: deja «Nueva solicitud (paso 1)» y pulsa «Iniciar / reanudar». El programa "
+                + "volverá a buscar inventario desde el paso 1, como al principio.";
+
+        if (seguimiento.recienCreada()) {
+            String donde = seguimiento.seccionalOrigen().isBlank() ? "" : " en " + seguimiento.seccionalOrigen();
+            return new ResultadoCiclo.SolicitudNoEncontrada(
+                    "Monitoreo detenido: el paso 1 encontró inventario" + donde + " sin armas de interés, pero la "
+                            + "solicitud no apareció en Estado de trámite.",
+                    "Por qué importa: cuando el paso 1 encuentra inventario pero ninguna arma sirve, el portal deja "
+                            + "una solicitud EN PROGRESO. El programa la vigila desde «Estado de trámite» para no "
+                            + "crear solicitudes repetidas. Esta vez no apareció, ni esperando ni recargando la "
+                            + "página, así que el programa se detuvo para que decidas.\n\n"
+                            + "Qué hacer:\n"
+                            + "1. En la ventana del navegador de " + nombre + ", abre «Estado de trámite» y busca una "
+                            + "tarjeta EN PROGRESO de " + tramite + ".\n"
+                            + "2. Si la ves: en el Panel, en la fila de " + nombre + ", elige «Solicitud existente», "
+                            + "escribe su número (por ejemplo 1-01-45-202610-4336) y pulsa «Iniciar / reanudar». El "
+                            + "programa la vigilará desde ahí.\n"
+                            + "3. " + reanudar);
+        }
+        if (!numero.isBlank()) {
+            return new ResultadoCiclo.SolicitudNoEncontrada(
+                    "Monitoreo detenido: la solicitud " + numero + " no está EN PROGRESO en Estado de trámite.",
+                    "Puede que el número esté mal escrito o que la solicitud ya se haya cerrado o cancelado.\n\n"
+                            + "Qué hacer:\n"
+                            + "1. En la ventana del navegador de " + nombre + ", abre «Estado de trámite» y mira "
+                            + "las tarjetas EN PROGRESO de " + tramite + ".\n"
+                            + "2. Si hay una con otro número: escríbelo en el Panel, junto a «Solicitud existente», "
+                            + "y pulsa «Iniciar / reanudar».\n"
+                            + "3. " + reanudar);
+        }
+        return new ResultadoCiclo.SolicitudNoEncontrada(
+                "Monitoreo detenido: no hay ninguna solicitud EN PROGRESO de " + tramite + " en Estado de trámite.",
+                "Qué hacer:\n"
+                        + "1. En la ventana del navegador de " + nombre + ", abre «Estado de trámite» y busca una "
+                        + "tarjeta EN PROGRESO de ese trámite.\n"
+                        + "2. Si la ves (quizá con otro permiso o tipo): escribe su número en el Panel, junto a "
+                        + "«Solicitud existente», y pulsa «Iniciar / reanudar».\n"
+                        + "3. " + reanudar);
+    }
+
     private ResultadoCiclo resolverInventario(Cliente cliente, PortalDriver portal, String seccional,
                                               List<ArmaInventario> inventario, SeguimientoSolicitud seguimiento) {
         Optional<EleccionArma> eleccion = selectorArma.elegir(inventario, cliente.seleccion());
         if (eleccion.isEmpty()) {
             // La solicitud sigue abierta en el portal: repetir el paso 1 no sirve, se vigila desde alli.
-            seguimiento.seguirSolicitud();
+            seguimiento.seguirSolicitud(seccional);
             return new ResultadoCiclo.SinArmaDeInteres(seccional, inventario);
         }
 
@@ -131,7 +178,7 @@ public final class CicloMonitoreo {
         ResultadoCiclo resultado = apartar(portal, seccional, eleccion.get(), cliente.seleccion(), inventario,
                 cliente.alcancePaso2());
         if (resultado instanceof ResultadoCiclo.ApartadoFallido) {
-            seguimiento.seguirSolicitud();   // alguien se llevo el arma; la solicitud sigue abierta
+            seguimiento.seguirSolicitud(seccional);   // alguien se llevo el arma; la solicitud sigue abierta
         }
         return resultado;
     }

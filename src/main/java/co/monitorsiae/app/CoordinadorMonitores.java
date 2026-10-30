@@ -219,6 +219,11 @@ public final class CoordinadorMonitores implements AutoCloseable {
         return sesionCliente(clienteId).solicitudNoEncontrada;
     }
 
+    /** Qué hacer tras detenerse porque la solicitud no apareció: resumen y pasos, listos para mostrar. */
+    public String indicacionesSolicitud(String clienteId) {
+        return sesionCliente(clienteId).indicacionesSolicitud;
+    }
+
     public void iniciar(Cliente cliente) {
         if (cerrado) {
             throw new IllegalStateException("La aplicación se está cerrando.");
@@ -240,6 +245,7 @@ public final class CoordinadorMonitores implements AutoCloseable {
                 sesion.modoInicioPedido = null;
             }
             sesion.solicitudNoEncontrada = false;
+            sesion.indicacionesSolicitud = "";
             sesion.estado = Estado.INICIANDO;
             sesion.ultimoResultado = "Iniciando y preparando una nueva consulta.";
             notificar(sesion.id, Estado.INICIANDO);
@@ -396,6 +402,9 @@ public final class CoordinadorMonitores implements AutoCloseable {
                 @Override
                 public void alTerminarCiclo(Cliente iniciado, ResultadoCiclo resultado) {
                     sesion.ultimoResultado = resultado.descripcion();
+                    if (resultado instanceof ResultadoCiclo.SolicitudNoEncontrada noEncontrada) {
+                        sesion.indicacionesSolicitud = noEncontrada.textoCompleto();
+                    }
                     boolean inventarioSinInteresNuevo = inventarioNuevo.registrar(iniciado.id(), resultado);
                     if (resultado instanceof ResultadoCiclo.SinArmaDeInteres sinInteres) {
                         // Se guarda una vez por inventario, sin arma elegida, para revisar qué había.
@@ -615,6 +624,8 @@ public final class CoordinadorMonitores implements AutoCloseable {
         private volatile ModoInicio modoInicioPedido;
         private volatile String numeroSolicitudPedido = "";
         private volatile boolean solicitudNoEncontrada;
+        /** Resumen y pasos a seguir cuando la solicitud no aparecio; vacio en otro caso. */
+        private volatile String indicacionesSolicitud = "";
 
         private SesionCliente(String id) {
             this.id = id;

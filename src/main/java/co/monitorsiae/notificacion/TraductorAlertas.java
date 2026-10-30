@@ -43,6 +43,11 @@ public final class TraductorAlertas {
                             + "completa queda en la bitácora y en el historial del cliente. El monitoreo sigue.",
                     "Atención. Hay inventario para " + cliente.nombre()
                             + ", pero ninguna arma es de interés. Revise la lista."));
+            // El monitor se detuvo solo: la alerta lleva los pasos para que la persona sepa qué decidir.
+            case ResultadoCiclo.SolicitudNoEncontrada n -> Optional.of(new Alerta(cliente.id(), Gravedad.PROBLEMA,
+                    "Revise la solicitud: " + cliente.nombre(),
+                    n.textoCompleto(),
+                    "El monitoreo de " + cliente.nombre() + " se detuvo. Revise la solicitud en Estado de trámite."));
             case ResultadoCiclo.SesionVencida s -> Optional.of(new Alerta(cliente.id(), Gravedad.PROBLEMA,
                     "Sesión cerrada: " + cliente.nombre(),
                     "La plataforma cerró la sesión. Inicie sesión de nuevo en la ventana de este cliente y "
@@ -54,14 +59,7 @@ public final class TraductorAlertas {
 
     /** Alertas que solo se conocen al detenerse el monitor y no vienen de un resultado puntual. */
     public Optional<Alerta> deDetencion(Cliente cliente, MotivoDetencion motivo) {
-        if (motivo == MotivoDetencion.SOLICITUD_NO_ENCONTRADA) {
-            // El monitor se detuvo solo: sin aviso sonoro nadie se enteraria hasta mirar la pantalla.
-            return Optional.of(new Alerta(cliente.id(), Gravedad.PROBLEMA,
-                    "Solicitud no encontrada: " + cliente.nombre(),
-                    "No se encontró la solicitud en Estado de trámite y el monitoreo se detuvo. Revise el "
-                            + "portal o inicie con «Nueva solicitud (paso 1)».",
-                    "El monitoreo de " + cliente.nombre() + " se detuvo: no se encontró la solicitud."));
-        }
+        // SOLICITUD_NO_ENCONTRADA ya sonó con el resultado del ciclo, que trae los pasos a seguir.
         if (motivo != MotivoDetencion.FALLOS_REPETIDOS) {
             return Optional.empty();
         }

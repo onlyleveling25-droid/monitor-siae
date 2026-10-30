@@ -14,6 +14,10 @@ public final class SeguimientoSolicitud {
 
     private volatile boolean enSolicitud;
     private volatile String numeroSolicitud = "";
+    /** La solicitud la acaba de crear el paso 1 y todavia no se ha visto en "Estado de tramite". */
+    private volatile boolean recienCreada;
+    /** Seccional del paso 1 que creo la solicitud; vacia si la persona pidio vigilar una existente. */
+    private volatile String seccionalOrigen = "";
 
     public SeguimientoSolicitud() {
         this(ModoInicio.NUEVA_SOLICITUD);
@@ -32,13 +36,37 @@ public final class SeguimientoSolicitud {
         return numeroSolicitud;
     }
 
+    /** Verdadero si la solicitud la creo el paso 1 en este monitoreo y aun no aparecio en el portal. */
+    public boolean recienCreada() {
+        return recienCreada;
+    }
+
+    public String seccionalOrigen() {
+        return seccionalOrigen;
+    }
+
+    /** Como {@link #seguirSolicitud(String)} sin saber en que seccional se creo. */
+    public void seguirSolicitud() {
+        seguirSolicitud("");
+    }
+
     /**
      * La solicitud quedo abierta en el portal al guardar el paso 1: de aqui en adelante se busca desde
-     * "Estado de tramite". Su numero no se conoce, asi que se descarta cualquiera indicado antes.
+     * "Estado de tramite". Si ya se estaba siguiendo una, no cambia nada: asi no se pierde su numero.
      */
-    public void seguirSolicitud() {
+    public void seguirSolicitud(String seccional) {
+        if (enSolicitud) {
+            return;
+        }
         enSolicitud = true;
         numeroSolicitud = "";
+        recienCreada = true;
+        seccionalOrigen = seccional == null ? "" : seccional;
+    }
+
+    /** La solicitud aparecio en "Estado de tramite": ya no es una recien creada pendiente de confirmar. */
+    public void solicitudEncontrada() {
+        recienCreada = false;
     }
 
     /**
@@ -59,10 +87,14 @@ public final class SeguimientoSolicitud {
     public void volverAlPaso1() {
         enSolicitud = false;
         numeroSolicitud = "";
+        recienCreada = false;
+        seccionalOrigen = "";
     }
 
     public void establecer(ModoInicio modo, String numero) {
         enSolicitud = modo == ModoInicio.SOLICITUD_EXISTENTE;
         numeroSolicitud = enSolicitud && numero != null ? numero.strip() : "";
+        recienCreada = false;
+        seccionalOrigen = "";
     }
 }

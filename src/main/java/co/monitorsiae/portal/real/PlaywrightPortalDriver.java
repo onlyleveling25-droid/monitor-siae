@@ -982,6 +982,14 @@ public final class PlaywrightPortalDriver implements PortalDriver {
         numeroSolicitudAbierta = "";
         Locator tarjeta = esperarTarjetaDeSolicitud(tramite, numero);
         if (tarjeta == null) {
+            // La lista solo se pide al cargar la página: una solicitud que el paso 1 acaba de crear puede
+            // tardar unos segundos en existir y no estar en esa lista. Se recarga una vez y se espera de nuevo.
+            LOG.info("La solicitud no apareció; se recarga Estado de trámite y se vuelve a buscar.");
+            pagina.reload(new Page.ReloadOptions().setWaitUntil(WaitUntilState.DOMCONTENTLOADED));
+            esperarEstadoTramite();
+            tarjeta = esperarTarjetaDeSolicitud(tramite, numero);
+        }
+        if (tarjeta == null) {
             return ResultadoSolicitud.SIN_SOLICITUD;
         }
         String numeroDeLaTarjeta = numeroDeSolicitud(textoDe(tarjeta));

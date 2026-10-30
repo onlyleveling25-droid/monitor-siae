@@ -62,9 +62,13 @@ class TraductorAlertasTest {
     }
 
     @Test
-    void siElMonitorSeDetieneSinEncontrarLaSolicitudSeAvisaConUnProblema() {
-        assertEquals(Gravedad.PROBLEMA, traductor.deDetencion(cliente,
-                MotivoDetencion.SOLICITUD_NO_ENCONTRADA).orElseThrow().gravedad());
+    void siLaSolicitudNoApareceSeAvisaUnaVezConLosPasosASeguir() {
+        Alerta alerta = traductor.deResultado(cliente, new ResultadoCiclo.SolicitudNoEncontrada(
+                "Monitoreo detenido.", "Qué hacer: 1. Abre Estado de trámite.")).orElseThrow();
+        assertEquals(Gravedad.PROBLEMA, alerta.gravedad());
+        assertTrue(alerta.detalle().contains("Qué hacer"));
+        assertTrue(traductor.deDetencion(cliente, MotivoDetencion.SOLICITUD_NO_ENCONTRADA).isEmpty(),
+                "no se repite la alerta al detenerse");
     }
 
     @Test

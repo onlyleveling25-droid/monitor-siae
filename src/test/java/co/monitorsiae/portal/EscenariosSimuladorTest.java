@@ -95,11 +95,11 @@ class EscenariosSimuladorTest {
     }
 
     @Test
-    void elApartadoFallidoSeReportaYElMonitorSigueConsultando() {
-        correr(EscenarioSimulador.APARTADO_FALLIDO, 4);
+    void elApartadoFallidoSeReportaYDetieneElMonitorConLaTablaAbierta() {
+        correr(EscenarioSimulador.APARTADO_FALLIDO, 50);
 
-        assertTrue(resultados.stream().anyMatch(r -> r instanceof ResultadoCiclo.ApartadoFallido));
-        assertEquals(MotivoDetencion.SOLICITADO_POR_USUARIO, motivo);
+        assertInstanceOf(ResultadoCiclo.ApartadoFallido.class, resultados.getLast());
+        assertEquals(MotivoDetencion.APARTADO_FALLIDO, motivo);
     }
 
     @Test

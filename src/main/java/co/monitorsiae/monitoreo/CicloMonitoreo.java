@@ -107,7 +107,10 @@ public final class CicloMonitoreo {
                 seguimiento.volverAlPaso1();
                 yield noEncontrada;
             }
-            case SIN_INVENTARIO -> new ResultadoCiclo.SinInventarioEnSolicitud(seguimiento.numeroSolicitud());
+            case SIN_INVENTARIO -> {
+                seguimiento.olvidarInventarioVisto();   // lo que llegue después es un inventario nuevo
+                yield new ResultadoCiclo.SinInventarioEnSolicitud(seguimiento.numeroSolicitud());
+            }
             case CON_INVENTARIO ->
                     resolverInventario(cliente, portal, ETIQUETA_SOLICITUD, portal.leerInventario(), seguimiento);
         };
@@ -169,7 +172,10 @@ public final class CicloMonitoreo {
         if (eleccion.isEmpty()) {
             // La solicitud sigue abierta en el portal: repetir el paso 1 no sirve, se vigila desde alli.
             seguimiento.seguirSolicitud(seccional);
-            return new ResultadoCiclo.SinArmaDeInteres(seccional, inventario);
+            // Solo se detiene si trae alguna arma que la persona no haya visto: si reanudó sin tomar
+            // ninguna, el mismo listado (o uno más corto) se sigue vigilando en silencio.
+            boolean hayNuevas = seguimiento.anotarInventarioSinInteres(inventario);
+            return new ResultadoCiclo.SinArmaDeInteres(seccional, inventario, !hayNuevas);
         }
 
         if (cliente.modo() == ModoReaccion.ALERTA) {
@@ -194,7 +200,17 @@ public final class CicloMonitoreo {
         EleccionArma eleccion = primera;
         List<ArmaInventario> listado = inventario;
         for (int intento = 1; intento <= reglas.reintentos(); intento++) {
-            if (portal.apartar(eleccion.arma(), reglas)) {
+            boolean confirmada;
+            try {
+                confirmada = portal.apartar(eleccion.arma(), reglas);
+            } catch (SesionVencidaException e) {
+                throw e;
+            } catch (PortalException e) {
+                // Un paso del portal falló a mitad del apartado. No se reintenta (podría repetir un
+                // FINALIZAR), pero se avisa ya como arma disponible para que la persona la aparte a mano.
+                return new ResultadoCiclo.ApartadoFallido(seccional, eleccion, intento, listado, e.getMessage());
+            }
+            if (confirmada) {
                 // Desde Estado de trámite el único cuadro es «Ver armas», que ya sella el trámite.
                 boolean sellado = portal.cierreConfirmadoAlApartar()
                         || (alcancePaso2 == AlcancePaso2.SELLAR_TRAMITE_COMPLETO && portal.confirmarCierre());

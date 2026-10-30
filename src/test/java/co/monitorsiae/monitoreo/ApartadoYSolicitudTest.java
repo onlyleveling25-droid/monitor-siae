@@ -87,6 +87,20 @@ class ApartadoYSolicitudTest {
     }
 
     @Test
+    void siUnPasoDelPortalFallaAlApartarSeAvisaYaSinReintentar() {
+        PortalFalso portal = new PortalFalso(List.of(arma(0, GLOCK)));
+        portal.apartarFalla = true;
+
+        ResultadoCiclo resultado = ciclo.ejecutar(cliente, portal, new SeguimientoSolicitud(ModoInicio.SOLICITUD_EXISTENTE));
+
+        ResultadoCiclo.ApartadoFallido fallido = assertInstanceOf(ResultadoCiclo.ApartadoFallido.class, resultado);
+        assertEquals(List.of(GLOCK), portal.intentos, "no se repite un paso que falló a mitad del camino");
+        assertTrue(fallido.causa().contains("cuadro desconocido"));
+        assertTrue(fallido.descripcion().contains("Apártela a mano"));
+        assertTrue(fallido.descripcion().contains("captura: fallo.png"), "la captura sigue en la bitácora");
+    }
+
+    @Test
     void desdeEstadoDeTramiteElCuadroVerArmasYaConfirmadoCuentaComoSellado() {
         PortalFalso portal = new PortalFalso(List.of(arma(0, GLOCK)));
         portal.exitosas = Set.of(GLOCK);
@@ -155,6 +169,7 @@ class ApartadoYSolicitudTest {
         private boolean alFallarQuitar;
         private boolean relecturaFalla;
         private boolean verArmasConfirmado;
+        private boolean apartarFalla;
         private String numeroAbierto = "";
         private int lecturas;
 
@@ -189,6 +204,9 @@ class ApartadoYSolicitudTest {
         @Override
         public boolean apartar(ArmaInventario arma, Modalidad modalidad) {
             intentos.add(arma.descripcion());
+            if (apartarFalla) {
+                throw new PortalInesperadoException("Apareció un cuadro desconocido; no se confirma. (captura: fallo.png)");
+            }
             if (exitosas.contains(arma.descripcion())) {
                 return true;
             }

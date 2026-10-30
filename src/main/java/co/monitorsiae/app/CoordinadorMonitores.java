@@ -412,6 +412,11 @@ public final class CoordinadorMonitores implements AutoCloseable {
                             snapshots.guardar(new SnapshotInventario(Instant.now(), iniciado.id(),
                                     iniciado.nombre(), sinInteres.seccional(), sinInteres.inventario(), null));
                         }
+                        // Con armas nuevas el monitor se detiene con la tabla abierta: la persona decide
+                        // si elige a mano. Si ya las había visto, se sigue vigilando.
+                        if (!sinInteres.yaVisto()) {
+                            sesion.estado = Estado.ALERTA_ENCONTRADA;
+                        }
                     } else if (resultado instanceof ResultadoCiclo.ArmaEncontrada encontrada) {
                         snapshots.guardar(new SnapshotInventario(Instant.now(), iniciado.id(), iniciado.nombre(),
                                 encontrada.seccional(), encontrada.inventario(), encontrada.eleccion()));

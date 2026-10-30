@@ -88,6 +88,17 @@ class TraductorAlertasTest {
     }
 
     @Test
+    void siUnPasoDelPortalFallaLaAlertaPideApartarlaAMano() {
+        Alerta alerta = traductor.deResultado(cliente, new ResultadoCiclo.ApartadoFallido(SECCIONAL,
+                new EleccionArma(glock, MotivoEleccion.OBJETIVO, 0), 1, List.of(glock),
+                "Apareció un cuadro desconocido.")).orElseThrow();
+
+        assertEquals(Gravedad.OPORTUNIDAD, alerta.gravedad());
+        assertTrue(alerta.detalle().contains("cuadro desconocido"));
+        assertTrue(alerta.detalle().contains("apártela usted"));
+    }
+
+    @Test
     void losEstadosNormalesNoGeneranAlerta() {
         assertTrue(traductor.deResultado(cliente, new ResultadoCiclo.SeccionalesCerradas()).isEmpty());
         assertTrue(traductor.deResultado(cliente, new ResultadoCiclo.SinInventario(SECCIONAL)).isEmpty());

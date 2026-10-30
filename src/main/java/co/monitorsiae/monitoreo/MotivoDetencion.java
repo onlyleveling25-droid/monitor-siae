@@ -12,5 +12,9 @@ public enum MotivoDetencion {
     NAVEGADOR_CERRADO,
     ERROR_INESPERADO,
     /** Se pidio vigilar una solicitud abierta y el portal no tiene ninguna que coincida. */
-    SOLICITUD_NO_ENCONTRADA
+    SOLICITUD_NO_ENCONTRADA,
+    /** Hubo inventario pero ninguna arma de interés: se deja la tabla abierta para elegir a mano. */
+    INVENTARIO_SIN_INTERES,
+    /** Había un arma que cumplía y no se pudo apartar: se deja la tabla abierta para elegir a mano. */
+    APARTADO_FALLIDO
 }

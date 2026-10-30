@@ -45,6 +45,8 @@ public final class OyenteRegistro implements OyenteMonitoreo {
             case NAVEGADOR_CERRADO -> "porque se cerró el navegador";
             case ERROR_INESPERADO -> "por un error inesperado";
             case SOLICITUD_NO_ENCONTRADA -> "porque no se encontró la solicitud en Estado de trámite";
+            case INVENTARIO_SIN_INTERES -> "porque hubo inventario sin armas de interés (tabla abierta para elegir a mano)";
+            case APARTADO_FALLIDO -> "porque no se pudo apartar el arma (tabla abierta para elegir a mano)";
         };
         REGISTRO.info("[{}] Monitoreo detenido: {}", cliente.nombre(), detalle);
     }

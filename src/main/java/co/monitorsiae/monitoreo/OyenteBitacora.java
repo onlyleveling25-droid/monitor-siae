@@ -127,6 +127,8 @@ public final class OyenteBitacora implements OyenteMonitoreo {
             case NAVEGADOR_CERRADO -> "se cerró el navegador";
             case ERROR_INESPERADO -> "error inesperado";
             case SOLICITUD_NO_ENCONTRADA -> "no se encontró la solicitud en Estado de trámite";
+            case INVENTARIO_SIN_INTERES -> "hubo inventario sin armas de interés; la tabla quedó abierta para elegir a mano";
+            case APARTADO_FALLIDO -> "no se pudo apartar el arma; la tabla quedó abierta para elegir a mano";
         };
     }
 }

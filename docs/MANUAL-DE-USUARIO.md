@@ -525,7 +525,7 @@ Los campos de esta sección y la siguiente **aparecen u ocultan** según la reac
 |---|---|---|
 | **Modalidad (botón que se pulsa en el portal)** | Si la reacción es **Apartar** | **PORTE** o **TENENCIA**: el botón que el programa pulsa después de seleccionar el arma. |
 | **Departamento / Ciudad / Dirección completa** | Si Apartar **y** modalidad **TENENCIA** | La dirección que exige el modal de TENENCIA. Los tres son obligatorios en ese caso. |
-| **Reintentos al apartar** | Si la reacción es **Apartar** | De 1 a 5 (2 por defecto). Cuántas veces intenta apartar si la plataforma no lo confirma. **Antes de cada reintento vuelve a leer el listado y a elegir**: si el arma sigue ahí, la intenta de nuevo; si desapareció, pasa a la siguiente que cumpla (otro objetivo, una alternativa o el comodín); si ya no queda ninguna, deja de intentar y avisa del apartado fallido. |
+| **Reintentos al apartar** | Si la reacción es **Apartar** | De 1 a 5 (2 por defecto). Cuántas veces intenta apartar si la plataforma no lo confirma. **Antes de cada reintento vuelve a leer el listado y a elegir**: si el arma sigue ahí, la intenta de nuevo; si desapareció, pasa a la siguiente que cumpla (otro objetivo, una alternativa o el comodín); si ya no queda ninguna, deja de intentar y avisa del apartado fallido. **Recomendado: 2**, para que si algo falla la tabla quede en tus manos cuanto antes. |
 
 En modo **Solo alertar** esos campos se ocultan y la ayuda lo explica: *"no hay modalidad, reintentos ni
 paso 2 que configurar"*. Lo que ocultas **no se borra**: si vuelves a Apartar, reaparece lo que habías escrito.
@@ -689,8 +689,9 @@ Una alerta es lo que exige tu atención. Hay dos clases:
 | **Revise la solicitud: Ana** | Explica qué pasó y da los pasos: abrir «Estado de trámite» en el navegador de Ana y buscar la solicitud EN PROGRESO; si está, elegir «Solicitud existente», escribir su número y pulsar «Iniciar / reanudar»; si no está, dejar «Nueva solicitud (paso 1)» y reanudar. | Sigue los pasos de la alerta. El mismo texto queda en el aviso rojo de arriba del Panel. |
 
 > **Inventario sin arma de interés.** Si aparece inventario pero ninguna arma cumple tus objetivos, alternativas ni
-> comodín, la alarma suena **una sola vez por ese inventario** y el monitoreo sigue. Si en los ciclos siguientes el
-> listado es el mismo, no vuelve a sonar; si cambia, o si desaparece y vuelve a aparecer, suena otra vez. La lista
+> comodín, la alarma suena y **el monitoreo se detiene dejando la tabla abierta**, para que elijas a mano si quieres. Si
+> reanudas sin tomar nada, el mismo listado no vuelve a detenerlo; una arma nueva, o un inventario nuevo después
+> de vaciarse, sí. La lista
 > completa queda en la bitácora (evento *Inventario sin interés*) y en el historial del cliente, marcada como
 > *Ningún objeto elegido*.
 >
@@ -717,8 +718,14 @@ el trámite."*
 | Sesión vencida | **Sí**. |
 | Tres fallos seguidos | **Sí**. |
 | No se encuentra la solicitud (*Solicitud existente*) | **Sí**, con alerta de problema. |
-| Apartado fallido | **No**: sigue consultando. Detenlo desde ⋯ si ya no lo necesitas. |
-| Inventario sin arma de interés | **No**: sigue vigilando la solicitud. |
+| Apartado fallido | **Sí**, dejando la tabla del inventario abierta para apartarla a mano. |
+| Inventario sin arma de interés (con armas que no habías visto) | **Sí**, dejando la tabla abierta para elegir a mano. |
+
+**Después de una de estas alertas** la fila queda resaltada y su botón dice **Ir al navegador**: úsalo para
+elegir a mano en la tabla, que el programa ya no toca. Si no tomas ninguna arma y quieres seguir vigilando,
+usa **⋯ → Reanudar monitoreo**: sigue con la misma solicitud, sin crear otra. Si el inventario sigue siendo el
+mismo que ya viste (o se redujo), no vuelve a detenerse ni a sonar; solo lo hace si aparece alguna arma nueva
+o si el inventario se vacía y luego llega otro.
 
 ---
 

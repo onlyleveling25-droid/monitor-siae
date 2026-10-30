@@ -18,6 +18,8 @@ public final class SeguimientoSolicitud {
     private volatile boolean recienCreada;
     /** Seccional del paso 1 que creo la solicitud; vacia si la persona pidio vigilar una existente. */
     private volatile String seccionalOrigen = "";
+    /** Armas de inventarios sin interés que ya se mostraron a la persona en esta solicitud. */
+    private final java.util.Set<String> armasVistas = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     public SeguimientoSolicitud() {
         this(ModoInicio.NUEVA_SOLICITUD);
@@ -83,18 +85,42 @@ public final class SeguimientoSolicitud {
         return true;
     }
 
+    /**
+     * Anota las armas de un inventario sin interés que ya se le mostraron a la persona.
+     *
+     * @return verdadero si hay alguna que no se había visto: solo entonces vale la pena detenerse y avisar
+     */
+    public boolean anotarInventarioSinInteres(java.util.List<co.monitorsiae.dominio.ArmaInventario> inventario) {
+        boolean hayNuevas = false;
+        for (co.monitorsiae.dominio.ArmaInventario arma : inventario) {
+            hayNuevas |= armasVistas.add(arma.descripcion());
+        }
+        return hayNuevas;
+    }
+
+    /** El inventario se vació: lo que llegue después es un inventario nuevo, aunque repita modelos. */
+    public void olvidarInventarioVisto() {
+        armasVistas.clear();
+    }
+
     /** No hay solicitud abierta (o ya se uso): se vuelve a hacer desde el paso 1. */
     public void volverAlPaso1() {
         enSolicitud = false;
         numeroSolicitud = "";
         recienCreada = false;
         seccionalOrigen = "";
+        armasVistas.clear();
     }
 
     public void establecer(ModoInicio modo, String numero) {
+        String anterior = numeroSolicitud;
         enSolicitud = modo == ModoInicio.SOLICITUD_EXISTENTE;
         numeroSolicitud = enSolicitud && numero != null ? numero.strip() : "";
         recienCreada = false;
         seccionalOrigen = "";
+        // Reanudar la misma solicitud conserva lo ya visto, para no detenerse otra vez por el mismo inventario.
+        if (!enSolicitud || (!numeroSolicitud.isEmpty() && !numeroSolicitud.equals(anterior))) {
+            armasVistas.clear();
+        }
     }
 }

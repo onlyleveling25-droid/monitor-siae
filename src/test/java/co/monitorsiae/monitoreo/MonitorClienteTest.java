@@ -46,17 +46,28 @@ class MonitorClienteTest {
     }
 
     @Test
-    void conUnaSolicitudAbiertaVigilaDesdeEstadoDeTramiteHastaApartar() {
+    void inventarioSinInteresDetieneConLaTablaAbiertaYAlReanudarVigilaLaSolicitudHastaApartar() {
+        String escopeta = "Escopeta Winchester Mod SXP High Cal 12 7T+1 WINCHESTER 12";
         PortalSimulado portal = PortalSimulado.con(
-                Escena.conInventario(MEDELLIN, "Escopeta Winchester Mod SXP High Cal 12 7T+1 WINCHESTER 12"),
-                Escena.abiertasSinInventario(MEDELLIN),
+                Escena.conInventario(MEDELLIN, escopeta),
+                Escena.conInventario(MEDELLIN, escopeta),        // la persona reanudó sin tomarla
                 Escena.abiertasSinInventario(MEDELLIN),
                 Escena.conInventario(MEDELLIN, "Pistola Glock Mod G-43 RAIL CAL 9mm 9T 2P GLOCK 9MM"));
+        SeguimientoSolicitud seguimiento = new SeguimientoSolicitud();
 
-        monitor(portal, siempreAbierto()).run();
+        monitorCon(portal, seguimiento).run();
 
-        assertEquals(1, portal.formulariosAbiertos(), "el paso 1 se hace una sola vez");
+        assertEquals(MotivoDetencion.INVENTARIO_SIN_INTERES, oyente.motivo, "se detiene para elegir a mano");
+        assertEquals(1, portal.formulariosAbiertos());
+        assertEquals(0, portal.consultasDeSolicitud(), "no vuelve a tocar el portal: la tabla queda abierta");
+
+        seguimiento.establecer(co.monitorsiae.dominio.ModoInicio.SOLICITUD_EXISTENTE, "");   // reanudar
+        monitorCon(portal, seguimiento).run();
+
+        assertEquals(1, portal.formulariosAbiertos(), "el paso 1 se hizo una sola vez");
         assertEquals(3, portal.consultasDeSolicitud());
+        assertTrue(oyente.resultados.stream().anyMatch(r -> r instanceof ResultadoCiclo.SinArmaDeInteres s
+                && s.yaVisto()), "la misma escopeta ya vista no lo detiene otra vez");
         assertEquals(MotivoDetencion.ARMA_APARTADA, oyente.motivo);
     }
 
@@ -192,6 +203,11 @@ class MonitorClienteTest {
 
     private MonitorCliente monitor(PortalSimulado portal, VentanaHoraria ventana) {
         return new MonitorCliente(cliente, portal, nuevoCiclo(), ventana, INTERVALO, esperas::add, oyente);
+    }
+
+    private MonitorCliente monitorCon(PortalSimulado portal, SeguimientoSolicitud seguimiento) {
+        return new MonitorCliente(cliente, portal, nuevoCiclo(), siempreAbierto(), INTERVALO, esperas::add, oyente,
+                seguimiento);
     }
 
     private static CicloMonitoreo nuevoCiclo() {

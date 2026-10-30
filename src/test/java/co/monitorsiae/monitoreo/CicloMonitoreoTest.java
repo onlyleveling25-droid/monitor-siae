@@ -116,7 +116,7 @@ class CicloMonitoreoTest {
     }
 
     @Test
-    void reintentaApartarHastaElLimiteYLuegoSigue() {
+    void reintentaApartarHastaElLimiteYSeDetieneConLaTablaAbierta() {
         PortalSimulado portal = PortalSimulado.con(Escena.conInventario(MEDELLIN,
                 "Pistola Glock Mod G-43 RAIL CAL 9mm 9T 2P GLOCK 9MM").conApartadoFallido());
 
@@ -124,7 +124,7 @@ class CicloMonitoreoTest {
 
         assertInstanceOf(ResultadoCiclo.ApartadoFallido.class, resultado);
         assertEquals(2, portal.intentosDeApartar().size());
-        assertTrue(!resultado.detieneMonitoreo());
+        assertTrue(resultado.detieneMonitoreo(), "se detiene para que la persona la aparte a mano");
     }
 
     @Test

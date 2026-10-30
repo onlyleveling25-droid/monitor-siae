@@ -106,6 +106,7 @@ public final class VistaPrincipal extends BorderPane {
     /** Lo ultimo escrito por cliente: sobrevive a que la lista de clientes se redibuje. */
     private final Map<String, String> numerosEscritos = new HashMap<>();
     private final Map<String, MenuItem> detenerDesdeMenu = new HashMap<>();
+    private final Map<String, MenuItem> reanudarDesdeMenu = new HashMap<>();
     private final Map<String, MenuItem> historialDesdeMenu = new HashMap<>();
     private final Map<String, MenuItem> enfocarDesdeMenu = new HashMap<>();
     private final Map<String, Region> acentosFila = new HashMap<>();
@@ -342,6 +343,7 @@ public final class VistaPrincipal extends BorderPane {
         modosInicio.clear();
         numerosSolicitud.clear();
         detenerDesdeMenu.clear();
+        reanudarDesdeMenu.clear();
         historialDesdeMenu.clear();
         enfocarDesdeMenu.clear();
         acentosFila.clear();
@@ -440,6 +442,11 @@ public final class VistaPrincipal extends BorderPane {
                                 : cliente.nombre() + ": monitoreo detenido.", TipoAviso.INFO);
                     }
                 }
+                case ALERTA_ENCONTRADA -> mostrarAvisoVisual(cliente.nombre() + ": "
+                        + monitores.ultimoResultado(clienteId) + " El monitoreo se detuvo y dejó la tabla del "
+                        + "inventario abierta. Pulsa «Ir al navegador» para elegir a mano. Si no tomas ninguna y "
+                        + "quieres seguir vigilando, usa ⋯ → «Reanudar monitoreo»: sigue con la misma solicitud, "
+                        + "sin crear otra.", TipoAviso.INFO);
                 case ERROR -> mostrarAvisoVisual(
                         cliente.nombre() + ": " + monitores.ultimoResultado(clienteId),
                         TipoAviso.ERROR);
@@ -458,6 +465,10 @@ public final class VistaPrincipal extends BorderPane {
         MenuItem detener = detenerDesdeMenu.get(clienteId);
         if (detener != null) {
             detener.setDisable(!puedeDetener(estado));
+        }
+        MenuItem reanudar = reanudarDesdeMenu.get(clienteId);
+        if (reanudar != null) {
+            reanudar.setDisable(estado != CoordinadorMonitores.Estado.ALERTA_ENCONTRADA);
         }
         MenuItem historial = historialDesdeMenu.get(clienteId);
         if (historial != null) {
@@ -546,6 +557,11 @@ public final class VistaPrincipal extends BorderPane {
         MenuItem detener = new MenuItem("Detener monitoreo");
         detener.setOnAction(event -> monitores.detener(cliente.id()));
         detener.setDisable(!puedeDetener(estadoActual));
+        // Tras una alerta el botón principal lleva al navegador; desde aquí se vuelve a vigilar.
+        MenuItem reanudar = new MenuItem("Reanudar monitoreo");
+        reanudar.setDisable(estadoActual != CoordinadorMonitores.Estado.ALERTA_ENCONTRADA);
+        reanudar.setOnAction(event -> iniciar(cliente, modoElegido(cliente.id()), numeroElegido(cliente.id())));
+        reanudarDesdeMenu.put(cliente.id(), reanudar);
         MenuItem historial = new MenuItem("Ver historial de inventario");
         historial.setDisable(consultarHistorial(cliente.id()).isEmpty());
         historial.setOnAction(event -> mostrarHistorial(cliente.id()));
@@ -557,7 +573,7 @@ public final class VistaPrincipal extends BorderPane {
         editar.setOnAction(event -> abrirConfiguracion(cliente.id()));
         detenerDesdeMenu.put(cliente.id(), detener);
         historialDesdeMenu.put(cliente.id(), historial);
-        ContextMenu menu = new ContextMenu(detener, historial, irAlNavegador,
+        ContextMenu menu = new ContextMenu(detener, reanudar, historial, irAlNavegador,
                 new SeparatorMenuItem(), editar);
         Button mas = new Button();
         mas.getStyleClass().add("overflow-button");

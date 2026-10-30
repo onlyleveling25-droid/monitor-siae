@@ -93,9 +93,23 @@ public sealed interface ResultadoCiclo {
     }
 
     /** Hubo inventario, pero ninguna arma cumple los objetivos, alternativas ni el tipo comodin. */
-    record SinArmaDeInteres(String seccional, List<ArmaInventario> inventario) implements ResultadoCiclo {
+    /**
+     * @param yaVisto todas sus armas ya se le habían mostrado a la persona (por ejemplo, reanudó sin
+     *                tomar ninguna): se sigue vigilando en silencio en vez de detenerse otra vez
+     */
+    record SinArmaDeInteres(String seccional, List<ArmaInventario> inventario, boolean yaVisto)
+            implements ResultadoCiclo {
         public SinArmaDeInteres {
             inventario = List.copyOf(inventario);
+        }
+
+        public SinArmaDeInteres(String seccional, List<ArmaInventario> inventario) {
+            this(seccional, inventario, false);
+        }
+
+        /** Con armas nuevas se detiene y deja la tabla abierta para que la persona elija a mano si quiere. */
+        public boolean detieneMonitoreo() {
+            return !yaVisto;
         }
 
         public String descripcion() {
@@ -130,11 +144,27 @@ public sealed interface ResultadoCiclo {
         }
     }
 
-    /** Se intento apartar y la plataforma no lo confirmo; probablemente otra persona la tomo. */
+    /**
+     * Se intento apartar y no se logro: la plataforma no lo confirmo (probablemente otra persona la
+     * tomo) o un paso del portal fallo a mitad del camino.
+     *
+     * @param causa que paso del portal fallo; vacio si simplemente no se confirmo
+     */
     record ApartadoFallido(String seccional, EleccionArma eleccion, int intentos,
-                           List<ArmaInventario> inventario) implements ResultadoCiclo {
+                           List<ArmaInventario> inventario, String causa) implements ResultadoCiclo {
         public ApartadoFallido {
             inventario = List.copyOf(inventario);
+            causa = causa == null ? "" : causa.strip();
+        }
+
+        /** Se detiene con la tabla abierta para que la persona aparte el arma a mano. */
+        public boolean detieneMonitoreo() {
+            return true;
+        }
+
+        public ApartadoFallido(String seccional, EleccionArma eleccion, int intentos,
+                               List<ArmaInventario> inventario) {
+            this(seccional, eleccion, intentos, inventario, "");
         }
 
         public ApartadoFallido(String seccional, EleccionArma eleccion, int intentos) {
@@ -142,7 +172,10 @@ public sealed interface ResultadoCiclo {
         }
 
         public String descripcion() {
-            return "No se pudo apartar tras " + intentos + " intentos: " + eleccion.arma().descripcion();
+            return causa.isEmpty()
+                    ? "No se pudo apartar tras " + intentos + " intentos: " + eleccion.arma().descripcion()
+                    : "No se pudo apartar " + eleccion.arma().descripcion() + ": " + causa
+                    + " Apártela a mano en el navegador.";
         }
     }
 

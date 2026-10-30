@@ -203,6 +203,8 @@ public final class MonitorCliente implements Runnable {
             case ResultadoCiclo.ArmaEncontrada e -> MotivoDetencion.ARMA_ENCONTRADA;
             case ResultadoCiclo.SesionVencida s -> MotivoDetencion.SESION_VENCIDA;
             case ResultadoCiclo.SolicitudNoEncontrada n -> MotivoDetencion.SOLICITUD_NO_ENCONTRADA;
+            case ResultadoCiclo.SinArmaDeInteres s -> MotivoDetencion.INVENTARIO_SIN_INTERES;
+            case ResultadoCiclo.ApartadoFallido f -> MotivoDetencion.APARTADO_FALLIDO;
             default -> throw new IllegalStateException("Resultado sin motivo de detencion: " + resultado);
         };
     }

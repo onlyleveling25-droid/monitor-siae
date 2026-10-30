@@ -22,7 +22,9 @@ public final class InventarioNuevo {
      */
     public boolean registrar(String clienteId, ResultadoCiclo resultado) {
         if (resultado instanceof ResultadoCiclo.SinArmaDeInteres sinInteres) {
-            return !sinInteres.firma().equals(ultimaFirma.put(clienteId, sinInteres.firma()));
+            boolean distinto = !sinInteres.firma().equals(ultimaFirma.put(clienteId, sinInteres.firma()));
+            // Lo que la persona ya vio (y decidió no tomar) no se vuelve a anunciar.
+            return distinto && !sinInteres.yaVisto();
         }
         if (!(resultado instanceof ResultadoCiclo.PortalNoResponde)
                 && !(resultado instanceof ResultadoCiclo.Inesperado)) {

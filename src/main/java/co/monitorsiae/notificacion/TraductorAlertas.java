@@ -14,7 +14,7 @@ import java.util.Optional;
 public final class TraductorAlertas {
 
     public Optional<Alerta> deResultado(Cliente cliente, ResultadoCiclo resultado) {
-        return switch (resultado) {
+        Optional<Alerta> alerta = switch (resultado) {
             case ResultadoCiclo.ArmaApartada a -> Optional.of(new Alerta(cliente.id(), Gravedad.OPORTUNIDAD,
                     "Arma apartada: " + cliente.nombre(),
                     describir(a.eleccion()) + " en " + a.seccional()
@@ -30,8 +30,13 @@ public final class TraductorAlertas {
             case ResultadoCiclo.ApartadoFallido f -> Optional.of(new Alerta(cliente.id(), Gravedad.OPORTUNIDAD,
                     "Arma disponible (no se pudo apartar): " + cliente.nombre(),
                     describir(f.eleccion()) + " en " + f.seccional()
-                            + ". La plataforma no confirmó el apartado tras " + f.intentos()
-                            + " intento(s); revise la ventana del navegador de este cliente.",
+                            + (f.causa().isEmpty()
+                            ? ". La plataforma no confirmó el apartado tras " + f.intentos()
+                            + " intento(s). El monitoreo se detuvo y dejó la tabla abierta: pulse «Ir al "
+                            + "navegador» y apártela a mano."
+                            : ". Un paso del portal falló al apartarla (" + f.causa() + "). El programa no "
+                            + "insistió para no confirmar nada a ciegas y se detuvo: pulse «Ir al navegador» y "
+                            + "apártela usted."),
                     "Atención. Había un arma disponible para " + cliente.nombre()
                             + " pero no se pudo apartar. Revise de inmediato."));
             // Hubo inventario aunque nada cumple: se avisa para que la persona lo revise. Quien escucha
@@ -40,7 +45,9 @@ public final class TraductorAlertas {
                     "Inventario sin arma de interés: " + cliente.nombre(),
                     "Apareció inventario en " + s.seccional() + " (" + s.inventario().size() + " armas), pero "
                             + "ninguna cumple los objetivos ni las alternativas; no se seleccionó nada. La lista "
-                            + "completa queda en la bitácora y en el historial del cliente. El monitoreo sigue.",
+                            + "completa queda en la bitácora y en el historial. El monitoreo se detuvo y dejó la tabla abierta: "
+                            + "pulse «Ir al navegador» si quiere elegir a mano. Si no toma ninguna, reanúdelo desde el "
+                            + "Panel (⋯ → «Reanudar monitoreo»).",
                     "Atención. Hay inventario para " + cliente.nombre()
                             + ", pero ninguna arma es de interés. Revise la lista."));
             // El monitor se detuvo solo: la alerta lleva los pasos para que la persona sepa qué decidir.
@@ -55,6 +62,7 @@ public final class TraductorAlertas {
                     "La sesión de " + cliente.nombre() + " se cerró. Inicie sesión de nuevo."));
             default -> Optional.empty();
         };
+        return alerta;
     }
 
     /** Alertas que solo se conocen al detenerse el monitor y no vienen de un resultado puntual. */

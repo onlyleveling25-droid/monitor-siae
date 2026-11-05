@@ -23,6 +23,7 @@ import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.PlaywrightException;
 import com.microsoft.playwright.options.BoundingBox;
+import com.microsoft.playwright.options.LoadState;
 import com.microsoft.playwright.options.ViewportSize;
 import com.microsoft.playwright.options.WaitForSelectorState;
 import com.microsoft.playwright.options.WaitUntilState;
@@ -50,6 +51,13 @@ public final class PlaywrightPortalDriver implements PortalDriver {
     private static final Duration ESPERA_CORTA = Duration.ofSeconds(6);
     private static final Duration ESPERA_MEDIA = Duration.ofSeconds(20);
     private static final Duration ESPERA_LARGA = Duration.ofSeconds(30);
+    /** Tope para esperar a que el portal deje de pedir datos tras cargar el paso 1. */
+    private static final Duration ESPERA_RED_TRAS_CARGAR = Duration.ofSeconds(10);
+    /** Margen tras cargar el paso 1, para que el formulario termine de prepararse. */
+    private static final Duration MARGEN_TRAS_CARGAR = Duration.ofSeconds(1);
+    /** Recién cargada la página, la lista de seccionales puede tardar más en llegar. */
+    private static final Duration ESPERA_SECCIONALES_TRAS_CARGAR = Duration.ofSeconds(10);
+    private static final int INTENTOS_LISTA_TRAS_CARGAR = 3;
     private static final org.slf4j.Logger LOG =
             org.slf4j.LoggerFactory.getLogger(PlaywrightPortalDriver.class);
 
@@ -69,6 +77,10 @@ public final class PlaywrightPortalDriver implements PortalDriver {
     private volatile boolean desdeEstadoTramite;
     /** Número de la solicitud que se abrió por última vez en "Estado de tramite"; vacio si no se sabe. */
     private volatile String numeroSolicitudAbierta = "";
+    /** El último paso 1 no trajo seccionales: el siguiente debe recargar la página para pedirlas de nuevo. */
+    private volatile boolean recargarPaso1;
+    /** El paso 1 se acaba de cargar en este ciclo: sus listas pueden tardar en traer las opciones. */
+    private volatile boolean paginaRecienCargada;
 
     public PlaywrightPortalDriver(Path perfil, NavegadorPreferido navegador, Path capturas) {
         this.capturas = capturas;
@@ -140,12 +152,24 @@ public final class PlaywrightPortalDriver implements PortalDriver {
     public List<String> abrirFormulario(ParametrosTramite tramite) {
         verificarDisponible();
         desdeEstadoTramite = false;
-        asegurarPaso1();
-        seleccionarSiHaceFalta(SelectoresSiae.PLACEHOLDER_PERMISO, tramite.obtenerPermiso(),
-                "como desea obtener el permiso");
-        seleccionarSiHaceFalta(SelectoresSiae.PLACEHOLDER_TIPO_TRAMITE, tramite.tipoTramite(),
-                "tipo de trámite");
-        return leerOpciones(SelectoresSiae.PLACEHOLDER_SECCIONAL);
+        try {
+            asegurarPaso1();
+            seleccionarSiHaceFalta(SelectoresSiae.PLACEHOLDER_PERMISO, tramite.obtenerPermiso(),
+                    "como desea obtener el permiso");
+            seleccionarSiHaceFalta(SelectoresSiae.PLACEHOLDER_TIPO_TRAMITE, tramite.tipoTramite(),
+                    "tipo de trámite");
+            List<String> abiertas = leerOpciones(SelectoresSiae.PLACEHOLDER_SECCIONAL,
+                    paginaRecienCargada ? ESPERA_SECCIONALES_TRAS_CARGAR : ESPERA_CORTA);
+            // El portal pide la lista de seccionales una sola vez, al elegir el tipo de trámite: si vino
+            // vacía, volver a abrirla no sirve. El siguiente ciclo recarga la página para pedirla de nuevo.
+            recargarPaso1 = abiertas.isEmpty();
+            if (recargarPaso1) {
+                LOG.info("No hay seccionales en el paso 1; el siguiente ciclo recargará la página.");
+            }
+            return abiertas;
+        } finally {
+            paginaRecienCargada = false;
+        }
     }
 
     @Override
@@ -171,12 +195,36 @@ public final class PlaywrightPortalDriver implements PortalDriver {
 
     private void asegurarPaso1() {
         detectarSesionVencida();
-        if (pagina.locator(SelectoresSiae.CAMPO_DESCRIPCION).count() > 0) {
+        boolean formularioAbierto = pagina.locator(SelectoresSiae.CAMPO_DESCRIPCION).count() > 0;
+        if (formularioAbierto && !recargarPaso1) {
             return;
         }
-        pagina.navigate(URL_TRAMITE,
-                new Page.NavigateOptions().setWaitUntil(WaitUntilState.DOMCONTENTLOADED));
+        if (formularioAbierto) {
+            LOG.info("Recargando el paso 1 para pedir de nuevo la lista de seccionales.");
+        }
+        pagina.navigate(URL_TRAMITE, new Page.NavigateOptions().setWaitUntil(WaitUntilState.LOAD));
+        recargarPaso1 = false;
         esperarPaso1();
+        esperarFormularioListo();
+        paginaRecienCargada = true;
+    }
+
+    /**
+     * Tras cargar la página, el formulario aparece antes de que el portal termine de traer las opciones
+     * de sus listas: llenarlo en ese momento fallaría como "opción no disponible". Se espera a que el
+     * portal deje de pedir datos (con un tope, porque la analítica de la página puede seguir enviando)
+     * y a que la lista del permiso esté lista, más un margen corto.
+     */
+    private void esperarFormularioListo() {
+        try {
+            pagina.waitForLoadState(LoadState.NETWORKIDLE,
+                    new Page.WaitForLoadStateOptions().setTimeout(ESPERA_RED_TRAS_CARGAR.toMillis()));
+        } catch (PlaywrightException e) {
+            LOG.debug("El portal siguió ocupado tras cargar el paso 1; se continúa con la espera de la lista.");
+        }
+        combo(SelectoresSiae.PLACEHOLDER_PERMISO).waitFor(new Locator.WaitForOptions()
+                .setState(WaitForSelectorState.VISIBLE).setTimeout(ESPERA_MEDIA.toMillis()));
+        pagina.waitForTimeout(MARGEN_TRAS_CARGAR.toMillis());
     }
 
     private void esperarPaso1() {
@@ -202,6 +250,25 @@ public final class PlaywrightPortalDriver implements PortalDriver {
     }
 
     private void elegirCombo(String placeholder, String valor, String nombre) {
+        // Recién cargada la página, la lista puede abrirse antes de traer todas sus opciones: se le dan
+        // unos intentos más antes de concluir que la opción no está.
+        int intentos = paginaRecienCargada ? INTENTOS_LISTA_TRAS_CARGAR : 1;
+        for (int intento = 1; ; intento++) {
+            try {
+                elegirComboUnaVez(placeholder, valor, nombre);
+                return;
+            } catch (OpcionNoDisponibleException e) {
+                if (intento >= intentos) {
+                    throw e;
+                }
+                LOG.info("La lista de {} aún no trae «{}»; se vuelve a abrir (intento {}).", nombre, valor,
+                        intento + 1);
+                pagina.waitForTimeout(MARGEN_TRAS_CARGAR.toMillis());
+            }
+        }
+    }
+
+    private void elegirComboUnaVez(String placeholder, String valor, String nombre) {
         Locator combo = combo(placeholder);
         combo.waitFor(new Locator.WaitForOptions().setState(WaitForSelectorState.VISIBLE)
                 .setTimeout(ESPERA_CORTA.toMillis()));
@@ -237,14 +304,14 @@ public final class PlaywrightPortalDriver implements PortalDriver {
         pagina.waitForTimeout(400);
     }
 
-    private List<String> leerOpciones(String placeholder) {
+    private List<String> leerOpciones(String placeholder, Duration espera) {
         Locator combo = combo(placeholder);
         combo.waitFor(new Locator.WaitForOptions().setState(WaitForSelectorState.VISIBLE)
                 .setTimeout(ESPERA_CORTA.toMillis()));
         combo.click();
 
         List<String> textos = new ArrayList<>();
-        long limite = System.nanoTime() + ESPERA_CORTA.toNanos();
+        long limite = System.nanoTime() + espera.toNanos();
         while (System.nanoTime() < limite) {
             textos.clear();
             for (Locator opcion : pagina.locator(SelectoresSiae.OPCIONES).all()) {

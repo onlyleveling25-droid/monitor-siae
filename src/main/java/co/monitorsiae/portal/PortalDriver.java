@@ -52,6 +52,14 @@ public interface PortalDriver extends AutoCloseable {
     }
 
     /**
+     * La lista de seccionales del paso 1 no trae ninguna que sirva al cliente. El portal solo la pide al
+     * cargar la página, así que el siguiente {@link #abrirFormulario} debe recargarla para ver si abrió
+     * alguna nueva.
+     */
+    default void recargarSeccionalesEnElSiguienteCiclo() {
+    }
+
+    /**
      * Número de la solicitud que abrió la última llamada a {@link #abrirSolicitudExistente}, tal como
      * lo muestra el portal; vacío si no se conoce. Sirve para seguir siempre la misma solicitud.
      */

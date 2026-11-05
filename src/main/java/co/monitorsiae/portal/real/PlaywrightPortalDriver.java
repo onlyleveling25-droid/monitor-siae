@@ -1085,6 +1085,12 @@ public final class PlaywrightPortalDriver implements PortalDriver {
     }
 
     @Override
+    public void recargarSeccionalesEnElSiguienteCiclo() {
+        recargarPaso1 = true;
+        LOG.info("Ninguna seccional abierta es del cliente; el siguiente ciclo recargará el paso 1.");
+    }
+
+    @Override
     public String numeroSolicitudAbierta() {
         return numeroSolicitudAbierta;
     }

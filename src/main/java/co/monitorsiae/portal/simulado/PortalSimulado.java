@@ -30,6 +30,7 @@ public final class PortalSimulado implements PortalDriver {
     private Escena actual;
 
     private int formulariosAbiertos;
+    private int recargasDeSeccionalesPedidas;
     private int consultasDeSolicitud;
     /** Como el portal real: GUARDAR con inventario deja la solicitud abierta en "Estado de tramite". */
     private boolean solicitudAbierta;
@@ -112,6 +113,15 @@ public final class PortalSimulado implements PortalDriver {
 
     public int consultasDeSolicitud() {
         return consultasDeSolicitud;
+    }
+
+    @Override
+    public void recargarSeccionalesEnElSiguienteCiclo() {
+        recargasDeSeccionalesPedidas++;
+    }
+
+    public int recargasDeSeccionalesPedidas() {
+        return recargasDeSeccionalesPedidas;
     }
 
     public int formulariosAbiertos() {

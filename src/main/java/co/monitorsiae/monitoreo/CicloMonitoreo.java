@@ -72,6 +72,8 @@ public final class CicloMonitoreo {
 
         List<String> candidatas = selectorSeccional.elegirTodas(abiertas, tramite.seccionales());
         if (candidatas.isEmpty()) {
+            // La lista solo se actualiza al recargar la página: si luego abre una del cliente, no se vería.
+            portal.recargarSeccionalesEnElSiguienteCiclo();
             return new ResultadoCiclo.SinSeccionalObjetivo(abiertas);
         }
 

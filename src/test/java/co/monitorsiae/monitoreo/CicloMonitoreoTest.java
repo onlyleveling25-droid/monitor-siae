@@ -49,6 +49,17 @@ class CicloMonitoreoTest {
     }
 
     @Test
+    void siNingunaSeccionalAbiertaEsDelClientePideRecargarElPaso1() {
+        PortalSimulado soloCali = PortalSimulado.con(Escena.abiertasSinInventario("73 - Cali, Valle del Cauca"));
+        ciclo.ejecutar(cliente, soloCali);
+        assertEquals(1, soloCali.recargasDeSeccionalesPedidas(), "la lista vieja no mostraría Medellín si abre");
+
+        PortalSimulado conMedellin = PortalSimulado.con(Escena.abiertasSinInventario(MEDELLIN));
+        ciclo.ejecutar(cliente, conMedellin);
+        assertEquals(0, conMedellin.recargasDeSeccionalesPedidas(), "con una seccional del cliente no se recarga");
+    }
+
+    @Test
     void reportaSinInventarioCuandoGuardarNoAvanza() {
         PortalSimulado portal = PortalSimulado.con(Escena.abiertasSinInventario(MEDELLIN));
 

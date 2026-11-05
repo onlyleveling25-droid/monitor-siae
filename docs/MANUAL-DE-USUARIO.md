@@ -332,8 +332,8 @@ Esta línea cuenta qué pasó en la última consulta. Los más comunes:
 | *Consultando el inventario.* | Está en una consulta. | Nada. |
 | *Horario habilitado; consultando el inventario.* | Volvió a estar dentro del horario. | Nada. |
 | *Fuera del horario configurado (hoy lunes: 07:00 a 10:00). Retomará la consulta mañana a las 07:00.* | No consulta ahora. Dice el horario de hoy y cuándo vuelve. | Nada, o amplía el horario en Ajustes. |
-| *Seccionales cerradas.* | La plataforma no ofrece ninguna seccional abierta ahora. | Nada: sigue intentando. Como el portal solo entrega esa lista al cargar la página, en el siguiente ciclo **recarga el paso 1** (espera a que termine de cargar) y vuelve a llenarlo para ver si ya hay seccionales. Solo pasa en el paso 1, no en Estado de trámite. |
-| *Abiertas pero no objetivo: …* | Hay seccionales abiertas, pero **ninguna** es de las que pediste. | Revisa que la seccional del cliente esté bien escrita (sección 8.3). |
+| *Seccionales cerradas.* | La plataforma no ofrece ninguna seccional abierta ahora. | Nada: sigue intentando (el portal muestra *"No options"* en la lista). Como el portal solo entrega esa lista al cargar la página, en el siguiente ciclo **recarga el paso 1** (espera a que termine de cargar) y vuelve a llenarlo para ver si ya hay seccionales. Solo pasa en el paso 1, no en Estado de trámite. |
+| *Abiertas pero no objetivo: …* | Hay seccionales abiertas, pero **ninguna** es de las que pediste. | Revisa que la seccional del cliente esté bien escrita (sección 8.3). En el siguiente ciclo el programa **recarga el paso 1**, por si abrió alguna de las tuyas. |
 | *Sin inventario en Medellín.* | La seccional está abierta pero no hay armas. Si probó varias, las lista separadas por " \| ". | Nada: sigue intentando. |
 | *Inventario en Medellín (14 armas) sin armas de interés.* | Hay armas, pero ninguna cumple tus reglas. | Revisa objetivos, alternativas y comodín (sección 9). |
 | *Arma disponible en Medellín: …* | Modo **Solo alertar**: hay un arma que cumple. Se detiene el monitoreo de ese cliente. | Ve al navegador y selecciónala. |

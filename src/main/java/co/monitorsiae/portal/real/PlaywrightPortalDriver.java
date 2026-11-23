@@ -58,6 +58,10 @@ public final class PlaywrightPortalDriver implements PortalDriver {
     /** Recién cargada la página, la lista de seccionales puede tardar más en llegar. */
     private static final Duration ESPERA_SECCIONALES_TRAS_CARGAR = Duration.ofSeconds(10);
     private static final int INTENTOS_LISTA_TRAS_CARGAR = 3;
+    /** Pausa antes de confirmar que la pantalla de ingreso sigue ahí (sesión realmente vencida). */
+    private static final Duration CONFIRMAR_SESION_VENCIDA = Duration.ofSeconds(4);
+    /** Cada nivel alarga las esperas un 25 %; con el máximo, las esperas valen el triple. */
+    private static final int MAXIMO_ESPERAS_HOLGADAS = 8;
     private static final org.slf4j.Logger LOG =
             org.slf4j.LoggerFactory.getLogger(PlaywrightPortalDriver.class);
 
@@ -81,6 +85,13 @@ public final class PlaywrightPortalDriver implements PortalDriver {
     private volatile boolean recargarPaso1;
     /** El paso 1 se acaba de cargar en este ciclo: sus listas pueden tardar en traer las opciones. */
     private volatile boolean paginaRecienCargada;
+    /** El último ciclo falló a mitad de camino: el siguiente recarga la página antes de seguir. */
+    private volatile boolean recuperarEnSiguienteCiclo;
+    /**
+     * Cuánto se han alargado las esperas: sube cuando algo tarda más de lo previsto (equipo o portal
+     * lentos) y baja de a poco cuando las operaciones vuelven a salir bien.
+     */
+    private volatile int esperasHolgadas;
 
     public PlaywrightPortalDriver(Path perfil, NavegadorPreferido navegador, Path capturas) {
         this.capturas = capturas;
@@ -139,6 +150,22 @@ public final class PlaywrightPortalDriver implements PortalDriver {
         paginaCreada.onClose(ignorado -> registrarCierre());
     }
 
+    private Duration corta() {
+        return holgada(ESPERA_CORTA);
+    }
+
+    private Duration media() {
+        return holgada(ESPERA_MEDIA);
+    }
+
+    private Duration larga() {
+        return holgada(ESPERA_LARGA);
+    }
+
+    private Duration holgada(Duration base) {
+        return Duration.ofMillis(base.toMillis() * (4 + esperasHolgadas) / 4);
+    }
+
     private static String canal(NavegadorPreferido navegador) {
         return switch (navegador) {
             case CHROME -> "chrome";
@@ -150,8 +177,18 @@ public final class PlaywrightPortalDriver implements PortalDriver {
 
     @Override
     public List<String> abrirFormulario(ParametrosTramite tramite) {
+        return protegido("llenar el paso 1", () -> abrirFormularioSinProteger(tramite));
+    }
+
+    private List<String> abrirFormularioSinProteger(ParametrosTramite tramite) {
         verificarDisponible();
         desdeEstadoTramite = false;
+        if (recuperarEnSiguienteCiclo) {
+            // El ciclo anterior falló: se recarga el paso 1 en vez de seguir sobre una página que quedó mal.
+            LOG.info("El ciclo anterior falló; se recarga el paso 1 antes de seguir.");
+            recargarPaso1 = true;
+            recuperarEnSiguienteCiclo = false;
+        }
         try {
             asegurarPaso1();
             seleccionarSiHaceFalta(SelectoresSiae.PLACEHOLDER_PERMISO, tramite.obtenerPermiso(),
@@ -159,7 +196,7 @@ public final class PlaywrightPortalDriver implements PortalDriver {
             seleccionarSiHaceFalta(SelectoresSiae.PLACEHOLDER_TIPO_TRAMITE, tramite.tipoTramite(),
                     "tipo de trámite");
             List<String> abiertas = leerOpciones(SelectoresSiae.PLACEHOLDER_SECCIONAL,
-                    paginaRecienCargada ? ESPERA_SECCIONALES_TRAS_CARGAR : ESPERA_CORTA);
+                    paginaRecienCargada ? ESPERA_SECCIONALES_TRAS_CARGAR : corta());
             // El portal pide la lista de seccionales una sola vez, al elegir el tipo de trámite: si vino
             // vacía, volver a abrirla no sirve. El siguiente ciclo recarga la página para pedirla de nuevo.
             recargarPaso1 = abiertas.isEmpty();
@@ -174,12 +211,16 @@ public final class PlaywrightPortalDriver implements PortalDriver {
 
     @Override
     public ResultadoGuardar enviarPaso1(String seccional, String descripcion) {
+        return protegido("guardar el paso 1", () -> enviarPaso1SinProteger(seccional, descripcion));
+    }
+
+    private ResultadoGuardar enviarPaso1SinProteger(String seccional, String descripcion) {
         verificarDisponible();
         elegirCombo(SelectoresSiae.PLACEHOLDER_SECCIONAL, seccional, "seccional");
 
         Locator campo = pagina.locator(SelectoresSiae.CAMPO_DESCRIPCION).first();
         campo.waitFor(new Locator.WaitForOptions().setState(WaitForSelectorState.VISIBLE)
-                .setTimeout(ESPERA_CORTA.toMillis()));
+                .setTimeout(corta().toMillis()));
         campo.fill(descripcion);
 
         Locator guardar = pagina.locator(SelectoresSiae.BOTON_GUARDAR).first();
@@ -223,12 +264,12 @@ public final class PlaywrightPortalDriver implements PortalDriver {
             LOG.debug("El portal siguió ocupado tras cargar el paso 1; se continúa con la espera de la lista.");
         }
         combo(SelectoresSiae.PLACEHOLDER_PERMISO).waitFor(new Locator.WaitForOptions()
-                .setState(WaitForSelectorState.VISIBLE).setTimeout(ESPERA_MEDIA.toMillis()));
+                .setState(WaitForSelectorState.VISIBLE).setTimeout(media().toMillis()));
         pagina.waitForTimeout(MARGEN_TRAS_CARGAR.toMillis());
     }
 
     private void esperarPaso1() {
-        long limite = System.nanoTime() + ESPERA_MEDIA.toNanos();
+        long limite = System.nanoTime() + media().toNanos();
         while (System.nanoTime() < limite) {
             detectarSesionVencida();
             if (pagina.locator(SelectoresSiae.CAMPO_DESCRIPCION).count() > 0) {
@@ -242,7 +283,7 @@ public final class PlaywrightPortalDriver implements PortalDriver {
     private void seleccionarSiHaceFalta(String placeholder, String valor, String nombre) {
         Locator combo = combo(placeholder);
         combo.waitFor(new Locator.WaitForOptions().setState(WaitForSelectorState.VISIBLE)
-                .setTimeout(ESPERA_CORTA.toMillis()));
+                .setTimeout(corta().toMillis()));
         if (Texto.equivalentes(combo.inputValue(), valor)) {
             return;
         }
@@ -271,12 +312,12 @@ public final class PlaywrightPortalDriver implements PortalDriver {
     private void elegirComboUnaVez(String placeholder, String valor, String nombre) {
         Locator combo = combo(placeholder);
         combo.waitFor(new Locator.WaitForOptions().setState(WaitForSelectorState.VISIBLE)
-                .setTimeout(ESPERA_CORTA.toMillis()));
+                .setTimeout(corta().toMillis()));
         combo.click();
 
         List<Locator> utiles = new ArrayList<>();
         List<String> textos = new ArrayList<>();
-        long limite = System.nanoTime() + ESPERA_CORTA.toNanos();
+        long limite = System.nanoTime() + corta().toNanos();
         while (System.nanoTime() < limite) {
             utiles.clear();
             textos.clear();
@@ -307,7 +348,7 @@ public final class PlaywrightPortalDriver implements PortalDriver {
     private List<String> leerOpciones(String placeholder, Duration espera) {
         Locator combo = combo(placeholder);
         combo.waitFor(new Locator.WaitForOptions().setState(WaitForSelectorState.VISIBLE)
-                .setTimeout(ESPERA_CORTA.toMillis()));
+                .setTimeout(corta().toMillis()));
         combo.click();
 
         List<String> textos = new ArrayList<>();
@@ -334,7 +375,7 @@ public final class PlaywrightPortalDriver implements PortalDriver {
     }
 
     private void esperarGuardarHabilitado(Locator guardar) {
-        long limite = System.nanoTime() + ESPERA_CORTA.toNanos();
+        long limite = System.nanoTime() + corta().toNanos();
         while (System.nanoTime() < limite) {
             if (guardar.isEnabled()) {
                 return;
@@ -364,7 +405,7 @@ public final class PlaywrightPortalDriver implements PortalDriver {
 
     /** GUARDAR puede dar tres desenlaces: sin inventario, pantalla intermedia, o FG-1 directo. */
     private ResultadoGuardar esperarResultadoGuardar() {
-        long limite = System.nanoTime() + ESPERA_LARGA.toNanos();
+        long limite = System.nanoTime() + larga().toNanos();
         while (System.nanoTime() < limite) {
             detectarSesionVencida();
             if (hayMensajeSinInventario()) {
@@ -398,7 +439,7 @@ public final class PlaywrightPortalDriver implements PortalDriver {
         Set<Page> antes = new HashSet<>(contexto.pages());
         enlace.click();
 
-        long limite = System.nanoTime() + ESPERA_MEDIA.toNanos();
+        long limite = System.nanoTime() + media().toNanos();
         while (System.nanoTime() < limite) {
             for (Page candidata : contexto.pages()) {
                 if (!antes.contains(candidata) && !candidata.isClosed()) {
@@ -427,6 +468,10 @@ public final class PlaywrightPortalDriver implements PortalDriver {
 
     @Override
     public List<ArmaInventario> leerInventario() {
+        return protegido("leer el inventario", this::leerInventarioSinProteger);
+    }
+
+    private List<ArmaInventario> leerInventarioSinProteger() {
         verificarDisponible();
         detectarSesionVencida();
         asegurarPaso2();
@@ -650,7 +695,7 @@ public final class PlaywrightPortalDriver implements PortalDriver {
      * @param obligatorio si es falso y no sale ninguno, devuelve nulo en lugar de fallar
      */
     private Locator esperarCuadroTrasElegirArma(boolean obligatorio) {
-        long limite = System.nanoTime() + ESPERA_CORTA.toNanos();
+        long limite = System.nanoTime() + corta().toNanos();
         String visto = "";
         while (System.nanoTime() < limite) {
             List<Locator> modales = pagina.locator(SelectoresSiae.MODALES).all();
@@ -685,7 +730,7 @@ public final class PlaywrightPortalDriver implements PortalDriver {
     }
 
     private boolean esperarBoton(Locator boton) {
-        long limite = System.nanoTime() + ESPERA_CORTA.toNanos();
+        long limite = System.nanoTime() + corta().toNanos();
         while (System.nanoTime() < limite) {
             if (boton.count() > 0 && estaVisible(boton) && boton.isEnabled()) {
                 return true;
@@ -714,7 +759,7 @@ public final class PlaywrightPortalDriver implements PortalDriver {
      * en bucle corto. Si el modal se cierra sin snackbar, la pre-asignacion quedo aceptada.
      */
     private boolean esperarDesenlacePreasignacion(Locator modal, ArmaInventario arma) {
-        long limite = System.nanoTime() + ESPERA_MEDIA.toNanos();
+        long limite = System.nanoTime() + media().toNanos();
         long modalCerradoDesde = 0;
         while (System.nanoTime() < limite) {
             if (hayErrorDeCupo()) {
@@ -777,7 +822,7 @@ public final class PlaywrightPortalDriver implements PortalDriver {
 
     /** Tras el CONFIRMAR de cierre, el portal avanza al paso 3 (Formulario antecedentes Fiscalia). */
     private boolean esperarAvancePaso3(Locator modal) {
-        long limite = System.nanoTime() + ESPERA_MEDIA.toNanos();
+        long limite = System.nanoTime() + media().toNanos();
         boolean modalCerrado = false;
         while (System.nanoTime() < limite) {
             detectarSesionVencida();
@@ -801,14 +846,14 @@ public final class PlaywrightPortalDriver implements PortalDriver {
     private void confirmarEn(Locator modal) {
         Locator confirmar = modal.locator(SelectoresSiae.BOTON_CONFIRMAR).first();
         confirmar.waitFor(new Locator.WaitForOptions().setState(WaitForSelectorState.VISIBLE)
-                .setTimeout(ESPERA_CORTA.toMillis()));
+                .setTimeout(corta().toMillis()));
         confirmar.click();
         pagina.waitForTimeout(600);
     }
 
     /** Devuelve el modal visible más reciente, no el primero del DOM. */
     private Locator esperarModal() {
-        long limite = System.nanoTime() + ESPERA_CORTA.toNanos();
+        long limite = System.nanoTime() + corta().toNanos();
         while (System.nanoTime() < limite) {
             List<Locator> modales = pagina.locator(SelectoresSiae.MODALES).all();
             for (int i = modales.size() - 1; i >= 0; i--) {
@@ -822,7 +867,7 @@ public final class PlaywrightPortalDriver implements PortalDriver {
     }
 
     private void esperarModalCerrado(Locator modal) {
-        long limite = System.nanoTime() + ESPERA_CORTA.toNanos();
+        long limite = System.nanoTime() + corta().toNanos();
         while (System.nanoTime() < limite) {
             if (!estaVisible(modal)) {
                 return;
@@ -840,7 +885,7 @@ public final class PlaywrightPortalDriver implements PortalDriver {
     }
 
     private void esperarFilaSeleccionada(ArmaInventario arma) {
-        long limite = System.nanoTime() + ESPERA_CORTA.toNanos();
+        long limite = System.nanoTime() + corta().toNanos();
         while (System.nanoTime() < limite) {
             if (haySeleccion(arma)) {
                 return;
@@ -893,7 +938,7 @@ public final class PlaywrightPortalDriver implements PortalDriver {
     }
 
     private boolean esperarAsignacionExitosa(Locator modal) {
-        long limite = System.nanoTime() + ESPERA_MEDIA.toNanos();
+        long limite = System.nanoTime() + media().toNanos();
         while (System.nanoTime() < limite) {
             detectarSesionVencida();
             if (pagina.locator(SelectoresSiae.ASIGNACION_EXITOSA).count() > 0) {
@@ -926,7 +971,7 @@ public final class PlaywrightPortalDriver implements PortalDriver {
         combo.click();
         List<Locator> opciones = new ArrayList<>();
         List<String> textos = new ArrayList<>();
-        long limite = System.nanoTime() + ESPERA_CORTA.toNanos();
+        long limite = System.nanoTime() + corta().toNanos();
         while (System.nanoTime() < limite) {
             opciones.clear();
             textos.clear();
@@ -1015,7 +1060,7 @@ public final class PlaywrightPortalDriver implements PortalDriver {
     }
 
     private void esperarFilasInventario() {
-        long limite = System.nanoTime() + ESPERA_MEDIA.toNanos();
+        long limite = System.nanoTime() + media().toNanos();
         while (System.nanoTime() < limite) {
             if (pagina.locator(SelectoresSiae.FILAS_INVENTARIO).count() > 0) {
                 return;
@@ -1032,16 +1077,24 @@ public final class PlaywrightPortalDriver implements PortalDriver {
 
     @Override
     public ResultadoSolicitud abrirSolicitudExistente(ParametrosTramite tramite, String numeroSolicitud) {
+        return protegido("abrir la solicitud en Estado de trámite",
+                () -> abrirSolicitudExistenteSinProteger(tramite, numeroSolicitud));
+    }
+
+    private ResultadoSolicitud abrirSolicitudExistenteSinProteger(ParametrosTramite tramite, String numeroSolicitud) {
         verificarDisponible();
         detectarSesionVencida();
         String numero = numeroDeSolicitud(numeroSolicitud);
 
         // Si la pagina ya esta en Estado de tramite no se recarga: solo se repite la busqueda. Se
-        // navega unicamente la primera vez o si la persona (o el portal) saco la pagina de ahi.
-        if (!pagina.url().contains("/EstadoTramite")) {
-            LOG.info("Abriendo Estado de trámite para buscar la solicitud ({}).", URL_ESTADO_TRAMITE);
-            pagina.navigate(URL_ESTADO_TRAMITE,
-                    new Page.NavigateOptions().setWaitUntil(WaitUntilState.DOMCONTENTLOADED));
+        // navega la primera vez, si la persona (o el portal) saco la pagina de ahi, o si el ciclo
+        // anterior fallo: en ese caso se carga de nuevo para no seguir sobre una pagina que quedo mal.
+        boolean recuperar = recuperarEnSiguienteCiclo;
+        recuperarEnSiguienteCiclo = false;
+        if (recuperar || !pagina.url().contains("/EstadoTramite")) {
+            LOG.info(recuperar ? "El ciclo anterior falló; se recarga Estado de trámite."
+                    : "Abriendo Estado de trámite para buscar la solicitud.");
+            pagina.navigate(URL_ESTADO_TRAMITE, new Page.NavigateOptions().setWaitUntil(WaitUntilState.LOAD));
         }
         esperarEstadoTramite();
         cerrarCuadroAbierto();
@@ -1075,13 +1128,18 @@ public final class PlaywrightPortalDriver implements PortalDriver {
             tarjeta.click();
             try {
                 linea.waitFor(new Locator.WaitForOptions().setState(WaitForSelectorState.VISIBLE)
-                        .setTimeout(ESPERA_MEDIA.toMillis()));
+                        .setTimeout(media().toMillis()));
             } catch (PlaywrightException e) {
                 throw inesperado("La solicitud no mostró la línea del formulario FG-1.", e);
             }
         }
         linea.locator("td").first().click();
         return esperarResultadoInventarioDeSolicitud();
+    }
+
+    @Override
+    public void recargarEnElSiguienteCiclo() {
+        recuperarEnSiguienteCiclo = true;
     }
 
     @Override
@@ -1128,7 +1186,7 @@ public final class PlaywrightPortalDriver implements PortalDriver {
 
     /** Espera a que la pagina cargue: las pestanas CIUDADANO/EMPRESA e HISTORIAL son lo primero que sale. */
     private void esperarEstadoTramite() {
-        long limite = System.nanoTime() + ESPERA_MEDIA.toNanos();
+        long limite = System.nanoTime() + media().toNanos();
         while (System.nanoTime() < limite) {
             detectarSesionVencida();
             if (pagina.locator(SelectoresSiae.PESTANAS).count() > 0) {
@@ -1145,7 +1203,7 @@ public final class PlaywrightPortalDriver implements PortalDriver {
      * motivo. Se espera a la tarjeta que coincide, no a "alguna" tarjeta, porque puede haber otras.
      */
     private Locator esperarTarjetaDeSolicitud(ParametrosTramite tramite, String numero) {
-        long limite = System.nanoTime() + ESPERA_MEDIA.toNanos();
+        long limite = System.nanoTime() + media().toNanos();
         do {
             detectarSesionVencida();
             Locator tarjeta = buscarTarjetaDeSolicitud(tramite, numero);
@@ -1188,7 +1246,7 @@ public final class PlaywrightPortalDriver implements PortalDriver {
      * inventario cuando llegan filas y solo hay "sin inventario" cuando sale el aviso del cuadro.
      */
     private ResultadoSolicitud esperarResultadoInventarioDeSolicitud() {
-        long limite = System.nanoTime() + ESPERA_LARGA.toNanos();
+        long limite = System.nanoTime() + larga().toNanos();
         while (System.nanoTime() < limite) {
             detectarSesionVencida();
             if (pagina.locator(SelectoresSiae.FILAS_INVENTARIO).count() > 0) {
@@ -1279,14 +1337,56 @@ public final class PlaywrightPortalDriver implements PortalDriver {
         return pagina.locator(SelectoresSiae.PASO_3).count() > 0;
     }
 
+    /**
+     * Ejecuta una operación del portal sin dejar que un fallo de la página detenga el monitor: un
+     * elemento que tarda, un clic que no entra o una navegación lenta se informan como respuesta
+     * inesperada (con captura) y el siguiente ciclo recarga la página antes de seguir. Solo se
+     * propagan tal cual la sesión vencida y el navegador cerrado.
+     */
+    private <T> T protegido(String operacion, java.util.function.Supplier<T> accion) {
+        try {
+            T resultado = accion.get();
+            esperasHolgadas = Math.max(0, esperasHolgadas - 1);   // va bien: las esperas vuelven a lo normal
+            return resultado;
+        } catch (SesionVencidaException e) {
+            throw e;
+        } catch (PortalException e) {
+            recuperarEnSiguienteCiclo = true;
+            throw e;
+        } catch (PlaywrightException e) {
+            if (pagina.isClosed()) {
+                throw e;   // el navegador se cerró: lo trata quien vigila la sesión
+            }
+            recuperarEnSiguienteCiclo = true;
+            if (e instanceof com.microsoft.playwright.TimeoutError) {
+                // La página o el equipo van lentos: se da más margen en los próximos ciclos.
+                esperasHolgadas = Math.min(MAXIMO_ESPERAS_HOLGADAS, esperasHolgadas + 2);
+            }
+            throw inesperado("Falló un paso al " + operacion + ": " + primeraLinea(e.getMessage()), e);
+        }
+    }
+
+    /**
+     * Se confirma dos veces, con unos segundos de diferencia: durante una recarga el portal puede
+     * mostrar un instante la pantalla de ingreso sin que la sesión haya vencido.
+     */
     private void detectarSesionVencida() {
-        Locator contrasena = pagina.locator(SelectoresSiae.LOGIN_PASSWORD).first();
-        Locator ingresar = pagina.locator(SelectoresSiae.INGRESAR_PORTAL).first();
-        if ((contrasena.count() > 0 && estaVisible(contrasena))
-                || (ingresar.count() > 0 && estaVisible(ingresar))) {
+        if (!pideIniciarSesion()) {
+            return;
+        }
+        pagina.waitForTimeout(CONFIRMAR_SESION_VENCIDA.toMillis());
+        if (pideIniciarSesion()) {
             throw new SesionVencidaException(
                     "La plataforma pidió iniciar sesión de nuevo en la ventana del cliente.");
         }
+        LOG.info("La pantalla de ingreso apareció un momento y se fue; la sesión sigue activa.");
+    }
+
+    private boolean pideIniciarSesion() {
+        Locator contrasena = pagina.locator(SelectoresSiae.LOGIN_PASSWORD).first();
+        Locator ingresar = pagina.locator(SelectoresSiae.INGRESAR_PORTAL).first();
+        return (contrasena.count() > 0 && estaVisible(contrasena))
+                || (ingresar.count() > 0 && estaVisible(ingresar));
     }
 
     private static boolean estaVisible(Locator elemento) {

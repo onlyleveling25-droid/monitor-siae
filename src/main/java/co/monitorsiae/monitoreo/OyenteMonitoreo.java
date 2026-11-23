@@ -25,4 +25,21 @@ public interface OyenteMonitoreo {
 
     default void alDetenerse(Cliente cliente, MotivoDetencion motivo) {
     }
+
+    /**
+     * El portal lleva varios fallos seguidos. El monitor no se detiene: sigue intentando, recargando
+     * la página y con esperas más largas. Se avisa una sola vez por racha.
+     *
+     * @param ultimo descripción del último fallo, con la captura si la hubo
+     */
+    default void fallosPersistentes(Cliente cliente, int fallos, String ultimo) {
+    }
+
+    /** Tras una racha de fallos avisada, un ciclo volvió a salir bien. */
+    default void portalRecuperado(Cliente cliente, int fallos) {
+    }
+
+    /** Un error que no se pudo manejar detuvo el monitor; se informa la causa para el diagnóstico. */
+    default void alFallarGravemente(Cliente cliente, RuntimeException error) {
+    }
 }

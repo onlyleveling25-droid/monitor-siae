@@ -432,7 +432,7 @@ Abre **Ajustes** desde la barra lateral. Tiene tres pestañas: **General**, **Cl
 | **Sin inventario y luego aparece** *(predeterminado)* | Seccionales cerradas, luego abiertas sin inventario y, a la quinta consulta, inventario. | Ver la espera y luego la selección. |
 | **Hay inventario, pero sin los objetivos del cliente** | Aparece inventario sin ninguno de tus objetivos. | Cómo actúan las alternativas y el comodín. |
 | **El arma aparece pero otra persona la toma** | Apartar no se confirma. | Los reintentos y el aviso de apartado fallido. |
-| **La plataforma falla tres veces seguidas** | Una consulta cerrada, una sin inventario y tres errores. | La detención por fallos repetidos y su alarma. |
+| **La plataforma falla tres veces seguidas** | Una consulta cerrada, una sin inventario y luego errores. | La fila dice "Portal inestable" (sin alarma) y el monitoreo **sigue** intentando. |
 | **La sesión vence a mitad del monitoreo** | Tras dos consultas, la plataforma pide iniciar sesión. | La alarma de sesión vencida. |
 | **Las seccionales siempre están cerradas** | Todas las consultas encuentran todo cerrado. | Dejarlo corriendo para probar panel, horario y bitácora. |
 
@@ -685,7 +685,7 @@ Una alerta es lo que exige tu atención. Hay dos clases:
 | **Arma disponible (no se pudo apartar): Ana** | *"La plataforma no confirmó el apartado tras 2 intento(s); revise la ventana del navegador."* | Revisa de inmediato. Quizá otra persona la tomó, o aún puedes apartarla a mano. |
 | **Inventario sin arma de interés: Ana** | *"Apareció inventario en … (14 armas), pero ninguna cumple los objetivos ni las alternativas; no se seleccionó nada…"* | Revisa la lista en la bitácora o el historial. Si alguna te sirve, ajusta los objetivos o apártala a mano. |
 | **Sesión cerrada: Ana** | *"La plataforma cerró la sesión. Inicie sesión de nuevo en la ventana de este cliente y reanude el monitoreo."* | Inicia sesión en el navegador y pulsa **Iniciar / reanudar**. |
-| **Monitoreo detenido: Ana** | *"La plataforma respondió con errores varias veces seguidas. Revise la ventana de este cliente y reanude el monitoreo."* | Mira la bitácora (captura) y reanuda cuando se resuelva. |
+| **Monitoreo detenido por un error: Ana** | *"Un error que el programa no pudo manejar detuvo el monitoreo…"* | Pulsa **Iniciar / reanudar**. La causa queda en la bitácora. |
 | **Revise la solicitud: Ana** | Explica qué pasó y da los pasos: abrir «Estado de trámite» en el navegador de Ana y buscar la solicitud EN PROGRESO; si está, elegir «Solicitud existente», escribir su número y pulsar «Iniciar / reanudar»; si no está, dejar «Nueva solicitud (paso 1)» y reanudar. | Sigue los pasos de la alerta. El mismo texto queda en el aviso rojo de arriba del Panel. |
 
 > **Inventario sin arma de interés.** Si aparece inventario pero ninguna arma cumple tus objetivos, alternativas ni
@@ -709,6 +709,27 @@ el trámite."*
 - Si pides **Ir al navegador** y esa sesión ya se cerró, el programa reconoce esa alerta (porque ya no hay
   nada que ver) y te dice que abras una sesión nueva.
 
+### Cómo se recupera solo cuando la página falla
+
+El portal a veces tarda, no muestra una lista o deja un cuadro a medias. El programa no se detiene por eso:
+
+- **Si algo falla en un ciclo**, el siguiente **recarga la página** del módulo donde está (paso 1 o Estado de
+  trámite), espera a que termine de cargar y vuelve a empezar. Esto incluye: permiso o tipo de trámite que no
+  aparecen, GUARDAR que no se habilita, la línea FG-1 que no sale o un cuadro que no se cierra.
+- **Si la página o el equipo van lentos**, las esperas se alargan solas (hasta el triple) y vuelven a lo normal
+  cuando todo responde bien.
+- **Si falla 3 veces seguidas**, **no suena nada**: la fila del cliente dice *Portal inestable* y la bitácora lo
+  anota, mientras el programa **sigue intentando**, cada vez con más espera (hasta 2 minutos, o el intervalo si es
+  mayor). Cuando el portal responde bien, la fila vuelve a lo normal y la bitácora anota *Portal recuperado*.
+- **Antes de detenerse por "sesión vencida"** lo comprueba dos veces, con unos segundos de diferencia: durante
+  una recarga la pantalla de ingreso puede asomarse un instante.
+- **Antes de detenerse por "solicitud no encontrada"** la busca en dos ciclos seguidos, recargando la página en
+  el segundo.
+- **Varios clientes a la vez:** al iniciarlos, cada uno arranca unos segundos después del anterior, para que no
+  consulten todos al mismo tiempo.
+- Si un ciclo tarda más de 20 segundos, el registro técnico lo anota como *Ciclo lento*: si se repite mucho, el
+  equipo o el portal están saturados (menos clientes a la vez o un intervalo un poco mayor ayudan).
+
 ### Qué pasa con el monitoreo después de una alerta
 
 | Situación | ¿El monitoreo se detiene solo? |
@@ -716,7 +737,7 @@ el trámite."*
 | Arma apartada | **Sí** (estado *Arma apartada*). |
 | Arma disponible (modo alerta) | **Sí** (estado *Alerta encontrada*). |
 | Sesión vencida | **Sí**. |
-| Tres fallos seguidos | **Sí**. |
+| Fallos seguidos de la página | **No**, y tampoco suena: la fila dice *Portal inestable* y sigue intentando (recarga la página y espera más). |
 | No se encuentra la solicitud (*Solicitud existente*) | **Sí**, con alerta de problema. |
 | Apartado fallido | **Sí**, dejando la tabla del inventario abierta para apartarla a mano. |
 | Inventario sin arma de interés (con armas que no habías visto) | **Sí**, dejando la tabla abierta para elegir a mano. |

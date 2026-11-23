@@ -19,6 +19,8 @@ public final class SeguimientoSolicitud {
     /** Seccional del paso 1 que creo la solicitud; vacia si la persona pidio vigilar una existente. */
     private volatile String seccionalOrigen = "";
     /** Armas de inventarios sin interés que ya se mostraron a la persona en esta solicitud. */
+    /** La solicitud no aparecio en el ultimo ciclo; si tampoco aparece en el siguiente, se detiene. */
+    private volatile boolean noVistaUnaVez;
     private final java.util.Set<String> armasVistas = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     public SeguimientoSolicitud() {
@@ -69,6 +71,18 @@ public final class SeguimientoSolicitud {
     /** La solicitud aparecio en "Estado de tramite": ya no es una recien creada pendiente de confirmar. */
     public void solicitudEncontrada() {
         recienCreada = false;
+        noVistaUnaVez = false;
+    }
+
+    /**
+     * La solicitud no aparecio en este ciclo.
+     *
+     * @return verdadero si ya tampoco habia aparecido en el ciclo anterior: entonces si hay que detenerse
+     */
+    public boolean solicitudNoVista() {
+        boolean segundaVez = noVistaUnaVez;
+        noVistaUnaVez = true;
+        return segundaVez;
     }
 
     /**
@@ -106,6 +120,7 @@ public final class SeguimientoSolicitud {
     /** No hay solicitud abierta (o ya se uso): se vuelve a hacer desde el paso 1. */
     public void volverAlPaso1() {
         enSolicitud = false;
+        noVistaUnaVez = false;
         numeroSolicitud = "";
         recienCreada = false;
         seccionalOrigen = "";
@@ -113,6 +128,7 @@ public final class SeguimientoSolicitud {
     }
 
     public void establecer(ModoInicio modo, String numero) {
+        noVistaUnaVez = false;
         String anterior = numeroSolicitud;
         enSolicitud = modo == ModoInicio.SOLICITUD_EXISTENTE;
         numeroSolicitud = enSolicitud && numero != null ? numero.strip() : "";

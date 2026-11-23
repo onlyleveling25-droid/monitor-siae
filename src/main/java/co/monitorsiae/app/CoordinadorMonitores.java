@@ -303,6 +303,20 @@ public final class CoordinadorMonitores implements AutoCloseable {
         }
     }
 
+    /** Separación entre el primer ciclo de un cliente y el de otro que ya estaba monitoreando. */
+    static final Duration SEPARACION_ENTRE_CLIENTES = Duration.ofSeconds(3);
+
+    /**
+     * Escalona los arranques: si ya hay otros clientes monitoreando, el primer ciclo de este espera
+     * unos segundos por cada uno (sin pasar del intervalo), así no consultan todos a la vez y el
+     * equipo y el portal no reciben todas las recargas juntas.
+     */
+    Duration esperaEscalonada(String clienteId, Duration intervalo) {
+        long otros = monitoreosActivos().stream().filter(id -> !id.equals(clienteId)).count();
+        Duration espera = SEPARACION_ENTRE_CLIENTES.multipliedBy(otros);
+        return espera.compareTo(intervalo) > 0 ? intervalo : espera;
+    }
+
     /** Clientes con el monitoreo en curso: iniciando, consultando o esperando su horario. */
     public List<String> monitoreosActivos() {
         return sesiones.values().stream()
@@ -370,6 +384,8 @@ public final class CoordinadorMonitores implements AutoCloseable {
                 private final OyenteBitacora oyenteBitacora = new OyenteBitacora(bitacora, Clock.systemUTC());
                 private final co.monitorsiae.monitoreo.InventarioNuevo inventarioNuevo =
                         new co.monitorsiae.monitoreo.InventarioNuevo();
+                /** Hay una racha de fallos avisada: la fila lo sigue diciendo hasta que el portal responda bien. */
+                private boolean portalInestable;
 
                 @Override
                 public void alIniciar(Cliente iniciado) {
@@ -401,7 +417,16 @@ public final class CoordinadorMonitores implements AutoCloseable {
 
                 @Override
                 public void alTerminarCiclo(Cliente iniciado, ResultadoCiclo resultado) {
-                    sesion.ultimoResultado = resultado.descripcion();
+                    if (resultado instanceof ResultadoCiclo.Inesperado && portalInestable) {
+                        sesion.ultimoResultado = "Portal inestable, el monitoreo sigue intentando. Último fallo: "
+                                + resultado.descripcion();
+                    } else {
+                        sesion.ultimoResultado = resultado.descripcion();
+                    }
+                    if (!(resultado instanceof ResultadoCiclo.Inesperado)
+                            && !(resultado instanceof ResultadoCiclo.PortalNoResponde)) {
+                        portalInestable = false;
+                    }
                     if (resultado instanceof ResultadoCiclo.SolicitudNoEncontrada noEncontrada) {
                         sesion.indicacionesSolicitud = noEncontrada.textoCompleto();
                     }
@@ -446,12 +471,42 @@ public final class CoordinadorMonitores implements AutoCloseable {
                     oyenteBitacora.alDetenerse(iniciado, motivo);
                     oyenteAlertas.alDetenerse(iniciado, motivo);
                 }
+
+                @Override
+                public void fallosPersistentes(Cliente iniciado, int fallos, String ultimo) {
+                    // Sin alarma: el monitoreo sigue solo. Queda aquí y en la bitácora para quien quiera mirarlo.
+                    portalInestable = true;
+                    sesion.ultimoResultado = "Portal inestable: la página falló " + fallos + " veces seguidas. El "
+                            + "monitoreo sigue solo, recargando la página y esperando más entre intentos.";
+                    notificar(sesion.id, sesion.estado);
+                    registro.fallosPersistentes(iniciado, fallos, ultimo);
+                    oyenteBitacora.fallosPersistentes(iniciado, fallos, ultimo);
+                    oyenteAlertas.fallosPersistentes(iniciado, fallos, ultimo);
+                }
+
+                @Override
+                public void portalRecuperado(Cliente iniciado, int fallos) {
+                    sesion.ultimoResultado = "Portal recuperado tras " + fallos + " fallos seguidos; el monitoreo "
+                            + "sigue normal.";
+                    notificar(sesion.id, sesion.estado);
+                    registro.portalRecuperado(iniciado, fallos);
+                    oyenteBitacora.portalRecuperado(iniciado, fallos);
+                    oyenteAlertas.portalRecuperado(iniciado, fallos);
+                }
+
+                @Override
+                public void alFallarGravemente(Cliente iniciado, RuntimeException error) {
+                    registro.alFallarGravemente(iniciado, error);
+                    oyenteBitacora.alFallarGravemente(iniciado, error);
+                    oyenteAlertas.alFallarGravemente(iniciado, error);
+                }
             };
             sesion.monitor = new MonitorCliente(cliente, sesion.portal,
                     new CicloMonitoreo(new SelectorSeccional(), new SelectorArma()),
                     ventana,
                     Duration.ofSeconds(actual.intervaloConsultaSegundos()),
                     Pausa.real(actual.variacionEsperaPorcentaje() / 100.0), oyente, sesion.seguimiento);
+            sesion.monitor.conEsperaInicial(esperaEscalonada(sesion.id, Duration.ofSeconds(actual.intervaloConsultaSegundos())));
             if (sesion.detencionSolicitada) {
                 sesion.monitor.detener();
             }

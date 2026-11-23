@@ -13,7 +13,9 @@ public enum TipoEvento {
     APARTADO_FALLIDO("Apartado fallido"),
     SESION_VENCIDA("Sesión vencida"),
     RESPUESTA_INESPERADA("Respuesta inesperada"),
-    PORTAL_SIN_RESPUESTA("Portal sin respuesta");
+    PORTAL_SIN_RESPUESTA("Portal sin respuesta"),
+    PORTAL_INESTABLE("Portal inestable"),
+    PORTAL_RECUPERADO("Portal recuperado");
 
     private final String etiqueta;
 
@@ -33,7 +35,7 @@ public enum TipoEvento {
     /** Eventos que indican que algo falló o necesita atención. */
     public boolean problema() {
         return this == APARTADO_FALLIDO || this == SESION_VENCIDA || this == RESPUESTA_INESPERADA
-                || this == PORTAL_SIN_RESPUESTA;
+                || this == PORTAL_SIN_RESPUESTA || this == PORTAL_INESTABLE;
     }
 
     /** Eventos cuyo inventario puede haberse guardado en el historial del cliente. */

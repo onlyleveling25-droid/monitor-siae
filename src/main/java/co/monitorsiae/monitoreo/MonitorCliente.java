@@ -19,8 +19,19 @@ import java.util.concurrent.CompletableFuture;
  */
 public final class MonitorCliente implements Runnable {
 
-    /** Errores inesperados seguidos que se toleran antes de detenerse; la plataforma a veces falla un momento. */
+    /**
+     * Fallos seguidos tras los cuales se avisa a la persona. El monitor no se detiene por eso: sigue
+     * intentando (recargando la página y con esperas más largas) hasta que el portal se recupere.
+     */
     public static final int FALLOS_TOLERADOS = 3;
+
+    /** Tope de la espera entre intentos mientras el portal falla, salvo que el intervalo sea mayor. */
+    static final Duration ESPERA_MAXIMA_TRAS_FALLOS = Duration.ofMinutes(2);
+
+    /** Un ciclo que tarda más que esto queda anotado en el registro como lento. */
+    static final Duration CICLO_LENTO = Duration.ofSeconds(20);
+
+    private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(MonitorCliente.class);
 
     static final Duration ESPERA_FUERA_DE_HORARIO = Duration.ofSeconds(30);
 
@@ -38,6 +49,8 @@ public final class MonitorCliente implements Runnable {
 
     private volatile boolean detencionSolicitada;
     private boolean finalizado;
+    /** Espera antes del primer ciclo, para no consultar al mismo tiempo que los demás clientes. */
+    private Duration esperaInicial = Duration.ZERO;
 
     public MonitorCliente(Cliente cliente, PortalDriver portal, CicloMonitoreo ciclo, VentanaHoraria ventana,
                           Duration intervalo, Pausa pausa, OyenteMonitoreo oyente) {
@@ -55,6 +68,12 @@ public final class MonitorCliente implements Runnable {
         this.intervalo = intervalo;
         this.pausa = pausa;
         this.oyente = oyente;
+    }
+
+    /** Escalona el arranque: el primer ciclo espera esto, así varios clientes no consultan a la vez. */
+    public MonitorCliente conEsperaInicial(Duration espera) {
+        this.esperaInicial = espera == null || espera.isNegative() ? Duration.ZERO : espera;
+        return this;
     }
 
     /** Pide detener el monitor; termina al acabar el ciclo en curso o la espera actual. */
@@ -88,6 +107,7 @@ public final class MonitorCliente implements Runnable {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } catch (RuntimeException e) {
+            oyente.alFallarGravemente(cliente, e);
             try {
                 motivo = portal.estaAbierto()
                         ? MotivoDetencion.ERROR_INESPERADO : MotivoDetencion.NAVEGADOR_CERRADO;
@@ -105,6 +125,9 @@ public final class MonitorCliente implements Runnable {
     private MotivoDetencion vigilar() throws InterruptedException {
         int fallosSeguidos = 0;
         boolean fueraDeHorarioNotificado = false;
+        if (!esperaInicial.isZero()) {
+            esperar(esperaInicial);
+        }
         while (!detencionSolicitada) {
             if (!ventana.permiteAhora()) {
                 oyente.fueraDeHorario(cliente);
@@ -117,7 +140,9 @@ public final class MonitorCliente implements Runnable {
                 fueraDeHorarioNotificado = false;
             }
 
+            long inicioCiclo = System.nanoTime();
             ResultadoCiclo resultado = ciclo.ejecutar(cliente, portal, seguimiento);
+            anotarDuracion(Duration.ofNanos(System.nanoTime() - inicioCiclo), resultado);
             procesarSolicitudesEnfoque(false);
             oyente.alTerminarCiclo(cliente, resultado);
 
@@ -134,18 +159,41 @@ public final class MonitorCliente implements Runnable {
 
             if (resultado instanceof ResultadoCiclo.Inesperado) {
                 fallosSeguidos++;
-                if (fallosSeguidos >= FALLOS_TOLERADOS) {
-                    return MotivoDetencion.FALLOS_REPETIDOS;
+                if (fallosSeguidos == FALLOS_TOLERADOS) {
+                    // Se avisa una vez, pero se sigue intentando: el siguiente ciclo recarga la página.
+                    oyente.fallosPersistentes(cliente, fallosSeguidos, resultado.descripcion());
                 }
-                // Espera creciente para no insistir sobre una plataforma que esta fallando.
-                esperar(intervalo.multipliedBy(fallosSeguidos + 1L));
+                esperar(esperaTrasFallos(fallosSeguidos));
                 continue;
             }
 
+            if (fallosSeguidos >= FALLOS_TOLERADOS) {
+                oyente.portalRecuperado(cliente, fallosSeguidos);
+            }
             fallosSeguidos = 0;
             esperar(intervalo);
         }
         return MotivoDetencion.SOLICITADO_POR_USUARIO;
+    }
+
+    /**
+     * Espera creciente para no insistir sobre una plataforma que está fallando, con un tope para que
+     * vuelva a intentar pronto en cuanto se recupere.
+     */
+    Duration esperaTrasFallos(int fallos) {
+        Duration creciente = intervalo.multipliedBy(Math.min(fallos + 1L, 6L));
+        Duration tope = intervalo.compareTo(ESPERA_MAXIMA_TRAS_FALLOS) > 0 ? intervalo : ESPERA_MAXIMA_TRAS_FALLOS;
+        return creciente.compareTo(tope) > 0 ? tope : creciente;
+    }
+
+    private void anotarDuracion(Duration duracion, ResultadoCiclo resultado) {
+        if (duracion.compareTo(CICLO_LENTO) > 0) {
+            LOG.warn("[{}] Ciclo lento: {} s ({}). Si se repite, el equipo o el portal están saturados.",
+                    cliente.nombre(), duracion.toSeconds(), resultado.getClass().getSimpleName());
+        } else {
+            LOG.debug("[{}] Ciclo de {} ms ({}).", cliente.nombre(), duracion.toMillis(),
+                    resultado.getClass().getSimpleName());
+        }
     }
 
     private void esperar(Duration duracion) throws InterruptedException {

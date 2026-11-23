@@ -68,15 +68,22 @@ public final class TraductorAlertas {
     /** Alertas que solo se conocen al detenerse el monitor y no vienen de un resultado puntual. */
     public Optional<Alerta> deDetencion(Cliente cliente, MotivoDetencion motivo) {
         // SOLICITUD_NO_ENCONTRADA ya sonó con el resultado del ciclo, que trae los pasos a seguir.
-        if (motivo != MotivoDetencion.FALLOS_REPETIDOS) {
-            return Optional.empty();
-        }
-        return Optional.of(new Alerta(cliente.id(), Gravedad.PROBLEMA,
-                "Monitoreo detenido: " + cliente.nombre(),
-                "La plataforma respondió con errores varias veces seguidas. Revise la ventana de este "
-                        + "cliente y reanude el monitoreo.",
-                "El monitoreo de " + cliente.nombre() + " se detuvo por errores de la plataforma."));
+        return switch (motivo) {
+            case FALLOS_REPETIDOS -> Optional.of(new Alerta(cliente.id(), Gravedad.PROBLEMA,
+                    "Monitoreo detenido: " + cliente.nombre(),
+                    "La plataforma respondió con errores varias veces seguidas. Revise la ventana de este "
+                            + "cliente y reanude el monitoreo.",
+                    "El monitoreo de " + cliente.nombre() + " se detuvo por errores de la plataforma."));
+            // Antes este caso se detenía en silencio: ahora suena para que alguien lo reanude.
+            case ERROR_INESPERADO -> Optional.of(new Alerta(cliente.id(), Gravedad.PROBLEMA,
+                    "Monitoreo detenido por un error: " + cliente.nombre(),
+                    "Un error que el programa no pudo manejar detuvo el monitoreo. Revise la ventana de este "
+                            + "cliente y pulse «Iniciar / reanudar». La causa quedó anotada en la bitácora.",
+                    "El monitoreo de " + cliente.nombre() + " se detuvo por un error. Reanúdelo."));
+            default -> Optional.empty();
+        };
     }
+
 
     private static String describir(EleccionArma eleccion) {
         String arma = eleccion.arma().descripcion();

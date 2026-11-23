@@ -103,12 +103,12 @@ class EscenariosSimuladorTest {
     }
 
     @Test
-    void tresFallosSeguidosDetienenElMonitorConAlarma() {
-        correr(EscenarioSimulador.TRES_FALLOS_SEGUIDOS, 50);
+    void tresFallosSeguidosAvisanPeroElMonitorSigueIntentando() {
+        correr(EscenarioSimulador.TRES_FALLOS_SEGUIDOS, 6);
 
         assertEquals(List.of("SeccionalesCerradas", "SinInventario", "Inesperado", "Inesperado", "Inesperado"),
-                tipos());
-        assertEquals(MotivoDetencion.FALLOS_REPETIDOS, motivo);
+                tipos().subList(0, 5));
+        assertEquals(MotivoDetencion.SOLICITADO_POR_USUARIO, motivo, "no se detiene por los fallos");
     }
 
     @Test

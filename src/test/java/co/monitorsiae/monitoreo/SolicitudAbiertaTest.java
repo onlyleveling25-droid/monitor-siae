@@ -97,6 +97,11 @@ class SolicitudAbiertaTest {
         PortalSimulado portal = PortalSimulado.con(Escena.abiertasSinInventario(MEDELLIN));
         SeguimientoSolicitud seguimiento = new SeguimientoSolicitud(ModoInicio.SOLICITUD_EXISTENTE);
 
+        ResultadoCiclo primera = ciclo.ejecutar(cliente, portal, seguimiento);
+        assertInstanceOf(ResultadoCiclo.SolicitudNoVisible.class, primera, "la primera vez solo vuelve a buscar");
+        assertFalse(primera.detieneMonitoreo());
+        assertTrue(seguimiento.siguiendoSolicitud());
+
         ResultadoCiclo resultado = ciclo.ejecutar(cliente, portal, seguimiento);
 
         ResultadoCiclo.SolicitudNoEncontrada noEncontrada =
@@ -132,6 +137,7 @@ class SolicitudAbiertaTest {
         SeguimientoSolicitud seguimiento = new SeguimientoSolicitud();
         seguimiento.establecer(ModoInicio.SOLICITUD_EXISTENTE, " 1-01-45-202610-4336 ");
 
+        ciclo.ejecutar(cliente, portal, seguimiento);   // primera vez: se vuelve a buscar
         ResultadoCiclo resultado = ciclo.ejecutar(cliente, portal, seguimiento);
 
         assertTrue(assertInstanceOf(ResultadoCiclo.SolicitudNoEncontrada.class, resultado)

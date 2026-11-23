@@ -81,7 +81,7 @@ class MonitorClienteTest {
 
         assertEquals(MotivoDetencion.SOLICITUD_NO_ENCONTRADA, oyente.motivo);
         assertEquals(0, portal.formulariosAbiertos());
-        assertTrue(esperas.isEmpty());
+        assertEquals(List.of(INTERVALO), esperas, "se confirma en un segundo ciclo antes de detenerse");
     }
 
     @Test
@@ -95,14 +95,24 @@ class MonitorClienteTest {
     }
 
     @Test
-    void toleraFallasAisladasConEsperaCrecienteYSeDetieneSiSeRepiten() {
+    void conFallasSeguidasAvisaUnaVezYSigueIntentandoConEsperaCreciente() {
         PortalSimulado portal = PortalSimulado.con(Escena.conFalla(Escena.Falla.ERROR_SERVIDOR));
+        MonitorCliente[] monitor = new MonitorCliente[1];
+        monitor[0] = new MonitorCliente(cliente, portal, nuevoCiclo(), siempreAbierto(), INTERVALO, espera -> {
+            esperas.add(espera);
+            if (esperas.size() >= 7) {
+                monitor[0].detener();   // la persona lo detiene: por los fallos no se detiene solo
+            }
+        }, oyente);
 
-        monitor(portal, siempreAbierto()).run();
+        monitor[0].run();
 
-        assertEquals(MonitorCliente.FALLOS_TOLERADOS, portal.formulariosAbiertos());
-        assertEquals(List.of(INTERVALO.multipliedBy(2), INTERVALO.multipliedBy(3)), esperas);
-        assertEquals(MotivoDetencion.FALLOS_REPETIDOS, oyente.motivo);
+        assertEquals(7, portal.formulariosAbiertos(), "sigue intentando tras los fallos");
+        assertEquals(List.of(INTERVALO.multipliedBy(2), INTERVALO.multipliedBy(3), INTERVALO.multipliedBy(4),
+                INTERVALO.multipliedBy(5), INTERVALO.multipliedBy(6), INTERVALO.multipliedBy(6),
+                INTERVALO.multipliedBy(6)), esperas, "espera creciente con tope");
+        assertEquals(1, oyente.avisosDeFallos, "avisa una sola vez por racha");
+        assertEquals(MotivoDetencion.SOLICITADO_POR_USUARIO, oyente.motivo);
     }
 
     @Test
@@ -220,6 +230,13 @@ class MonitorClienteTest {
 
     private static final class OyenteDePrueba implements OyenteMonitoreo {
         final List<ResultadoCiclo> resultados = new ArrayList<>();
+        int avisosDeFallos;
+
+        @Override
+        public void fallosPersistentes(Cliente cliente, int fallos, String ultimo) {
+            avisosDeFallos++;
+        }
+
         int fueraDeHorario;
         int dentroDeHorario;
         MotivoDetencion motivo;

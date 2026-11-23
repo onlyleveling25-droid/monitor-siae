@@ -88,6 +88,27 @@ public final class OyenteBitacora implements OyenteMonitoreo {
     }
 
     @Override
+    public void fallosPersistentes(Cliente cliente, int fallos, String ultimo) {
+        anotar(cliente, TipoEvento.PORTAL_INESTABLE, fallos + " fallos seguidos de la página. El monitoreo sigue: "
+                + "recarga la página y espera más entre intentos. Último fallo: " + ultimo, "", "", null,
+                EventoOperativo.capturaEn(ultimo));
+    }
+
+    @Override
+    public void portalRecuperado(Cliente cliente, int fallos) {
+        ultimoPorCliente.remove(cliente.id());
+        anotar(cliente, TipoEvento.PORTAL_RECUPERADO, "El portal volvió a responder bien después de " + fallos
+                + " fallos seguidos; el monitoreo sigue normal.", "", "", null, "");
+    }
+
+    @Override
+    public void alFallarGravemente(Cliente cliente, RuntimeException error) {
+        String causa = error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage();
+        anotar(cliente, TipoEvento.RESPUESTA_INESPERADA, "Error que detuvo el monitoreo: "
+                + causa.replaceAll("\\s+", " ").strip(), "", "", null, EventoOperativo.capturaEn(causa));
+    }
+
+    @Override
     public void alDetenerse(Cliente cliente, MotivoDetencion motivo) {
         ultimoPorCliente.remove(cliente.id());
         Instant inicio = inicioPorCliente.remove(cliente.id());

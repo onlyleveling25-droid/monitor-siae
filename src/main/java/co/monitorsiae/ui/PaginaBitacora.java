@@ -324,8 +324,9 @@ final class PaginaBitacora extends VBox {
             case OPORTUNIDAD -> { clase = "status-alert"; icono = "bell"; color = "#C2410C"; }
             case ARMA_APARTADA -> { clase = "status-success"; icono = "check"; color = "#15803D"; }
             case INVENTARIO_SIN_INTERES -> { clase = "status-waiting"; icono = "info"; color = "#B45309"; }
+            case PORTAL_RECUPERADO -> { clase = "status-success"; icono = "check"; color = "#15803D"; }
             case APARTADO_FALLIDO, SESION_VENCIDA -> { clase = "status-error"; icono = "alert"; color = "#B91C1C"; }
-            case RESPUESTA_INESPERADA, PORTAL_SIN_RESPUESTA -> { clase = "status-waiting"; icono = "diagnostics"; color = "#B45309"; }
+            case RESPUESTA_INESPERADA, PORTAL_SIN_RESPUESTA, PORTAL_INESTABLE -> { clase = "status-waiting"; icono = "diagnostics"; color = "#B45309"; }
             case MONITOREO_INICIADO -> { clase = "status-running"; icono = "activity"; color = "#1D4ED8"; }
             default -> { clase = "status-ready"; icono = "info"; color = "#64748B"; }
         }

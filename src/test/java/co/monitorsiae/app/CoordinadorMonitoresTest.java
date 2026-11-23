@@ -120,6 +120,7 @@ class CoordinadorMonitoresTest {
         Cliente cliente = ClientesDePrueba.valido("Ana");
         Configuracion configuracion = Configuracion.porDefecto()
                 .conEntornoPortal(EntornoPortal.PORTAL_REAL)
+                .conVariacionEsperaPorcentaje(0)
                 .conClientes(List.of(cliente));
         List<String> llamadas = new CopyOnWriteArrayList<>();
         PortalDriver portal = new PortalDriver() {
@@ -159,9 +160,10 @@ class CoordinadorMonitoresTest {
             esperar(cambios, CoordinadorMonitores.Estado.SESION_ABIERTA);
 
             coordinador.iniciar(cliente, ModoInicio.SOLICITUD_EXISTENTE, "1-01-45-202610-4336");
-            esperarEstado(coordinador, cliente.id(), CoordinadorMonitores.Estado.DETENIDO);
+            // Se confirma en dos ciclos (el portal pudo estar lento): se detiene en el segundo.
+            esperarEstado(coordinador, cliente.id(), CoordinadorMonitores.Estado.DETENIDO, Duration.ofSeconds(15));
 
-            assertEquals(List.of("solicitud:1-01-45-202610-4336"), llamadas);
+            assertEquals(List.of("solicitud:1-01-45-202610-4336", "solicitud:1-01-45-202610-4336"), llamadas);
             assertTrue(coordinador.solicitudNoEncontrada(cliente.id()));
             assertTrue(coordinador.ultimoResultado(cliente.id()).contains("1-01-45-202610-4336"));
         } finally {
@@ -565,7 +567,13 @@ class CoordinadorMonitoresTest {
 
     private static void esperarEstado(CoordinadorMonitores coordinador, String clienteId,
                                       CoordinadorMonitores.Estado estado) throws InterruptedException {
-        long limite = System.nanoTime() + Duration.ofSeconds(2).toNanos();
+        esperarEstado(coordinador, clienteId, estado, Duration.ofSeconds(2));
+    }
+
+    private static void esperarEstado(CoordinadorMonitores coordinador, String clienteId,
+                                      CoordinadorMonitores.Estado estado, Duration espera)
+            throws InterruptedException {
+        long limite = System.nanoTime() + espera.toNanos();
         while (System.nanoTime() < limite) {
             if (coordinador.estado(clienteId) == estado) {
                 return;

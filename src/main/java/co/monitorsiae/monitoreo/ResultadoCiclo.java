@@ -73,6 +73,21 @@ public sealed interface ResultadoCiclo {
     }
 
     /**
+     * La solicitud no aparecio en "Estado de tramite" esta vez. No se detiene todavia: el portal pudo
+     * estar lento. El siguiente ciclo recarga la pagina y, si tampoco aparece, se detiene.
+     */
+    record SolicitudNoVisible(String numero) implements ResultadoCiclo {
+        public SolicitudNoVisible {
+            numero = numero == null ? "" : numero.strip();
+        }
+
+        public String descripcion() {
+            return (numero.isEmpty() ? "La solicitud" : "La solicitud " + numero)
+                    + " no apareció en Estado de trámite; se vuelve a buscar recargando la página.";
+        }
+    }
+
+    /**
      * La solicitud ya esta abierta en "Estado de tramite" y el portal aun no tiene inventario.
      *
      * @param numero numero de la solicitud vigilada; vacio si no se conoce

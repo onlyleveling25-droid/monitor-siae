@@ -60,6 +60,13 @@ public interface PortalDriver extends AutoCloseable {
     }
 
     /**
+     * Pide que el siguiente ciclo cargue de nuevo la página del módulo donde esté (paso 1 o Estado de
+     * trámite) antes de seguir, por ejemplo porque algo no apareció como se esperaba.
+     */
+    default void recargarEnElSiguienteCiclo() {
+    }
+
+    /**
      * Número de la solicitud que abrió la última llamada a {@link #abrirSolicitudExistente}, tal como
      * lo muestra el portal; vacío si no se conoce. Sirve para seguir siempre la misma solicitud.
      */

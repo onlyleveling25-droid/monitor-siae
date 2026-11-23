@@ -12,6 +12,7 @@ import co.monitorsiae.portal.PortalException;
 import co.monitorsiae.portal.PortalNoRespondeException;
 import co.monitorsiae.portal.ResultadoGuardar;
 import co.monitorsiae.portal.ResultadoSolicitud;
+import co.monitorsiae.portal.SesionPortalCerradaException;
 import co.monitorsiae.portal.SesionVencidaException;
 
 import java.util.ArrayList;
@@ -55,6 +56,24 @@ public final class CicloMonitoreo {
             return new ResultadoCiclo.PortalNoResponde(e.getMessage());
         } catch (PortalException e) {
             return new ResultadoCiclo.Inesperado(e.getMessage());
+        } catch (SesionPortalCerradaException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            // Cualquier otro fallo de la página cuenta como un fallo pasajero, no detiene el monitor. Solo
+            // se propaga si el navegador ya no está: eso lo atiende quien vigila la sesión.
+            if (!portalSigueAbierto(portal)) {
+                throw e;
+            }
+            portal.recargarEnElSiguienteCiclo();
+            return new ResultadoCiclo.Inesperado("Falló un paso en la página: " + e.getMessage());
+        }
+    }
+
+    private static boolean portalSigueAbierto(PortalDriver portal) {
+        try {
+            return portal.estaAbierto();
+        } catch (RuntimeException e) {
+            return false;
         }
     }
 
@@ -85,7 +104,9 @@ public final class CicloMonitoreo {
                 probadasSinInventario.add(seccional);
                 continue;
             }
-            // Con inventario, GUARDAR ya dejo la solicitud abierta en el portal.
+            // GUARDAR avanzó: la solicitud ya quedó abierta en el portal. Se anota antes de leer, para que
+            // si la lectura falla el siguiente ciclo la vigile en Estado de trámite y no cree otra.
+            seguimiento.seguirSolicitud(seccional);
             return resolverInventario(cliente, portal, seccional, portal.leerInventario(), seguimiento);
         }
         return new ResultadoCiclo.SinInventario(String.join(" | ", probadasSinInventario));
@@ -105,6 +126,11 @@ public final class CicloMonitoreo {
         }
         return switch (encontrada) {
             case SIN_SOLICITUD -> {
+                if (!seguimiento.solicitudNoVista()) {
+                    // Primera vez: el portal pudo estar lento. Se recarga y se busca de nuevo en el siguiente ciclo.
+                    portal.recargarEnElSiguienteCiclo();
+                    yield new ResultadoCiclo.SolicitudNoVisible(numero);
+                }
                 ResultadoCiclo.SolicitudNoEncontrada noEncontrada = solicitudNoEncontrada(cliente, seguimiento);
                 seguimiento.volverAlPaso1();
                 yield noEncontrada;
@@ -170,6 +196,12 @@ public final class CicloMonitoreo {
 
     private ResultadoCiclo resolverInventario(Cliente cliente, PortalDriver portal, String seccional,
                                               List<ArmaInventario> inventario, SeguimientoSolicitud seguimiento) {
+        if (inventario.isEmpty()) {
+            // El listado llegó vacío (por ejemplo, se llevaron todo entre abrirlo y leerlo): eso es "sin
+            // inventario", nunca "sin arma de interés". No suena ni detiene; la solicitud ya quedó abierta.
+            seguimiento.olvidarInventarioVisto();
+            return new ResultadoCiclo.SinInventarioEnSolicitud(seguimiento.numeroSolicitud());
+        }
         Optional<EleccionArma> eleccion = selectorArma.elegir(inventario, cliente.seleccion());
         if (eleccion.isEmpty()) {
             // La solicitud sigue abierta en el portal: repetir el paso 1 no sirve, se vigila desde alli.

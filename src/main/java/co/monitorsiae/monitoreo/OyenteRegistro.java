@@ -35,6 +35,22 @@ public final class OyenteRegistro implements OyenteMonitoreo {
     }
 
     @Override
+    public void fallosPersistentes(Cliente cliente, int fallos, String ultimo) {
+        REGISTRO.warn("[{}] {} fallos seguidos; se sigue intentando con recarga y esperas más largas. Último: {}",
+                cliente.nombre(), fallos, ultimo);
+    }
+
+    @Override
+    public void portalRecuperado(Cliente cliente, int fallos) {
+        REGISTRO.info("[{}] El portal se recuperó tras {} fallos seguidos.", cliente.nombre(), fallos);
+    }
+
+    @Override
+    public void alFallarGravemente(Cliente cliente, RuntimeException error) {
+        REGISTRO.error("[{}] Error que detuvo el monitoreo.", cliente.nombre(), error);
+    }
+
+    @Override
     public void alDetenerse(Cliente cliente, MotivoDetencion motivo) {
         String detalle = switch (motivo) {
             case SOLICITADO_POR_USUARIO -> "por solicitud del usuario";
